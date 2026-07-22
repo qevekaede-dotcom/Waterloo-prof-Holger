@@ -121,3 +121,61 @@ context.
 - 2x2x1 supercell (12.7 x 12.7 x 15.6 A): in-plane fc range is limited by
   the 2x supercell; a supercell-size check is a known follow-up, not part
   of the first pass.
+
+## 2026-07-21 — Session 2: Windows workstation env + DRAC SLURM port
+
+**Context.** The professor authorized a Digital Research Alliance (DRAC)
+account under the group's allocation, so the plan changed from "try the
+campaign on the Windows workstation" to: workstation does preparation and
+postprocessing, DRAC runs the 168 force calculations. The local environment
+was still set up in full so stage-2 postprocessing (and prep for the next
+materials) can run here.
+
+**Windows workstation environment (WSL2 Ubuntu 24.04) — done.**
+- Hardware: AMD Ryzen 7 9800X3D (8c/16t), 32 GB RAM; WSL exposes 12 logical
+  CPUs / 19 GB.
+- conda env `thermo`: conda-forge QE 7.5 (pw.x + bundled OpenMPI 5.0.10),
+  pip phonopy 4.4.0 + phono3py 4.4.0 + h5py. Both 4.4.0 — one minor version
+  newer than the Mac's 4.3.x; the `phono3py-init` split interface is
+  unchanged.
+- SSSP 1.3.0 PBE precision downloaded from the Materials Cloud archive
+  record (60 MB tarball; direct URL now in DRAC_SETUP.md). All 4 files from
+  `qe/pseudo/manifest.md` verified present; `SSSP_PBE_PRECISION` exported in
+  `~/.bashrc`.
+- Repo cloned to the WSL home (`~/Waterloo-prof-Holger`), per
+  WINDOWS_SETUP.md.
+- Failed attempt, recorded: `mpirun -np 8` was refused — the conda OpenMPI
+  counts *physical* cores and WSL exposes only 6 of them. Local QE runs here
+  use `QE_NP=6` (or add `--use-hwthread-cpus`).
+- Smoke tests (plumbing checks, deliberately not physics): (1)
+  `prepare_inputs.py --only 00002` in a scratch copy picked the pseudo dir
+  from the env var; (2) the 24-atom unitcell at intentionally low 40/320 Ry,
+  Gamma-only, conv_thr 1e-4 ran healthy on 6 ranks in 31 s wall (QE 7.5);
+  (3) `phono3py.load(symprec=1e-3)` on the repo dataset: 2x2x1 matrix, 24
+  first_atoms + 144 included pairs = 168 force calculations, spacegroup
+  P3_121 (152) — matches the Mac-generated dataset exactly.
+
+**DRAC SLURM port — new `scripts/slurm/` (untested on a real cluster until
+account details arrive; flagged as such).**
+- `run_campaign.sh` gained a `STOP_AFTER=stage0` hook — the only edit, no
+  behavior change when the variable is unset.
+- `stage0_checks.sbatch`: reuses run_campaign.sh unchanged for the reference
+  benchmark, k-mesh/cutoff force checks, pristine check, and input
+  generation (1 node / 32 ranks / 10 h cap).
+- `stage1_array.sbatch`: 168-task job array (throttle %32), `srun pw.x`,
+  same three health-check strings and the nk=1 retry as the laptop driver,
+  per-run `timing.csv`.
+- `stage2_post.sbatch`: gates on all 168 healthy (the FAILED.list rule,
+  re-expressed), assembles `campaign_log_slurm.csv`, runs postprocess.py in
+  a venv (16 threads / 64 GB / 12 h caps).
+- `submit_all.sh` chains the three with afterok dependencies;
+  `cluster.env` holds ACCOUNT / module version / paths.
+- `DRAC_SETUP.md` (repo root): CCDB key upload -> login -> one-time cluster
+  setup -> submit -> monitor -> failure recovery -> rsync results home.
+
+**Pending (user actions, not compute).** Confirm CCDB account + Duo MFA;
+paste the WSL public key (`~/.ssh/id_ed25519_drac.pub`) into CCDB; get the
+allocation string (def-<professor>) and cluster choice from Roy/the
+professor; fill User/HostName in the WSL `~/.ssh/config`. First login is
+interactive (password + Duo), then keys take over and the campaign is
+`bash scripts/slurm/submit_all.sh` away.

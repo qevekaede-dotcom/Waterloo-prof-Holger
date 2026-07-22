@@ -151,6 +151,14 @@ if healthy "$ROOT/checks/pristine/scf.out"; then
     awk -v m="$maxres" 'BEGIN { if (m+0 > 1e-4) print "[stage0.5] WARNING: residual forces exceed 1e-4 Ry/bohr — relaxation may be too loose for phonons; flag in the writeup" }'
 fi
 
+# Cluster mode: on SLURM the sequential stage-1 loop below is replaced by a
+# job array (scripts/slurm/stage1_array.sbatch), so the stage-0 job sets
+# STOP_AFTER=stage0 and exits here once inputs and checks are in place.
+if [ "${STOP_AFTER:-}" = "stage0" ]; then
+    echo "[stage0 $(date '+%F %T')] STOP_AFTER=stage0 — checks done, inputs ready; stage 1 runs as the job array"
+    exit 0
+fi
+
 # ---------- Stage 1: force campaign ----------
 echo "[stage1 $(date '+%F %T')] force campaign starting"
 : > "$FAILED.tmp"

@@ -51,22 +51,27 @@ story so far, including the failed attempts).
   (see that folder's README.md): `run_campaign.sh` = resumable driver
   (stage 0 k-mesh/cutoff force checks -> stage 1 all 168 SCFs -> stage 2
   FORCES_FC3 + q-mesh ladder + kappa_L 300-900 K into `../results/`).
-- **Windows workstation attempt**: the user wants to try running the
-  campaign on a Windows workstation first — full instructions in
-  `WINDOWS_SETUP.md` (WSL2 + conda-forge QE + SSSP download; driver now
-  runs its own benchmark on a fresh machine). Judge feasibility from the
-  benchmark wall time (x168) before committing; cluster access remains
-  the fallback.
-- **CAMPAIGN PAUSED on the laptop — do not launch locally.** The disp-00001 benchmark
-  showed >= 2 h per force calculation on this laptop (1-2 weeks per
-  material); the user decided local running is not viable. An email asking
-  Roy for computing resources (group machine / Digital Research Alliance
-  allocation) is in the Gmail drafts folder — user fills in Roy's address
-  and sends. Next compute step happens on whatever machine Roy provides:
-  install phonopy/phono3py there, port `run_campaign.sh` to the scheduler
-  (SLURM job arrays), copy the `phono3py/` workspace over, and rerun the
-  stage-0 checks on that machine before the campaign. The local driver
-  remains valid documentation of the intended pipeline.
+- **Windows workstation: local env COMPLETE (2026-07-21).** WSL2 Ubuntu
+  24.04 on the Ryzen 9800X3D box; conda env `thermo` (QE 7.5 + OpenMPI,
+  phonopy/phono3py 4.4.0, h5py), SSSP 1.3.0 precision verified against the
+  manifest, repo cloned at `~/Waterloo-prof-Holger`. Local QE runs need
+  `QE_NP=6` (the conda OpenMPI counts the 6 physical cores WSL exposes).
+  Smoke-tested end to end; WORKLOG Session 2 has the details. The campaign
+  itself does NOT run here — local = prep, postprocessing, writeup.
+- **CAMPAIGN runs on DRAC — do not launch locally.** The disp-00001
+  benchmark showed >= 2 h per force calculation on the laptop (1-2 weeks per
+  material), and the professor has now authorized a Digital Research
+  Alliance account under the group allocation, which supersedes the
+  resources-email question. The SLURM port is DONE: `scripts/slurm/`
+  (stage0 sbatch reusing run_campaign.sh via its new STOP_AFTER hook ->
+  168-task array -> stage2 gate + postprocess, chained by `submit_all.sh`)
+  plus a student-oriented walkthrough in `DRAC_SETUP.md`. An SSH key pair
+  for the cluster exists in WSL (`~/.ssh/id_ed25519_drac`). Blocked on user
+  actions only: CCDB key upload + MFA, DRAC username, allocation string
+  (def-<professor>), cluster choice; then on the cluster
+  `bash scripts/slurm/submit_all.sh`. Stage-0 convergence checks rerun on
+  the cluster before the campaign (per-machine rule, unchanged). The local
+  driver remains valid documentation of the intended pipeline.
 - After kappa_L lands: package the fourth step result, update
   `learning/08_phonons_and_kappa_L.md` [pending] sections, run the rigor
   review, THEN scale to SrZrS3 / Rb2Cu2SnS4 (each with its own convergence
