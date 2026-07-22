@@ -14,11 +14,16 @@ convergence check in the WORKLOG).
 """
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent.parent  # phono3py/
-PSEUDO_DIR = "/Users/kaede/scientific-tools/pseudopotentials/SSSP/1.3.0/PBE/precision"
+# Override on other machines: export SSSP_PBE_PRECISION=/path/to/SSSP/precision
+PSEUDO_DIR = os.environ.get(
+    "SSSP_PBE_PRECISION",
+    "/Users/kaede/scientific-tools/pseudopotentials/SSSP/1.3.0/PBE/precision",
+)
 
 HEADER = """&CONTROL
   calculation = 'scf',

@@ -51,7 +51,13 @@ story so far, including the failed attempts).
   (see that folder's README.md): `run_campaign.sh` = resumable driver
   (stage 0 k-mesh/cutoff force checks -> stage 1 all 168 SCFs -> stage 2
   FORCES_FC3 + q-mesh ladder + kappa_L 300-900 K into `../results/`).
-- **CAMPAIGN PAUSED — do not launch locally.** The disp-00001 benchmark
+- **Windows workstation attempt**: the user wants to try running the
+  campaign on a Windows workstation first — full instructions in
+  `WINDOWS_SETUP.md` (WSL2 + conda-forge QE + SSSP download; driver now
+  runs its own benchmark on a fresh machine). Judge feasibility from the
+  benchmark wall time (x168) before committing; cluster access remains
+  the fallback.
+- **CAMPAIGN PAUSED on the laptop — do not launch locally.** The disp-00001 benchmark
   showed >= 2 h per force calculation on this laptop (1-2 weeks per
   material); the user decided local running is not viable. An email asking
   Roy for computing resources (group machine / Digital Research Alliance

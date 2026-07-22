@@ -100,6 +100,18 @@ generator, resumable driver, postprocessing. Adapting the driver to a
 SLURM cluster (job arrays instead of the sequential loop) is a known,
 small task once we know the machine. No calculations are running.
 
+**Step 7 — Repo published; pipeline made portable for a Windows
+workstation.** The workspace is now a git repo (public GitHub:
+`qevekaede-dotcom/Waterloo-prof-Holger`; private/third-party background
+material excluded and kept local-only). To try the campaign on a Windows
+workstation: hardcoded macOS paths replaced (`SSSP_PBE_PRECISION` env var
+for pseudos; `QE_ENV_SCRIPT` optional env hook in the driver), stage 0 now
+runs the disp-00001 reference benchmark itself on a fresh machine instead
+of erroring, and `WINDOWS_SETUP.md` documents the WSL2 route end to end
+(conda-forge QE, SSSP download, power settings, feasibility check after
+the benchmark). `RESEARCH_BACKGROUND.md` carries the public-safe project
+context.
+
 **Approximations / limitations declared up front.**
 - fc3 pair cutoff 4.0 A (above); fc2 limited to the 2x2x1 supercell range.
 - No non-analytic correction yet (no Born charges / dielectric tensor);

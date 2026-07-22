@@ -14,7 +14,13 @@
 # Requires: thermo-bt2 env (sourced below). QE_NP/QE_NK overridable.
 
 set -u
-source "$HOME/scientific-tools/env/thermo-bt2.sh"
+# macOS laptop: thermo-bt2 env script. Other machines (e.g. WSL on the
+# Windows workstation): activate your env before running, or point
+# QE_ENV_SCRIPT at an equivalent activation script. pw.x, phono3py-init and
+# python must be on PATH; SSSP_PBE_PRECISION must point at the pseudo dir.
+QE_ENV_SCRIPT="${QE_ENV_SCRIPT:-$HOME/scientific-tools/env/thermo-bt2.sh}"
+[ -f "$QE_ENV_SCRIPT" ] && source "$QE_ENV_SCRIPT"
+command -v pw.x >/dev/null || { echo "pw.x not on PATH — activate your QE env or set QE_ENV_SCRIPT"; exit 1; }
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -51,7 +57,16 @@ BENCH="$ROOT/fc_calcs/disp-00001"
 if [ ! -f "$DECISIONS" ]; then
     echo "[stage0 $(date '+%F %T')] force-convergence checks"
     mkdir -p "$ROOT/checks/k222" "$ROOT/checks/lowcut"
-    healthy "$BENCH/scf.out" || { echo "[stage0] ERROR: benchmark disp-00001 (90/720, 3x3x3) missing or unhealthy"; exit 1; }
+    # Reference benchmark: disp-00001 at 90/720 Ry, 3x3x3. Run it here if a
+    # healthy output does not exist yet (fresh machine, or crashed attempt).
+    if ! healthy "$BENCH/scf.out"; then
+        echo "[stage0 $(date '+%F %T')] running reference benchmark disp-00001 (90/720, 3x3x3)"
+        python "$ROOT/scripts/prepare_inputs.py" --kmesh 3 3 3 \
+            --ecutwfc 90 --ecutrho 720 --only 00001 --force
+        SECONDS=0
+        run_pw "$BENCH" "$QE_NK" || { echo "[stage0] benchmark run failed"; exit 1; }
+        echo "benchmark_00001,$SECONDS,3 3 3,90/720,$QE_NK,ok" >> "$LOG"
+    fi
 
     # (a) k-mesh check: 2x2x2 at 90/720
     if ! healthy "$ROOT/checks/k222/scf.out"; then
