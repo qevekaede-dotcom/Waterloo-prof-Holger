@@ -1,0 +1,2 @@
+vtk not found. The 'fermisurface' command will be disabled
+you can install pyfftw to get better FFT performance

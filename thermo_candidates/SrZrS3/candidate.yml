@@ -1,0 +1,17 @@
+composition: SrZrS3
+priority: 2
+renew_rank: "16"
+predicted_zT: 1.894
+band_gap_eV: 0.5512
+materials_project_id: mp-558760
+icsd_ids:
+  - icsd-154103
+experimentally_observed: true
+structure_download_date: 2026-06-30
+status: first_priority
+notes:
+  - No Hg, Tl, U, Pb, As, Cd, or Be.
+  - Chemically simple ternary sulfide.
+  - Good second target because the predicted zT loss is negligible.
+  - Do not substitute mp-5193; it is a different Pnma polymorph with a
+    different Materials Project band gap.

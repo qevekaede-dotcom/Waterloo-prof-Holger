@@ -1,0 +1,18 @@
+# macOS noise
+.DS_Store
+
+# QE scratch / restart data (regenerable, ~34 GB): wavefunctions, charge
+# density, mixing files. Raw *logs* and inputs ARE tracked; only outdir
+# scratch is excluded.
+**/tmp/
+*.wfc*
+*.save/
+
+# Unrelated coursework kept in the same parent folder (not part of the
+# Waterloo research project)
+法学方法论期末论文工作流/
+法学方法论期末论文工作流.zip
+
+# Third-party / private material: Roy's emails, Dr. Kleinke's slides,
+# and the group's unpublished ML screening dataset. Kept local only.
+background info/

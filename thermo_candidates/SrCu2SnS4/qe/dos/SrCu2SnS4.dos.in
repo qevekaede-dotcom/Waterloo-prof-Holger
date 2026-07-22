@@ -1,0 +1,10 @@
+&DOS
+  prefix = 'SrCu2SnS4'
+  outdir = './tmp/final'
+  fildos = './dos/SrCu2SnS4.dos'
+  ngauss = 0
+  degauss = 0.005
+  Emin = -30.0
+  Emax = 15.0
+  DeltaE = 0.02
+/

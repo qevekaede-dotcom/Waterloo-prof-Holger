@@ -1,0 +1,17 @@
+composition: SrCu2SnS4
+priority: 1
+renew_rank: "10/11"
+predicted_zT: 1.895
+band_gap_eV: 0.4032
+materials_project_id: mp-16988
+icsd_ids:
+  - icsd-356
+experimentally_observed: true
+structure_download_date: 2026-06-30
+status: first_priority
+notes:
+  - No Hg, Tl, U, Pb, As, Cd, or Be.
+  - No rare-earth f-electron element.
+  - Recommended as the cleanest first QE and BoltzTraP2 target.
+  - mp-17322 is the experimentally observed opposite-handed counterpart and
+    has the same reported band gap; mp-16988 is used as the primary structure.

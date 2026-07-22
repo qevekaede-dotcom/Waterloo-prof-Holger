@@ -1,0 +1,33 @@
+&CONTROL
+  calculation = 'scf'
+  prefix = 'SrZrS3'
+  outdir = '../tmp'
+  pseudo_dir = '$QE_PSEUDO_SSSP_PBE_PRECISION'
+  verbosity = 'high'
+/
+&SYSTEM
+  ibrav = 0
+  nat = TODO_FROM_CIF
+  ntyp = 3
+  ecutwfc = 40
+  ecutrho = 320
+  occupations = 'fixed'
+/
+&ELECTRONS
+  conv_thr = 1.0d-8
+  mixing_beta = 0.3
+/
+ATOMIC_SPECIES
+  Sr 87.62 Sr_pbe_v1.uspp.F.UPF
+  Zr 91.224 Zr_pbe_v1.uspp.F.UPF
+  S 32.065 s_pbe_v1.4.uspp.F.UPF
+
+CELL_PARAMETERS angstrom
+  TODO_FROM_RELAXED_STRUCTURE
+
+ATOMIC_POSITIONS crystal
+  TODO_FROM_RELAXED_STRUCTURE
+
+K_POINTS automatic
+  6 6 6 0 0 0
+

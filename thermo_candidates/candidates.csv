@@ -1,0 +1,4 @@
+priority,composition,renew_rank,predicted_zT,band_gap_eV,first_pass_reason
+1,SrCu2SnS4,10/11,1.895,0.4032,Cleanest practical first target
+2,SrZrS3,16,1.894,0.5512,Simple chemistry and no flagged elements
+3,Rb2Cu2SnS4,1,1.896,0.8641,Highest zT in the renewed list

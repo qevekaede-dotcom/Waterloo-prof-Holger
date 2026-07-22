@@ -1,0 +1,17 @@
+quantity,unit,source_tag,SrCu2SnS4,SrZrS3,Rb2Cu2SnS4
+materials_project_id,-,database,mp-16988,mp-558760,mp-18006
+relaxed_space_group,-,calculated,P3_121 (152),Pnma (62),Ibam (72)
+converged_ecutwfc_ecutrho,Ry,calculated,90/720,50/400,90/720
+relax_k_mesh,-,calculated,4x4x2,6x3x2,2x4x4
+final_scf_k_mesh,-,calculated,5x5x3,8x4x2,3x5x5
+dense_nscf_k_mesh_irreducible,-,calculated,12x12x6 (100),20x10x6 (264),8x14x14 (788)
+bands_total_occupied,-,calculated,140/105,108/80,105/78
+relaxation_volume_drift,percent,calculated,0.48,0.63,0.93
+qe_pbe_gap,eV,calculated,0.3445,0.6096,0.7811
+listed_gap,eV,database,0.4032,0.5512,0.8641
+predicted_zT,dimensionless,database,1.895,1.894,1.896
+favored_carrier_by_PF_over_tau,-,calculated,p at every sampled T,n at 300-400 K then p at >=500 K,p at every sampled T
+favored_carrier_by_zT_e,-,calculated,p (n edges ahead at 400-500 K),n at every sampled T,p at every sampled T
+largest_sampled_PF_over_tau,W m^-1 K^-2 s^-1,calculated,2.144e11 (900 K p 1e21),2.981e11 (900 K p 1e21),1.981e11 (700 K p 1e21)
+highest_sampled_zT_e,dimensionless,calculated,1.898 (800 K p 5e20),1.625 (700 K n 1e20),6.419 (900 K p 1e21)
+seebeck_at_300K_best_PF_point,uV/K,calculated,+157.2 (p 1e20),-134.4 (n 5e19),+199.7 (p 5e20)

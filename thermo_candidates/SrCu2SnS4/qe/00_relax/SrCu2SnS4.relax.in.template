@@ -1,0 +1,43 @@
+&CONTROL
+  calculation = 'vc-relax'
+  prefix = 'SrCu2SnS4'
+  outdir = '../tmp'
+  pseudo_dir = '$QE_PSEUDO_SSSP_PBE_PRECISION'
+  verbosity = 'high'
+  tprnfor = .true.
+  tstress = .true.
+/
+&SYSTEM
+  ibrav = 0
+  nat = TODO_FROM_CIF
+  ntyp = 4
+  ecutwfc = 90
+  ecutrho = 720
+  occupations = 'fixed'
+/
+&ELECTRONS
+  conv_thr = 1.0d-8
+  mixing_beta = 0.3
+/
+&IONS
+  ion_dynamics = 'bfgs'
+/
+&CELL
+  cell_dynamics = 'bfgs'
+  press_conv_thr = 0.5
+/
+ATOMIC_SPECIES
+  Sr 87.62 Sr_pbe_v1.uspp.F.UPF
+  Cu 63.546 Cu.paw.z_11.ld1.psl.v1.0.0-low.upf
+  Sn 118.710 Sn_pbe_v1.uspp.F.UPF
+  S 32.065 s_pbe_v1.4.uspp.F.UPF
+
+CELL_PARAMETERS angstrom
+  TODO_FROM_CIF
+
+ATOMIC_POSITIONS crystal
+  TODO_FROM_CIF
+
+K_POINTS automatic
+  4 4 4 0 0 0
+

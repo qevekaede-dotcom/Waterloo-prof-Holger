@@ -1,0 +1,57 @@
+&CONTROL
+  calculation = 'scf',
+  disk_io = 'low',
+  outdir = './tmp/ecut_30',
+  prefix = 'SrZrS3_ecut_30',
+  pseudo_dir = '/Users/kaede/scientific-tools/pseudopotentials/SSSP/1.3.0/PBE/precision',
+  tstress = .TRUE.,
+  verbosity = 'high',
+/
+&SYSTEM
+  ecutrho = 240,
+  ecutwfc = 30,
+  occupations = 'fixed',
+  ibrav = 0,
+  nat = 20,
+  ntyp = 3,
+/
+&ELECTRONS
+  conv_thr = 1d-08,
+  electron_maxstep = 200,
+  mixing_beta = 0.3,
+/
+&IONS
+/
+&CELL
+/
+ATOMIC_SPECIES
+  S  32.0650 s_pbe_v1.4.uspp.F.UPF
+  Sr  87.6200 Sr_pbe_v1.uspp.F.UPF
+  Zr  91.2240 Zr_pbe_v1.uspp.F.UPF
+ATOMIC_POSITIONS crystal
+  Sr 0.250000 0.066318 0.820663
+  Sr 0.750000 0.933682 0.179337
+  Sr 0.750000 0.433682 0.320663
+  Sr 0.250000 0.566318 0.679337
+  Zr 0.250000 0.327702 0.057049
+  Zr 0.750000 0.672298 0.942951
+  Zr 0.750000 0.172298 0.557049
+  Zr 0.250000 0.827702 0.442951
+  S 0.250000 0.206653 0.215733
+  S 0.750000 0.793347 0.784267
+  S 0.750000 0.293347 0.715733
+  S 0.250000 0.706653 0.284267
+  S 0.250000 0.336348 0.486280
+  S 0.750000 0.663652 0.513720
+  S 0.750000 0.163652 0.986280
+  S 0.250000 0.836348 0.013720
+  S 0.250000 0.484748 0.894185
+  S 0.750000 0.515252 0.105815
+  S 0.750000 0.015252 0.394185
+  S 0.250000 0.984748 0.605815
+K_POINTS automatic
+  4 2 1 0 0 0
+CELL_PARAMETERS angstrom
+  3.840200 0.000000 0.000000
+  -0.000000 8.586823 0.000000
+  0.000000 0.000000 13.996469

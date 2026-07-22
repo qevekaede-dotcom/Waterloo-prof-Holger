@@ -1,0 +1,16 @@
+composition: Rb2Cu2SnS4
+priority: 3
+renew_rank: "1"
+predicted_zT: 1.896
+band_gap_eV: 0.8641
+materials_project_id: mp-18006
+icsd_ids:
+  - icsd-74020
+experimentally_observed: true
+structure_download_date: 2026-06-30
+status: first_priority
+notes:
+  - Highest predicted zT in Materials renew.csv.
+  - No Hg, Tl, U, Pb, As, Cd, or Be.
+  - Rb chemistry may be slightly less convenient experimentally than Sr systems.
+  - mp-18006 is the Materials Project entry with the selected stoichiometry.

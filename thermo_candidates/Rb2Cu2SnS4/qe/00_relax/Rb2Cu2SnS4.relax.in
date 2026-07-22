@@ -1,0 +1,66 @@
+&CONTROL
+  calculation = 'vc-relax',
+  disk_io = 'medium',
+  etot_conv_thr = 1d-05,
+  forc_conv_thr = 0.001,
+  nstep = 100,
+  outdir = './tmp/relax',
+  prefix = 'Rb2Cu2SnS4_relax',
+  pseudo_dir = '/Users/kaede/scientific-tools/pseudopotentials/SSSP/1.3.0/PBE/precision',
+  restart_mode = 'from_scratch',
+  tprnfor = .TRUE.,
+  tstress = .TRUE.,
+  verbosity = 'high',
+/
+&SYSTEM
+  ecutrho = 720,
+  ecutwfc = 90,
+  occupations = 'fixed',
+  ibrav = 0,
+  nat = 18,
+  ntyp = 4,
+/
+&ELECTRONS
+  conv_thr = 1d-08,
+  diagonalization = 'david',
+  electron_maxstep = 200,
+  mixing_beta = 0.3,
+/
+&IONS
+  ion_dynamics = 'bfgs',
+/
+&CELL
+  cell_dofree = 'all',
+  cell_dynamics = 'bfgs',
+  press_conv_thr = 0.5,
+/
+ATOMIC_SPECIES
+  Cu  63.5460 Cu.paw.z_11.ld1.psl.v1.0.0-low.upf
+  Rb  85.4678 Rb_ONCV_PBE-1.0.oncvpsp.upf
+  S  32.0650 s_pbe_v1.4.uspp.F.UPF
+  Sn  118.7100 Sn_pbe_v1.uspp.F.UPF
+ATOMIC_POSITIONS crystal
+  Rb 0.124333 0.728353 0.852686
+  Rb 0.875667 0.271647 0.147314
+  Rb 0.375667 0.228353 0.604020
+  Rb 0.624333 0.771647 0.395980
+  Cu 0.024540 0.750000 0.274540
+  Cu 0.975460 0.250000 0.725460
+  Cu 0.475460 0.750000 0.725460
+  Cu 0.524540 0.250000 0.274540
+  Sn 0.250000 0.250000 0.000000
+  Sn 0.750000 0.750000 0.000000
+  S 0.016637 0.919197 0.638190
+  S 0.983363 0.080803 0.361810
+  S 0.281007 0.378447 0.361810
+  S 0.718993 0.621553 0.638190
+  S 0.483363 0.121553 0.902560
+  S 0.516637 0.878447 0.097440
+  S 0.218993 0.580803 0.097440
+  S 0.781007 0.419197 0.902560
+K_POINTS automatic
+  2 4 4 0 0 0
+CELL_PARAMETERS angstrom
+  9.229406 0.000000 -2.210082
+  -1.248336 5.096581 -7.907776
+  0.000000 0.000000 9.490332

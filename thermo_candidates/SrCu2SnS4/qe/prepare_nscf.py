@@ -1,0 +1,65 @@
+#!/usr/bin/env python3
+"""Prepare the dense NSCF input used by BoltzTraP2."""
+
+from pathlib import Path
+import os
+
+from pymatgen.core import Structure
+from pymatgen.io.pwscf import PWInput
+
+
+QE_DIR = Path(__file__).resolve().parent
+CANDIDATE = QE_DIR.parent
+CIF = CANDIDATE / "structures" / "SrCu2SnS4.relaxed.cif"
+OUTPUT = QE_DIR / "02_nscf" / "SrCu2SnS4.nscf.in"
+PSEUDOS = {
+    "Sr": "Sr_pbe_v1.uspp.F.UPF",
+    "Cu": "Cu.paw.z_11.ld1.psl.v1.0.0-low.upf",
+    "Sn": "Sn_pbe_v1.uspp.F.UPF",
+    "S": "s_pbe_v1.4.uspp.F.UPF",
+}
+
+
+def main() -> None:
+    structure = Structure.from_file(CIF)
+    pseudo_dir = os.environ.get(
+        "QE_PSEUDO_SSSP_PBE_PRECISION",
+        str(
+            Path.home()
+            / "scientific-tools/pseudopotentials/SSSP/1.3.0/PBE/precision"
+        ),
+    )
+    pw = PWInput(
+        structure,
+        pseudo=PSEUDOS,
+        control={
+            "calculation": "nscf",
+            "prefix": "SrCu2SnS4",
+            "outdir": "./tmp/final",
+            "pseudo_dir": pseudo_dir,
+            "verbosity": "high",
+            "disk_io": "nowf",
+        },
+        system={
+            "ecutwfc": 90,
+            "ecutrho": 720,
+            "occupations": "fixed",
+            "nbnd": 140,
+        },
+        electrons={
+            "conv_thr": 1e-8,
+            "diagonalization": "david",
+            "diago_full_acc": True,
+            "startingpot": "file",
+        },
+        kpoints_mode="automatic",
+        kpoints_grid=(12, 12, 6),
+        kpoints_shift=(0, 0, 0),
+    )
+    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
+    pw.write_file(OUTPUT)
+    print(f"Prepared {OUTPUT.relative_to(QE_DIR)}")
+
+
+if __name__ == "__main__":
+    main()

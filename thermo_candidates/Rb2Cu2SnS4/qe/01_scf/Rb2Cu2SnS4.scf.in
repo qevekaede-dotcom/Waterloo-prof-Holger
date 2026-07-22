@@ -1,0 +1,57 @@
+&CONTROL
+  calculation = 'scf',
+  disk_io = 'medium',
+  outdir = './tmp/final',
+  prefix = 'Rb2Cu2SnS4',
+  pseudo_dir = '/Users/kaede/scientific-tools/pseudopotentials/SSSP/1.3.0/PBE/precision',
+  restart_mode = 'from_scratch',
+  verbosity = 'high',
+/
+&SYSTEM
+  ecutrho = 720,
+  ecutwfc = 90,
+  occupations = 'fixed',
+  ibrav = 0,
+  nat = 18,
+  ntyp = 4,
+/
+&ELECTRONS
+  conv_thr = 1d-08,
+  diagonalization = 'david',
+  electron_maxstep = 200,
+  mixing_beta = 0.3,
+/
+&IONS
+/
+&CELL
+/
+ATOMIC_SPECIES
+  Cu  63.5460 Cu.paw.z_11.ld1.psl.v1.0.0-low.upf
+  Rb  85.4678 Rb_ONCV_PBE-1.0.oncvpsp.upf
+  S  32.0650 s_pbe_v1.4.uspp.F.UPF
+  Sn  118.7100 Sn_pbe_v1.uspp.F.UPF
+ATOMIC_POSITIONS crystal
+  Rb 0.124448 0.728713 0.853149
+  Rb 0.875552 0.271287 0.146851
+  Rb 0.375552 0.228701 0.604265
+  Rb 0.624448 0.771299 0.395735
+  Cu 0.024506 0.750033 0.274494
+  Cu 0.975494 0.249967 0.725506
+  Cu 0.475539 0.750013 0.725506
+  Cu 0.524461 0.249987 0.274494
+  Sn 0.250004 0.249985 0.999997
+  Sn 0.749996 0.750015 0.000003
+  S 0.016692 0.920000 0.637759
+  S 0.983308 0.080000 0.362241
+  S 0.282241 0.378932 0.362241
+  S 0.717759 0.621068 0.637759
+  S 0.483308 0.121068 0.903308
+  S 0.516692 0.878932 0.096692
+  S 0.217759 0.580000 0.096692
+  S 0.782241 0.420000 0.903308
+K_POINTS automatic
+  3 5 5 0 0 0
+CELL_PARAMETERS angstrom
+  9.263656 0.000000 -2.205119
+  -1.251570 5.108578 -7.935655
+  0.000000 0.000000 9.520741
