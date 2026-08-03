@@ -179,3 +179,43 @@ allocation string (def-<professor>) and cluster choice from Roy/the
 professor; fill User/HostName in the WSL `~/.ssh/config`. First login is
 interactive (password + Duo), then keys take over and the campaign is
 `bash scripts/slurm/submit_all.sh` away.
+
+## 2026-08-03 — Session 3: cluster access debugged, campaign SUBMITTED on Nibi
+
+**The login mystery solved (this was Roy-writeup-grade confusion).** CCDB
+account was fine (username yuhansun, allocation def-kleinke, RAP asw-382-aa,
+sponsor-approved). A fresh SSH key made on the Mac was accepted within
+minutes of pasting into CCDB. Yet Nibi closed the connection right after
+"Success. Logging you in...", and Narval looped Duo three times then denied
+— the same failure the user had hit before and read as "the key didn't
+take". The real cause was in Narval's login banner: **since 2025-09-05
+each cluster must be individually activated at
+ccdb.alliancecan.ca/me/access_systems** (select the cluster, answer four
+agreement questions). Neither key nor Duo was ever the problem. After
+activating Nibi + Narval there, Nibi login worked immediately.
+
+**Cluster deployment (all via one authenticated SSH channel; ControlMaster
+multiplexing so the user taps Duo once per 8 h, not per command).**
+- Repo cloned to `~/scratch/Waterloo-prof-Holger` on Nibi; all 168
+  supercell fragments + phono3py_disp.yaml verified in the clone.
+- SSSP 1.3.0 PBE precision fetched from the Materials Cloud archive; all
+  4 manifest files verified.
+- **Wheelhouse trap [recorded for the writeup]**: pip on Nibi installs from
+  the Alliance wheelhouse -> phono3py 3.25.0 / phonopy 2.48.0, NOT the 4.x
+  used to generate the dataset (3.x lacks `phono3py-init` entirely).
+  Decision: the cluster runs only stages 0-1 (pure QE force runs, no
+  phonopy dependency); stage 2 (FORCES_FC3 + kappa_L) runs at home on
+  phono3py 4.x so ONE version handles the dataset end to end. stage2 was
+  therefore NOT submitted on the cluster.
+- **Nibi SLURM specifics** (both cost a failed submission to learn):
+  no default partition (CPU <=12 h -> `cpubase_bycore_b2`), and accounts
+  are split by resource (`def-kleinke_cpu`, not `def-kleinke`).
+  `cluster.env` updated accordingly (SBATCH_PARTITION + ACCOUNT).
+- QE module: quantumespresso/7.3.1 (StdEnv/2023) confirmed available.
+
+**Submitted (2026-08-03): stage0 = job 19030260, stage1 array (168 tasks,
+%32 throttle) = job 19030261, afterok-chained.** Stage 0 reruns the
+reference benchmark and both force-convergence checks ON NIBI before any
+campaign input is generated — per-machine convergence rule, unchanged.
+Postprocessing plan when the array finishes: rsync the 168 scf.out home,
+run scripts/postprocess.py locally (phono3py 4.3.3).

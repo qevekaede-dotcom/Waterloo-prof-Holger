@@ -73,15 +73,21 @@ story so far, including the failed attempts).
   role active (sponsored by the professor, expires 2027-06-15), allocation
   `ACCOUNT=def-kleinke` now filled in `scripts/slurm/cluster.env` (RAP
   asw-382-aa, "8 active allocations - No RAC" = default share on any
-  general-purpose cluster). Cluster choice: **Nibi** by default; the login
-  username lives in the local `~/.ssh/config` (`Host drac`) on both
-  machines, deliberately not in this public repo. Remaining before submit:
-  confirm the pasted key shows in CCDB with a fingerprint, wait the
-  ~30-60 min CCDB->cluster key sync, first `ssh drac` (Duo tap), then the
-  one-time cluster setup in `DRAC_SETUP.md` section 3 and
-  `bash scripts/slurm/submit_all.sh`. Stage-0 convergence checks rerun on
-  the cluster before the campaign (per-machine rule, unchanged). The local
-  driver remains valid documentation of the intended pipeline.
+  general-purpose cluster). The login username lives in the local
+  `~/.ssh/config` (`Host drac`) on both machines, deliberately not in this
+  public repo.
+- **CAMPAIGN SUBMITTED ON NIBI (2026-08-03): stage0 = job 19030260,
+  stage1 168-task array = job 19030261 (afterok-chained). stage2 was NOT
+  submitted** — Nibi's pip wheelhouse pins phono3py to 3.25 (no
+  phono3py-init), so force collection + kappa_L run at home on phono3py
+  4.x once the array finishes: rsync `fc_calcs/*/scf.out` +
+  `checks/` + logs from `nibi:~/scratch/Waterloo-prof-Holger/...` and run
+  `scripts/postprocess.py` locally. Traps already burned: per-cluster
+  activation at ccdb.alliancecan.ca/me/access_systems was the "connection
+  closed" cause; Nibi needs an explicit partition (cpubase_bycore_b2) and
+  the `_cpu` account variant — all recorded in cluster.env and WORKLOG
+  Session 3. Monitor with `squeue -u $USER` over `ssh drac` (ControlMaster
+  gives 8 h of Duo-free reuse after one interactive login).
 - After kappa_L lands: package the fourth step result, update
   `learning/08_phonons_and_kappa_L.md` [pending] sections, run the rigor
   review, THEN scale to SrZrS3 / Rb2Cu2SnS4 (each with its own convergence
