@@ -66,10 +66,19 @@ story so far, including the failed attempts).
   resources-email question. The SLURM port is DONE: `scripts/slurm/`
   (stage0 sbatch reusing run_campaign.sh via its new STOP_AFTER hook ->
   168-task array -> stage2 gate + postprocess, chained by `submit_all.sh`)
-  plus a student-oriented walkthrough in `DRAC_SETUP.md`. An SSH key pair
-  for the cluster exists in WSL (`~/.ssh/id_ed25519_drac`). Blocked on user
-  actions only: CCDB key upload + MFA, DRAC username, allocation string
-  (def-<professor>), cluster choice; then on the cluster
+  plus a student-oriented walkthrough in `DRAC_SETUP.md`. SSH key pairs for
+  the cluster exist in the workstation WSL and on the Mac (both named
+  `~/.ssh/id_ed25519_drac`); the Mac public key was handed to the user to
+  paste into CCDB. **Account details confirmed from CCDB (2026-08-03):**
+  role active (sponsored by the professor, expires 2027-06-15), allocation
+  `ACCOUNT=def-kleinke` now filled in `scripts/slurm/cluster.env` (RAP
+  asw-382-aa, "8 active allocations - No RAC" = default share on any
+  general-purpose cluster). Cluster choice: **Nibi** by default; the login
+  username lives in the local `~/.ssh/config` (`Host drac`) on both
+  machines, deliberately not in this public repo. Remaining before submit:
+  confirm the pasted key shows in CCDB with a fingerprint, wait the
+  ~30-60 min CCDB->cluster key sync, first `ssh drac` (Duo tap), then the
+  one-time cluster setup in `DRAC_SETUP.md` section 3 and
   `bash scripts/slurm/submit_all.sh`. Stage-0 convergence checks rerun on
   the cluster before the campaign (per-machine rule, unchanged). The local
   driver remains valid documentation of the intended pipeline.
