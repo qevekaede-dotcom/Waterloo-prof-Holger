@@ -7,8 +7,9 @@ just "you are here + do this next".
 
 ## Where things stand (all verified on disk)
 
-- The workspace is a git repo pushed to the **private** GitHub repo
-  `qevekaede-dotcom/Waterloo-prof-Holger`. QE scratch (`**/tmp/`, `*.wfc*`,
+- The workspace is a git repo pushed to the **public** GitHub repo
+  `qevekaede-dotcom/Waterloo-prof-Holger` (made public on request; private
+  group material stays local-only). QE scratch (`**/tmp/`, `*.wfc*`,
   `*.save/`) and the unrelated law-coursework folder are gitignored. After
   finishing a task, commit and push.
 
