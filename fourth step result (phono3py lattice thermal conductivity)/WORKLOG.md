@@ -359,3 +359,13 @@ at the same cutoffs and conv_thr (~27 vs 10 k-points, ~2x cost for these
 24 runs), safe to mix with the 144 symmetry-reduced runs since phono3py
 symmetrizes fc3 downstream. Expect the same trap in the SrZrS3 /
 Rb2Cu2SnS4 campaigns. Final rerun job ids: next entry, once reported.
+
+**Executed (2026-08-21 ~20:47 UTC).** The plain rerun 20260344 did fail
+identically — collect_evidence.sh (fetched onto the cluster clone via the
+public raw URL) found the same 24 unhealthy displacements afterwards and
+snapshotted them to `slurm_logs/evidence_20260821T204652Z/`. All 24
+scf.in patched with nosym/noinv (exactly the predicted list). **nosym
+rerun = job 20260532; fresh stage2 = job 20260533 (afterok).** Expected:
+~1-1.5 h per nosym run (27 vs 10 k-points), then stage2 (~1-2 h) writes
+kappa_L into `SrCu2SnS4/results/` on the cluster; archival via
+`scripts/fetch_home.sh` from the workstation afterwards.

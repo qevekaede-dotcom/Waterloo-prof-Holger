@@ -112,8 +112,11 @@ story so far, including the failed attempts).
   24 patterned fast-failures (one per pair block, MPI task 13/14 exit 1
   right after the RAM printout)** — verbatim record in
   `SrCu2SnS4/phono3py/slurm_logs/evidence_2026-08-21_stage1_fastfails.md`;
-  the failed indices were resubmitted with a fresh stage2 chained after
-  them (WORKLOG Session 4 end has the analysis). **Archival workflow**:
+  root cause: QE `sym_rho_init_shell` "lone vector" on the
+  symmetry-preserving member of each pair block (10 vs 14 irreducible
+  k-points); fixed by patching nosym/noinv into those 24 scf.in.
+  **Current chain: nosym rerun = 20260532 -> stage2 = 20260533**
+  (WORKLOG Session 4 end has the full analysis). **Archival workflow**:
   cluster-side `scripts/slurm/collect_evidence.sh` (auto at stage2 start;
   run manually BEFORE any rerun) snapshots failures into timestamped
   `slurm_logs/evidence_*/`; workstation-side `scripts/fetch_home.sh`
