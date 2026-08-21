@@ -108,6 +108,17 @@ story so far, including the failed attempts).
   `sacct -j 20213856` over `ssh drac` (ControlMaster gives 8 h of
   Duo-free reuse after one interactive login) — and check within a day
   of any submission, not 18 days later.
+- **Campaign outcome (2026-08-21 afternoon): 144/168 done (~40 min each);
+  24 patterned fast-failures (one per pair block, MPI task 13/14 exit 1
+  right after the RAM printout)** — verbatim record in
+  `SrCu2SnS4/phono3py/slurm_logs/evidence_2026-08-21_stage1_fastfails.md`;
+  the failed indices were resubmitted with a fresh stage2 chained after
+  them (WORKLOG Session 4 end has the analysis). **Archival workflow**:
+  cluster-side `scripts/slurm/collect_evidence.sh` (auto at stage2 start;
+  run manually BEFORE any rerun) snapshots failures into timestamped
+  `slurm_logs/evidence_*/`; workstation-side `scripts/fetch_home.sh`
+  rsyncs the whole campaign home and commits+pushes in one command — that
+  is the step that finally lands the raw logs and kappa_L in GitHub.
 - After kappa_L lands: package the fourth step result, update
   `learning/08_phonons_and_kappa_L.md` [pending] sections, run the rigor
   review, THEN scale to SrZrS3 / Rb2Cu2SnS4 (each with its own convergence

@@ -16,6 +16,11 @@
 set -u
 cd "$SLURM_SUBMIT_DIR"
 source scripts/slurm/cluster.env
+
+# Forensics first: snapshot run states before anything can overwrite them
+# (reruns rewrite scf.err/CRASH in place). Snapshots land in slurm_logs/.
+bash scripts/slurm/collect_evidence.sh "${SLURM_JOB_ID:-}" || true
+
 source "$P3_VENV/bin/activate"
 export OMP_NUM_THREADS="$SLURM_CPUS_PER_TASK"
 

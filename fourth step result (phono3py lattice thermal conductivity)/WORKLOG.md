@@ -307,3 +307,32 @@ twice before a different fix worked [all writeup-grade].**
   unattended: 20213855 (stage0) -> 20213856 (168-task array) ->
   20215178 (postprocess -> kappa_L into `SrCu2SnS4/results/` on the
   cluster).
+
+**Next day (2026-08-21 afternoon): campaign outcome — 144/168, plus a
+patterned batch of fast failures.**
+- stage0 (20213855) COMPLETED in 02:56:28 — the OMP_NUM_THREADS=1 fix
+  fully confirmed (2h56m vs stuck on iteration 7 at the 10 h cap before).
+- stage1 (20213856): 144/168 COMPLETED at ~39-47 min per force
+  calculation; **24 tasks FAILED in 19-27 s each**, all dying right after
+  pw.x's dynamical-RAM printout, always MPI task 13/14 exiting code 1,
+  across ~20 different nodes over ~2.6 h. The failed displacement IDs are
+  strikingly regular: exactly one inside each ~6-displacement pair block
+  (disp-00026, 00601, 01182, ..., 13709). That regularity argues for a
+  deterministic per-configuration trigger rather than random node flakes,
+  but the logs also carry node-level noise (pmix errors, task-epilog
+  failures) — undecided pending the rerun. Full verbatim record:
+  `SrCu2SnS4/phono3py/slurm_logs/evidence_2026-08-21_stage1_fastfails.md`
+  (transcribed from the interactive session — the on-disk scf.err/CRASH
+  get overwritten by reruns).
+- stage2 (20215178) went DependencyNeverSatisfied as designed (afterok on
+  an array with failures can never fire): scancel'ed, and the 24 failed
+  indices were resubmitted with a fresh stage2 chained after them (job
+  ids in the next entry once reported back).
+- **Archival workflow added** (user request — raw outputs must reach
+  GitHub, not just the WORKLOG narrative): (1)
+  `scripts/slurm/collect_evidence.sh` snapshots sacct + every unhealthy
+  displacement's scf.err/CRASH/scf.out + campaign CSVs into timestamped
+  `slurm_logs/evidence_*/` dirs — runs automatically at stage2 start, and
+  manually BEFORE any rerun; (2) `scripts/fetch_home.sh` (workstation
+  side) rsyncs the whole campaign home (excluding tmp/ and scripts/) and
+  commits+pushes in one command. DRAC_SETUP sections 6-7 updated.

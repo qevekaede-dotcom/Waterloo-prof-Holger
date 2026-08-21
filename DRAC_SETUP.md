@@ -138,32 +138,41 @@ stage1 should be a small number of hours, not weeks.
 
 ## 6. If some stage1 tasks fail
 
-`sacct -j <stage1-jobid>` shows FAILED indices; each failed run's
-`fc_calcs/disp-*/scf.err` says why. After fixing (often just resubmitting is
-enough for node-level flukes):
+`sacct -j <stage1-jobid> -X` shows FAILED indices; each failed run's
+`fc_calcs/disp-*/scf.err` (and `CRASH`, if QE wrote one) says why. FIRST
+snapshot the evidence — a rerun overwrites scf.out/scf.err/CRASH in place:
+
+```sh
+bash scripts/slurm/collect_evidence.sh <stage1-jobid>
+```
+
+Then, after fixing (often just resubmitting is enough for node-level
+flukes):
 
 ```sh
 sbatch --account=$ACCOUNT --array=<failed indices, e.g. 17,42> scripts/slurm/stage1_array.sbatch
 # the held stage2 will show DependencyNeverSatisfied — replace it:
 scancel <old-stage2-jobid>
-sbatch --account=$ACCOUNT scripts/slurm/stage2_post.sbatch
+sbatch --account=$ACCOUNT --dependency=afterok:<rerun-jobid> scripts/slurm/stage2_post.sbatch
 ```
 
-## 7. Bring the results home
+## 7. Bring the results home (one command)
 
-Recommended: pull from the WSL side with rsync (keeps GitHub credentials off
-the shared cluster):
+From WSL on the workstation (or the Mac), with the repo clone up to date:
 
 ```sh
-# from WSL on the workstation
-rsync -av --exclude 'tmp/' drac:scratch/Waterloo-prof-Holger/thermo_candidates/SrCu2SnS4/phono3py/ \
-      ~/Waterloo-prof-Holger/thermo_candidates/SrCu2SnS4/phono3py/
-rsync -av drac:scratch/Waterloo-prof-Holger/thermo_candidates/SrCu2SnS4/results/ \
-      ~/Waterloo-prof-Holger/thermo_candidates/SrCu2SnS4/results/
+bash ~/Waterloo-prof-Holger/thermo_candidates/SrCu2SnS4/phono3py/scripts/fetch_home.sh
 ```
 
-then commit and push from WSL as usual. (Alternative: add an SSH key on the
-cluster to GitHub and push directly from there.)
+It rsyncs the whole campaign (raw scf outputs, slurm logs, evidence
+snapshots, checks, kappa_L results) into the local repo clone, then commits
+and pushes — GitHub ends up holding the actual research record, not only
+the WORKLOG narrative. Pulling from the workstation keeps GitHub
+credentials off the shared cluster. Two deliberate excludes: `tmp/` (QE
+scratch, gitignored anyway) and `scripts/` (the cluster clone carries local
+script edits; the committed versions stay authoritative — before ever
+running `git pull` in the cluster clone, discard them there with
+`git checkout -- thermo_candidates/SrCu2SnS4/phono3py/scripts/`).
 
 What comes home: `fc_calcs/*/scf.out` (the raw force records),
 `campaign_log*.csv`, `checks/`, `kappa-*.hdf5`, `fc2.hdf5`/`fc3.hdf5`,
