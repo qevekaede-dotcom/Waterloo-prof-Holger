@@ -89,10 +89,15 @@ story so far, including the failed attempts).
   on SCF iteration 7 of the first benchmark, and stage1 sat at
   DependencyNeverSatisfied. Fix: `export OMP_NUM_THREADS=1` in
   cluster.env + 12 h caps (WORKLOG Session 4). The Session-3 wheelhouse
-  trap (pip pins phono3py to 3.25, no phono3py-init) is bypassed with
-  `PIP_CONFIG_FILE=/dev/null pip install 'phono3py==4.3.3' h5py` into
-  `~/venvs/p3` (DRAC_SETUP.md section 3), so stage2 runs the SAME 4.3.3
-  that generated the dataset. When kappa_L lands in the cluster's
+  trap (pip pins phono3py to 3.25, no phono3py-init) AND the Alliance
+  python's veto of PyPI manylinux wheels are bypassed with a permissive
+  `_manylinux` shim on PYTHONPATH during install (recipe: DRAC_SETUP.md
+  section 3): `~/venvs/p3` now holds phono3py 4.4.0 + phonopy 4.4.0 +
+  numpy/scipy/h5py, all prebuilt wheels, zero compilation. 4.4.0 was
+  verified (Session 2) to read the 4.3.3-generated dataset identically.
+  **stage2 = job 20215178**, afterok on the array — the full chain
+  20213855 -> 20213856 -> 20215178 runs unattended. When kappa_L lands
+  in the cluster's
   `SrCu2SnS4/results/`: rsync everything home with `--exclude 'scripts/'`
   (the Nibi clone carries local script edits; `git checkout -- ...scripts/`
   there before any future pull) and commit — transfer and git only, no
