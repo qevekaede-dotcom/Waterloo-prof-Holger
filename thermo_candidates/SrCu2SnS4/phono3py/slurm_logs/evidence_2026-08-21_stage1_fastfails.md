@@ -253,3 +253,43 @@ error: metadata-generation-failed
 ```
 
 Resolution for both: WORKLOG Session 4 and DRAC_SETUP.md section 3.
+
+## Follow-up diagnostics (same session): root cause found
+
+Campaign settings decided on Nibi by stage0 (checks/DECISIONS.txt):
+
+```
+# Force-convergence decisions for the campaign (threshold 5.0e-5 Ry/bohr)
+KMESH=3 3 3
+ECUTWFC=60
+ECUTRHO=480
+```
+
+CRASH file of disp-00026 (verbatim; identical mechanism on task 13):
+
+```
+ %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+     task #        14
+     from sym_rho_init_shell : error #         2
+     lone vector
+ %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+```
+
+Irreducible k-point count, healthy vs failed neighbor:
+
+```
+fc_calcs/disp-00025/scf.out:     number of k points=    14
+fc_calcs/disp-00026/scf.out:     number of k points=    10
+```
+
+Interpretation: the failing member of each pair block is the displacement
+combination that PRESERVES a symmetry operation (10 vs 14 irreducible
+points). For those configurations QE's charge-symmetrization setup
+(`sym_rho_init_shell`) hits its known "lone vector" failure when G-vector
+symmetry shells are split across the 32-rank distribution — deterministic,
+so the plain rerun (job 20260344, stage2 20260345 chained) reproduces it.
+Fix applied: `nosym = .true., noinv = .true.` patched into the unhealthy
+scf.in files only — symmetry there is a k-sum shortcut, not physics; the
+full 3x3x3 mesh is then sampled explicitly at the same cutoffs and
+conv_thr, safe to mix with the 144 symmetry-reduced runs (phono3py
+symmetrizes fc3 downstream).

@@ -336,3 +336,26 @@ patterned batch of fast failures.**
   manually BEFORE any rerun; (2) `scripts/fetch_home.sh` (workstation
   side) rsyncs the whole campaign home (excluding tmp/ and scripts/) and
   commits+pushes in one command. DRAC_SETUP sections 6-7 updated.
+
+**Root cause of the 24 fast-fails FOUND [writeup-grade]: QE
+`sym_rho_init_shell` "lone vector".** Diagnostics (verbatim in the
+evidence file): disp-00026's CRASH says `task # 14, from
+sym_rho_init_shell, error # 2: lone vector`; stage0's decisions were
+KMESH=3 3 3 with 60/480 Ry (low-cutoff check PASSED, k-mesh check kept
+3x3x3); healthy disp-00025 has 14 irreducible k-points vs 10 for failed
+disp-00026. Mechanism: the failing member of each pair block is the
+displacement combination that PRESERVES a symmetry operation; for those
+configurations QE's charge-symmetrization setup hits its known "lone
+vector" failure when G-vector symmetry shells are split across the
+32-rank distribution. Fully deterministic, which explains the perfect
+one-per-block ID pattern, the constant task 13/14, and both nk=2 and
+nk=1 failing — and means the plain rerun (20260344, stage2 20260345
+chained) is expected to fail identically. Fix: patch
+`nosym = .true., noinv = .true.` into the still-unhealthy scf.in only
+(idempotent guard on both health and prior patch), then resubmit those
+indices and re-chain stage2. Physics unchanged: symmetry there is only a
+k-sum/symmetrization shortcut; the full 3x3x3 mesh is sampled explicitly
+at the same cutoffs and conv_thr (~27 vs 10 k-points, ~2x cost for these
+24 runs), safe to mix with the 144 symmetry-reduced runs since phono3py
+symmetrizes fc3 downstream. Expect the same trap in the SrZrS3 /
+Rb2Cu2SnS4 campaigns. Final rerun job ids: next entry, once reported.
