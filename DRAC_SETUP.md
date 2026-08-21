@@ -66,11 +66,17 @@ curl -sL -o SSSP_1.3.0_PBE_precision.tar.gz 'https://archive.materialscloud.org/
 tar -xf SSSP_1.3.0_PBE_precision.tar.gz -C SSSP-1.3.0-PBE-precision
 
 # python venv for stage 2 (phono3py postprocessing)
+# TRAP: with the Alliance pip defaults this resolves to the wheelhouse's
+# phono3py 3.25 (no phono3py-init -> cannot read the 4.x dataset). Bypass
+# the wheelhouse config and pin the version that generated the dataset;
+# phonopy comes along as its dependency.
 module load python/3.11
+rm -rf ~/venvs/p3     # in case an earlier attempt left a 3.25 venv behind
 python -m venv ~/venvs/p3
 source ~/venvs/p3/bin/activate
 pip install --upgrade pip
-pip install phonopy phono3py h5py
+PIP_CONFIG_FILE=/dev/null pip install 'phono3py==4.3.3' h5py
+phono3py-init --help | head -2   # must print usage, not "command not found"
 deactivate
 ```
 

@@ -10,7 +10,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=32
 #SBATCH --mem-per-cpu=2000M
-#SBATCH --time=10:00:00
+#SBATCH --time=12:00:00
 #SBATCH --output=slurm_logs/stage0_%j.out
 
 set -u

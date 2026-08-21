@@ -219,3 +219,52 @@ reference benchmark and both force-convergence checks ON NIBI before any
 campaign input is generated — per-machine convergence rule, unchanged.
 Postprocessing plan when the array finishes: rsync the 168 scf.out home,
 run scripts/postprocess.py locally (phono3py 4.3.3).
+
+## 2026-08-21 — Session 4: stage0 timeout diagnosed (OpenMP oversubscription); resubmitted; stage2 moved onto Nibi
+
+**Discovery — 18 days of silence, zero compute.** First status check since
+submission (workstation WSL over `ssh drac`): stage0 19030260 = TIMEOUT at
+its 10 h cap (the `.extern` step's COMPLETED is SLURM bookkeeping, not
+success); stage1 19030261 = PENDING 00:00:00 with reason
+DependencyNeverSatisfied — afterok on a timed-out job can never fire.
+`campaign_log.csv` on the cluster: header only. Nothing had run.
+
+**Root cause [writeup-grade].** The stage0 log shows all 10 h were spent
+inside the first reference benchmark (disp-00001, 90/720 Ry, 3x3x3). Its
+`scf.out` banner reads "Parallel version (MPI & OpenMP), running on 352
+processor cores" against `--ntasks=32`: the Alliance quantumespresso/7.3.1
+module is an MPI+OpenMP hybrid build and nothing capped the thread count,
+so 32 ranks x ~11 threads thrashed the 32-core allocation. After 10 h the
+run was still on SCF iteration 7 at 0.013 Ry estimated accuracy (target
+conv_thr 1e-9; normally ~30-40 iterations at minutes each). Roughly a 10x
+slowdown — the time cap was never the real problem.
+
+**Fix + resubmission (2026-08-21).** `export OMP_NUM_THREADS=1` added to
+`scripts/slurm/cluster.env` (sourced by every sbatch script; stage2
+overrides it back to $SLURM_CPUS_PER_TASK for phono3py's own OpenMP), and
+stage0/stage1 time caps raised to the 12 h partition max as headroom — no
+clean per-SCF timing exists yet. Edits were applied directly in the Nibi
+clone by the user and mirrored in this commit; the Nibi copy is therefore
+locally modified — rsync results home with `--exclude 'scripts/'`, and
+`git checkout -- .../phono3py/scripts/` there before any future pull. Old
+stage1 scancel'ed. **New jobs: stage0 = 20213855, stage1 array = 20213856
+(afterok).** Verification once stage0 runs: the pw.x banner must say 32
+processor cores and the iteration count must climb minutes-fast.
+
+**Plan change: stage2 runs on Nibi after all.** The workstation's compute
+is committed elsewhere, so the "collect forces + kappa_L at home" plan is
+dead. The Session-3 blocker (wheelhouse pins phono3py 3.25, no
+phono3py-init) is bypassed by installing the pinned dataset version from
+PyPI into the stage-2 venv: `PIP_CONFIG_FILE=/dev/null pip install
+'phono3py==4.3.3' h5py`, with the venv recreated from scratch in case a
+3.25 attempt left one behind (DRAC_SETUP.md section 3 updated). One
+phono3py version — 4.3.3, the version that generated the dataset — again
+handles it end to end, just on the cluster instead of at home.
+`stage2_post.sbatch` is chained with afterok on the array, so the whole
+pipeline runs unattended and kappa_L(300-900 K) lands in
+`SrCu2SnS4/results/` on the cluster; local machines are left with file
+transfer, git, and the writeup.
+
+**Process lesson.** The first submission died within 10 h of sbatch;
+nobody looked for 18 days. Check `sacct` within a day of submitting — a
+TIMEOUT surfaces immediately, and afterok chains die silently with it.

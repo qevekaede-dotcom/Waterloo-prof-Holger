@@ -58,7 +58,9 @@ story so far, including the failed attempts).
   manifest, repo cloned at `~/Waterloo-prof-Holger`. Local QE runs need
   `QE_NP=6` (the conda OpenMPI counts the 6 physical cores WSL exposes).
   Smoke-tested end to end; WORKLOG Session 2 has the details. The campaign
-  itself does NOT run here — local = prep, postprocessing, writeup.
+  does NOT run here — and since 2026-08-21 the user's local compute is
+  committed elsewhere, so stage-2 postprocessing moved onto the cluster
+  too: local machines do prep, file transfer, git, and writeup only.
 - **CAMPAIGN runs on DRAC — do not launch locally.** The disp-00001
   benchmark showed >= 2 h per force calculation on the laptop (1-2 weeks per
   material), and the professor has now authorized a Digital Research
@@ -76,18 +78,31 @@ story so far, including the failed attempts).
   general-purpose cluster). The login username lives in the local
   `~/.ssh/config` (`Host drac`) on both machines, deliberately not in this
   public repo.
-- **CAMPAIGN SUBMITTED ON NIBI (2026-08-03): stage0 = job 19030260,
-  stage1 168-task array = job 19030261 (afterok-chained). stage2 was NOT
-  submitted** — Nibi's pip wheelhouse pins phono3py to 3.25 (no
-  phono3py-init), so force collection + kappa_L run at home on phono3py
-  4.x once the array finishes: rsync `fc_calcs/*/scf.out` +
-  `checks/` + logs from `nibi:~/scratch/Waterloo-prof-Holger/...` and run
-  `scripts/postprocess.py` locally. Traps already burned: per-cluster
-  activation at ccdb.alliancecan.ca/me/access_systems was the "connection
-  closed" cause; Nibi needs an explicit partition (cpubase_bycore_b2) and
-  the `_cpu` account variant — all recorded in cluster.env and WORKLOG
-  Session 3. Monitor with `squeue -u $USER` over `ssh drac` (ControlMaster
-  gives 8 h of Duo-free reuse after one interactive login).
+- **CAMPAIGN RESUBMITTED ON NIBI (2026-08-21): stage0 = job 20213855,
+  stage1 168-task array = job 20213856 (afterok-chained), and stage2 now
+  runs on the cluster as well** (chained after the array; the at-home
+  stage2 plan is dead — local compute is committed elsewhere). The FIRST
+  submission (2026-08-03, jobs 19030260/19030261) computed NOTHING in 18
+  days: the Alliance QE module is an MPI+OpenMP hybrid and no thread cap
+  was set, so 32 ranks x ~11 threads thrashed the 32-core allocation
+  ("running on 352 processor cores"); stage0 hit its 10 h TIMEOUT still
+  on SCF iteration 7 of the first benchmark, and stage1 sat at
+  DependencyNeverSatisfied. Fix: `export OMP_NUM_THREADS=1` in
+  cluster.env + 12 h caps (WORKLOG Session 4). The Session-3 wheelhouse
+  trap (pip pins phono3py to 3.25, no phono3py-init) is bypassed with
+  `PIP_CONFIG_FILE=/dev/null pip install 'phono3py==4.3.3' h5py` into
+  `~/venvs/p3` (DRAC_SETUP.md section 3), so stage2 runs the SAME 4.3.3
+  that generated the dataset. When kappa_L lands in the cluster's
+  `SrCu2SnS4/results/`: rsync everything home with `--exclude 'scripts/'`
+  (the Nibi clone carries local script edits; `git checkout -- ...scripts/`
+  there before any future pull) and commit — transfer and git only, no
+  local compute. Traps already burned: per-cluster activation at
+  ccdb.alliancecan.ca/me/access_systems was the "connection closed"
+  cause; Nibi needs an explicit partition (cpubase_bycore_b2) and the
+  `_cpu` account variant. Monitor with `sacct -j 20213855` /
+  `sacct -j 20213856` over `ssh drac` (ControlMaster gives 8 h of
+  Duo-free reuse after one interactive login) — and check within a day
+  of any submission, not 18 days later.
 - After kappa_L lands: package the fourth step result, update
   `learning/08_phonons_and_kappa_L.md` [pending] sections, run the rigor
   review, THEN scale to SrZrS3 / Rb2Cu2SnS4 (each with its own convergence
