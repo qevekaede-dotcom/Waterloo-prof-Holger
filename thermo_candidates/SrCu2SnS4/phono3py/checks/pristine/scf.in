@@ -13,6 +13,8 @@
   ecutwfc = 60,
   occupations = 'fixed',
   ibrav = 0,
+  nosym = .true.,
+  noinv = .true.,
   nat = 96,
   ntyp = 4,
 /
