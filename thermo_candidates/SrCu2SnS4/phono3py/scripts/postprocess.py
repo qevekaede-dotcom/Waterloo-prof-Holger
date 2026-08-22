@@ -67,7 +67,14 @@ def main():
                 f"[postprocess] {len(outs)} outputs vs {len(frags)} supercells"
             )
         files = " ".join(str(o.relative_to(ROOT)) for o in outs)
-        if sh(f"phono3py-init --cf3 {files}", "log_cf3.txt") != 0:
+        # --cfz subtracts the measured residual forces of the undisplaced
+        # supercell (checks/pristine, nosym run) from every displaced-cell
+        # force before fitting: the pristine check measured max 5.5e-4
+        # Ry/bohr, above the 1e-4 guideline, so it is corrected, not just
+        # flagged.
+        cfz = "checks/pristine/scf.out"
+        cfz_arg = f" --cfz {cfz}" if (ROOT / cfz).exists() else ""
+        if sh(f"phono3py-init --cf3 {files}{cfz_arg}", "log_cf3.txt") != 0:
             sys.exit("[postprocess] --cf3 failed")
     print("[postprocess] FORCES_FC3 ready")
 

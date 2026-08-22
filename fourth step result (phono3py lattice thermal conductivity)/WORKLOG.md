@@ -420,3 +420,25 @@ quantities (no "full zT" claimed); no-SOC and no-NAC are stated wherever
 the number appears; convergence parameters were re-decided on the cluster
 (nothing copied between machines). Open items stated rather than glossed:
 the ~5% q-mesh convergence and the pending pristine check.
+
+**Addendum, same day: pristine check CLOSED — and upgraded from flag to
+correction.** The nosym pristine rerun (job 20305344, 1:13 on 32 ranks,
+27 k-points) completed; **max residual force on the undisplaced supercell
+= 5.451e-4 Ry/bohr** (user's extraction and an independent Python re-read
+of all 96 atoms agree exactly; the four 2x2x1 images of each unit-cell
+atom carry near-identical forces, confirming the residual is a unit-cell
+relaxation residual, not supercell noise). That EXCEEDS the 1e-4
+guideline (~18% of the 2.97e-3 typical displaced-cell force), so instead
+of merely flagging it we correct it: phono3py supports
+`--cfz checks/pristine/scf.out` (subtract residual forces) at the
+FORCES_FC3 step — `scripts/postprocess.py` now passes it whenever the
+pristine output exists. Plan: on the cluster delete the derived products
+(FORCES_FC3, fc2/fc3.hdf5, kappa-m*.hdf5 — all already archived in git at
+commit 32bf814, nothing is lost), apply the same one-line edit to the
+cluster's postprocess.py, resubmit stage2 (~30 min), re-fetch, re-verify,
+and refresh every number in the package before anything goes to Roy.
+Tooling note for honesty: the first two residual-force extractions
+printed a false 0.000e+00 — the awk range included the "Total force ...
+Total SCF correction" line and the word "correction" won a string
+comparison against every number, hijacking the maximum; reproduced and
+fixed (match atom lines only, coerce numerics).
