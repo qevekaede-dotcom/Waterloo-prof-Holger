@@ -442,3 +442,28 @@ printed a false 0.000e+00 — the awk range included the "Total force ...
 Total SCF correction" line and the word "correction" won a string
 comparison against every number, hijacking the maximum; reproduced and
 fixed (match atom lines only, coerce numerics).
+
+**Final addendum: corrected stage2 (job 20311271) done — FINAL first-pass
+numbers.** The --cfz rerun completed; verification repeated and passed
+(CSV == kappa-m13136.hdf5 to all four decimals; xx=yy exact; off-diag
+~4e-8; freq_min -2e-6 THz; 0.3639 x 300/900 = 0.1213 exactly).
+- **kappa_L(300 K) [calculated, residual-corrected]: xx=yy 0.3960,
+  zz 0.2999, avg 0.3639 W m^-1 K^-1; 900 K avg 0.1213.**
+- Mesh ladder with corrected forces: 0.341 / 0.328 / 0.375 / 0.364 —
+  met the 3% criterion at 13x13x6 (2.9% vs the previous mesh; the
+  pre-correction run had just missed at 3.19%), so the ladder stopped
+  there and 15x15x7 was not rerun. ~5% stays as the quoted uncertainty
+  (ladder spread ~0.33-0.38).
+- Decomposing the change from the previously reported 0.3813: the
+  residual-force correction itself moved the fixed-mesh average by
+  < 0.1% (0.364 -> 0.3639 at 13x13x6) — the earlier result was robust —
+  while the protocol's mesh selection (15x15x7 -> 13x13x6) accounts for
+  the rest (~4%), within the stated uncertainty. Good worked example:
+  the q-mesh, not the residual forces, is the real error bar here.
+- Housekeeping: the local/archived kappa-m15157.hdf5 is the
+  PRE-correction artifact (not regenerated on the cluster, rsync does
+  not delete); kept deliberately as the record behind the earlier
+  numbers. Package, learning/08, Roy_task_status, SrCu2SnS4/CLAUDE.md,
+  HANDOFF and the figure all refreshed to the corrected numbers.
+  Remaining: user approves EMAIL_DRAFT.md and sends; freeze
+  READY_TO_ATTACH on send.

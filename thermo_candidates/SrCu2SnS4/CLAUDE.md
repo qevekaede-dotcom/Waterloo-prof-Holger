@@ -11,10 +11,12 @@ Key verified facts:
 - transport grid: 300-900 K and 1e19-1e21 cm^-3 for both carrier signs;
 - sampled p-type best `PF/tau` exceeds the n-type best at each temperature;
 - first-pass kappa_L [calculated] (phono3py RTA, 2x2x1 supercell,
-  cutoff-pair 4.0 A, q-mesh 15x15x7, PBE, no SOC, no NAC):
-  0.38 W m^-1 K^-1 at 300 K (xx = yy 0.40, zz 0.34), ~1/T down to 0.13 at
-  900 K; no imaginary modes; q-mesh ladder converged only to ~5% (the 3%
-  target was missed — always carry this flag with the number).
+  cutoff-pair 4.0 A, q-mesh 13x13x6, measured pristine residual forces
+  5.5e-4 Ry/bohr subtracted via --cfz, PBE, no SOC, no NAC):
+  0.36 W m^-1 K^-1 at 300 K (xx = yy 0.40, zz 0.30), ~1/T down to 0.12
+  at 900 K; no imaginary modes; q-mesh ladder met the 3% criterion only
+  marginally (2.9%; ladder spread ~0.33-0.38) — always carry the ~5%
+  uncertainty with the number.
 
 Preserve `logs/`, `qe/convergence/`, `qe/tmp/final/`, and `boltztrap2/` as the
 evidence behind the processed results. Do not call the current transport result

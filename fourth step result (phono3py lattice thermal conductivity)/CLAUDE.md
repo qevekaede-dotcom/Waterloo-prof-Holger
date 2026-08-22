@@ -3,9 +3,10 @@
 Curated fourth-step deliverable: SrCu2SnS4 lattice thermal conductivity +
 the phono3py "how we got it working" write-up for Roy.
 
-- `READY_TO_ATTACH/` is NOT yet frozen: the email has not been sent. Before
-  sending: close the pristine-supercell residual-force check (nosym rerun)
-  and have the user approve `EMAIL_DRAFT.md`. Freeze on send, as in the
+- `READY_TO_ATTACH/` is NOT yet frozen: the email has not been sent. The
+  only remaining step before sending is user approval of
+  `EMAIL_DRAFT.md` (the pristine check is closed: residual measured at
+  5.5e-4 Ry/bohr and subtracted via --cfz). Freeze on send, as in the
   earlier packages.
 - The authoritative raw/derived records live in
   `thermo_candidates/SrCu2SnS4/` (phono3py/ and results/); copies here are

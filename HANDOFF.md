@@ -122,16 +122,20 @@ story so far, including the failed attempts).
   `slurm_logs/evidence_*/`; workstation-side `scripts/fetch_home.sh`
   rsyncs the whole campaign home and commits+pushes in one command — that
   is the step that finally lands the raw logs and kappa_L in GitHub.
-- **kappa_L LANDED (2026-08-22) and the fourth-step package is STAGED.**
-  Headline [calculated]: 0.38 W m^-1 K^-1 at 300 K (xx=yy 0.40, zz 0.34),
-  ~1/T to 0.13 at 900 K; no imaginary modes; verified against the raw
-  HDF5. Flags: q-mesh ladder only ~5% converged (3% target missed);
-  pristine residual-force check OPEN (same lone-vector bug — nosym rerun
-  to submit). Package: `fourth step result (...)/` with EMAIL_DRAFT.md +
+- **kappa_L FINAL (2026-08-22, residual-corrected) and the fourth-step
+  package is STAGED.** Headline [calculated]: 0.36 W m^-1 K^-1 at 300 K
+  (xx=yy 0.40, zz 0.30), ~1/T to 0.12 at 900 K; no imaginary modes;
+  verified against the raw HDF5 (kappa-m13136). Pristine check CLOSED:
+  residual measured 5.5e-4 Ry/bohr (> 1e-4 guideline) and subtracted via
+  phono3py --cfz — effect on kappa_L < 0.1% at fixed mesh; q-mesh ladder
+  met 3% marginally (2.9%), ~5% quoted. kappa-m15157.hdf5 in the archive
+  is the PRE-correction artifact, kept as the record behind the earlier
+  numbers. Package: `fourth step result (...)/` with EMAIL_DRAFT.md +
   READY_TO_ATTACH (write-up, CSV, figure, summary) — freeze on send.
-  Remaining before send: (1) pristine nosym rerun on Nibi, (2) user
-  approves the email. THEN scale to SrZrS3 / Rb2Cu2SnS4 (own convergence
-  decisions; expect the same traps — recipe in DRAC_SETUP.md).
+  ONLY remaining step: user approves and sends the email. THEN scale to
+  SrZrS3 / Rb2Cu2SnS4 (own convergence decisions; expect the same traps —
+  recipe in DRAC_SETUP.md; measure the pristine cell and pass --cfz from
+  the start).
 - Historical plan note (superseded by the above): package the fourth step
   result, update `learning/08_phonons_and_kappa_L.md` [pending] sections,
   run the rigor

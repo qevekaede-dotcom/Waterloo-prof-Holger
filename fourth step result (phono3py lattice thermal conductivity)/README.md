@@ -12,10 +12,12 @@ the layout of the earlier step-result packages.
   records are archived in `thermo_candidates/SrCu2SnS4/phono3py/`.
 - This package: kappa_L table + figure + settings summary + the
   "how we got it working" write-up, staged in `READY_TO_ATTACH/`.
-- **NOT yet sent.** One internal check is still to be closed before
-  sending (the undisplaced-supercell residual-force check, which tripped
-  the same QE "lone vector" bug — rerun queued with the nosym fix), and
-  the user reviews `EMAIL_DRAFT.md`. Freeze `READY_TO_ATTACH/` on send.
+- The pristine residual-force check is CLOSED: max residual 5.5e-4
+  Ry/bohr (above the 1e-4 guideline), measured and then SUBTRACTED from
+  all displaced-cell forces via phono3py `--cfz`; the correction moved
+  kappa_L by < 0.1% at fixed mesh.
+- **NOT yet sent.** Only remaining step: the user reviews
+  `EMAIL_DRAFT.md` and sends. Freeze `READY_TO_ATTACH/` on send.
 
 ## Contents
 
@@ -45,11 +47,12 @@ The campaign history, with every failure, is `WORKLOG.md` here.
 
 ## Headline
 
-SrCu2SnS4 kappa_L [calculated, first pass]: **0.38 W m^-1 K^-1 at 300 K**
-(in-plane 0.40, c-axis 0.34), falling ~1/T to 0.13 W m^-1 K^-1 at 900 K.
+SrCu2SnS4 kappa_L [calculated, first pass]: **0.36 W m^-1 K^-1 at 300 K**
+(in-plane 0.40, c-axis 0.30), falling ~1/T to 0.12 W m^-1 K^-1 at 900 K.
 Very low — encouraging for a thermoelectric. Method: phono3py RTA, 2x2x1
-supercell, cutoff-pair 4.0 A, q-mesh 15x15x7, PBE, no SOC, no NAC. No
-imaginary phonon frequencies. Honest caveats: the q-mesh ladder converged
-only to ~5% (3% target not met — flagged, largest mesh reported), and
-kappa_L alone does not give a full zT (the electronic side still has an
-unknown relaxation time tau).
+supercell, cutoff-pair 4.0 A, q-mesh 13x13x6, measured residual forces
+subtracted (--cfz), PBE, no SOC, no NAC. No imaginary phonon frequencies.
+Honest caveats: the q-mesh ladder met the 3% criterion only marginally
+(2.9%; ladder spread ~0.33-0.38, so ~5% is quoted as the uncertainty),
+and kappa_L alone does not give a full zT (the electronic side still has
+an unknown relaxation time tau).

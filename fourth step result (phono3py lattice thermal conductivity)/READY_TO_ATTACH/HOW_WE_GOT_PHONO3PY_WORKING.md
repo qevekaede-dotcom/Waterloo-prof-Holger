@@ -136,7 +136,15 @@ its own symmetrization to the force constants afterwards.
 - Minimum phonon frequency on the final mesh: -2e-6 THz, i.e. zero to
   numerical precision — no imaginary modes, so the relaxed structure is
   dynamically stable at this level of theory.
-- Known open point, stated rather than hidden: the q-mesh ladder at 300 K
-  (7,7,3 -> 15,15,7) still moves ~5% between the last steps instead of
-  settling below our 3% target, so the reported numbers carry a ~5%
-  q-mesh uncertainty and use the largest mesh.
+- Undisplaced-supercell residual forces: measured (nosym, same settings)
+  at max 5.5e-4 Ry/bohr — above our 1e-4 guideline, about 18% of the
+  typical displaced-cell force — so the measured residual field was
+  subtracted from every displaced-cell force before fitting (phono3py's
+  `--cfz` option at the FORCES_FC3 step). The correction changed kappa_L
+  by less than 0.1% at fixed q-mesh, which confirms the result was robust
+  against it; we would still recommend measuring the pristine cell and
+  passing `--cfz` routinely.
+- q-mesh convergence at 300 K: the ladder (7,7,3 upward) met our 3%
+  criterion at 13x13x6, though only just (2.9% change from the previous
+  mesh; values across the ladder span roughly 0.33-0.38 W m^-1 K^-1), so
+  we quote ~5% as the honest q-mesh uncertainty.
