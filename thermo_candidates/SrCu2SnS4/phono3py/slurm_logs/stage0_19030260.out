@@ -1,0 +1,4 @@
+[stage0 2026-08-03 16:57:00] force-convergence checks
+[stage0 2026-08-03 16:57:00] running reference benchmark disp-00001 (90/720, 3x3x3)
+wrote 1 inputs, skipped 0 existing
+slurmstepd: error: *** JOB 19030260 ON c544 CANCELLED AT 2026-08-04T02:57:14 DUE TO TIME LIMIT ***

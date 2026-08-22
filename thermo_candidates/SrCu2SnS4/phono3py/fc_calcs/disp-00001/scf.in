@@ -4,7 +4,7 @@
   disk_io = 'none',
   outdir = './tmp',
   prefix = 'sc',
-  pseudo_dir = '/Users/kaede/scientific-tools/pseudopotentials/SSSP/1.3.0/PBE/precision',
+  pseudo_dir = '/home/yuhansun/pseudos/SSSP-1.3.0-PBE-precision',
   restart_mode = 'from_scratch',
   verbosity = 'low',
 /

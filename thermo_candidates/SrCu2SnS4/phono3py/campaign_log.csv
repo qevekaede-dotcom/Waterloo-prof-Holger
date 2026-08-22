@@ -1,0 +1,4 @@
+run_id,wall_seconds,kmesh,ecut,nk,status
+benchmark_00001,4982,3 3 3,90/720,2,ok
+check_k222,3074,2 2 2,90/720,2,ok
+check_lowcut,2521,3 3 3,60/480,2,ok

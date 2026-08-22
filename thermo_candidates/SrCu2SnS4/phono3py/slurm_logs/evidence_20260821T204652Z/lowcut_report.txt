@@ -1,0 +1,7 @@
+# reference: /scratch/yuhansun/Waterloo-prof-Holger/thermo_candidates/SrCu2SnS4/phono3py/fc_calcs/disp-00001/scf.out
+# candidate: /scratch/yuhansun/Waterloo-prof-Holger/thermo_candidates/SrCu2SnS4/phono3py/checks/lowcut/scf.out
+# atoms: 96
+# max |F| (reference): 2.969e-03 Ry/bohr
+# max |dF|: 5.200e-06 Ry/bohr (threshold 5.0e-05)
+MAXDIFF=5.200e-06
+RESULT=PASS

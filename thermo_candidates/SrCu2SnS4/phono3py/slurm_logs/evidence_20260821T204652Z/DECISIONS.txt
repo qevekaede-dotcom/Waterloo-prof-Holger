@@ -1,0 +1,5 @@
+# Force-convergence decisions for the campaign (threshold 5.0e-5 Ry/bohr)
+# Reports: checks/k222_report.txt, checks/lowcut_report.txt
+KMESH=3 3 3
+ECUTWFC=60
+ECUTRHO=480

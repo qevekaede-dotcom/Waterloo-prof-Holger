@@ -1,0 +1,364 @@
+        _                      _____
+  _ __ | |__   ___  _ __   ___|___ / _ __  _   _
+ | '_ \| '_ \ / _ \| '_ \ / _ \ |_ \| '_ \| | | |
+ | |_) | | | | (_) | | | | (_) |__) | |_) | |_| |
+ | .__/|_| |_|\___/|_| |_|\___/____/| .__/ \__, |
+ |_|                                |_|    |___/ 
+                                       4.4.0
+
+-------------------------[time 2026-08-21 18:33:47]-------------------------
+Rust backend (phonors) using rayon (16 threads).
+Python version 3.11.5
+Spglib version 2.7.0
+
+Calculator interface: qe
+FC3 Displacement dataset was read from "phono3py_disp.yaml".
+  Number of supercell files: 168
+  Number of displacements in "phono3py_disp.yaml": 168
+1. Drift force of "fc_calcs/disp-00001/scf.out" to be subtracted
+  0.00000000  -0.00000000  -0.00000000
+2. Drift force of "fc_calcs/disp-00002/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+3. Drift force of "fc_calcs/disp-00003/scf.out" to be subtracted
+  0.00000000  -0.00000000  -0.00000000
+4. Drift force of "fc_calcs/disp-00004/scf.out" to be subtracted
+  0.00000000  -0.00000000   0.00000000
+5. Drift force of "fc_calcs/disp-00005/scf.out" to be subtracted
+  0.00000000  -0.00000000  -0.00000000
+6. Drift force of "fc_calcs/disp-00006/scf.out" to be subtracted
+ -0.00000000   0.00000000  -0.00000000
+7. Drift force of "fc_calcs/disp-00007/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+8. Drift force of "fc_calcs/disp-00008/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+9. Drift force of "fc_calcs/disp-00009/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+10. Drift force of "fc_calcs/disp-00010/scf.out" to be subtracted
+  0.00000000  -0.00000000  -0.00000000
+11. Drift force of "fc_calcs/disp-00011/scf.out" to be subtracted
+ -0.00000000   0.00000000  -0.00000000
+12. Drift force of "fc_calcs/disp-00012/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+13. Drift force of "fc_calcs/disp-00013/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+14. Drift force of "fc_calcs/disp-00014/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+15. Drift force of "fc_calcs/disp-00015/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+16. Drift force of "fc_calcs/disp-00016/scf.out" to be subtracted
+  0.00000000  -0.00000000   0.00000000
+17. Drift force of "fc_calcs/disp-00017/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+18. Drift force of "fc_calcs/disp-00018/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+19. Drift force of "fc_calcs/disp-00019/scf.out" to be subtracted
+ -0.00000000  -0.00000000  -0.00000000
+20. Drift force of "fc_calcs/disp-00020/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+21. Drift force of "fc_calcs/disp-00021/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+22. Drift force of "fc_calcs/disp-00022/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+23. Drift force of "fc_calcs/disp-00023/scf.out" to be subtracted
+  0.00000000  -0.00000000   0.00000000
+24. Drift force of "fc_calcs/disp-00024/scf.out" to be subtracted
+  0.00000000  -0.00000000   0.00000000
+25. Drift force of "fc_calcs/disp-00025/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+26. Drift force of "fc_calcs/disp-00026/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+27. Drift force of "fc_calcs/disp-00027/scf.out" to be subtracted
+ -0.00000000  -0.00000000  -0.00000000
+28. Drift force of "fc_calcs/disp-00028/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+29. Drift force of "fc_calcs/disp-00029/scf.out" to be subtracted
+ -0.00000000   0.00000000  -0.00000000
+30. Drift force of "fc_calcs/disp-00030/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+31. Drift force of "fc_calcs/disp-00601/scf.out" to be subtracted
+  0.00000000  -0.00000000  -0.00000000
+32. Drift force of "fc_calcs/disp-00602/scf.out" to be subtracted
+ -0.00000000   0.00000000  -0.00000000
+33. Drift force of "fc_calcs/disp-00603/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+34. Drift force of "fc_calcs/disp-00604/scf.out" to be subtracted
+  0.00000000  -0.00000000   0.00000000
+35. Drift force of "fc_calcs/disp-00605/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+36. Drift force of "fc_calcs/disp-00606/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+37. Drift force of "fc_calcs/disp-01177/scf.out" to be subtracted
+ -0.00000000   0.00000000  -0.00000000
+38. Drift force of "fc_calcs/disp-01178/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+39. Drift force of "fc_calcs/disp-01179/scf.out" to be subtracted
+  0.00000000  -0.00000000  -0.00000000
+40. Drift force of "fc_calcs/disp-01180/scf.out" to be subtracted
+  0.00000000  -0.00000000  -0.00000000
+41. Drift force of "fc_calcs/disp-01181/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+42. Drift force of "fc_calcs/disp-01182/scf.out" to be subtracted
+ -0.00000000   0.00000000  -0.00000000
+43. Drift force of "fc_calcs/disp-01825/scf.out" to be subtracted
+ -0.00000000   0.00000000  -0.00000000
+44. Drift force of "fc_calcs/disp-01826/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+45. Drift force of "fc_calcs/disp-01827/scf.out" to be subtracted
+ -0.00000000  -0.00000000  -0.00000000
+46. Drift force of "fc_calcs/disp-01828/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+47. Drift force of "fc_calcs/disp-01829/scf.out" to be subtracted
+  0.00000000  -0.00000000   0.00000000
+48. Drift force of "fc_calcs/disp-01830/scf.out" to be subtracted
+  0.00000000  -0.00000000  -0.00000000
+49. Drift force of "fc_calcs/disp-02401/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+50. Drift force of "fc_calcs/disp-02402/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+51. Drift force of "fc_calcs/disp-02403/scf.out" to be subtracted
+ -0.00000000   0.00000000  -0.00000000
+52. Drift force of "fc_calcs/disp-02404/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+53. Drift force of "fc_calcs/disp-02405/scf.out" to be subtracted
+ -0.00000000  -0.00000000  -0.00000000
+54. Drift force of "fc_calcs/disp-02406/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+55. Drift force of "fc_calcs/disp-02977/scf.out" to be subtracted
+ -0.00000000  -0.00000000  -0.00000000
+56. Drift force of "fc_calcs/disp-02978/scf.out" to be subtracted
+  0.00000000  -0.00000000  -0.00000000
+57. Drift force of "fc_calcs/disp-02979/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+58. Drift force of "fc_calcs/disp-02980/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+59. Drift force of "fc_calcs/disp-02981/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+60. Drift force of "fc_calcs/disp-02982/scf.out" to be subtracted
+  0.00000000  -0.00000000   0.00000000
+61. Drift force of "fc_calcs/disp-03553/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+62. Drift force of "fc_calcs/disp-03554/scf.out" to be subtracted
+ -0.00000000  -0.00000000  -0.00000000
+63. Drift force of "fc_calcs/disp-03555/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+64. Drift force of "fc_calcs/disp-03556/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+65. Drift force of "fc_calcs/disp-03557/scf.out" to be subtracted
+  0.00000000  -0.00000000   0.00000000
+66. Drift force of "fc_calcs/disp-03558/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+67. Drift force of "fc_calcs/disp-04129/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+68. Drift force of "fc_calcs/disp-04130/scf.out" to be subtracted
+ -0.00000000  -0.00000000  -0.00000000
+69. Drift force of "fc_calcs/disp-04131/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+70. Drift force of "fc_calcs/disp-04132/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+71. Drift force of "fc_calcs/disp-04133/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+72. Drift force of "fc_calcs/disp-04134/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+73. Drift force of "fc_calcs/disp-04705/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+74. Drift force of "fc_calcs/disp-04706/scf.out" to be subtracted
+  0.00000000  -0.00000000   0.00000000
+75. Drift force of "fc_calcs/disp-04707/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+76. Drift force of "fc_calcs/disp-04708/scf.out" to be subtracted
+ -0.00000000  -0.00000000  -0.00000000
+77. Drift force of "fc_calcs/disp-04709/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+78. Drift force of "fc_calcs/disp-04710/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+79. Drift force of "fc_calcs/disp-05425/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+80. Drift force of "fc_calcs/disp-05426/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+81. Drift force of "fc_calcs/disp-05427/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+82. Drift force of "fc_calcs/disp-05428/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+83. Drift force of "fc_calcs/disp-05429/scf.out" to be subtracted
+  0.00000000  -0.00000000  -0.00000000
+84. Drift force of "fc_calcs/disp-05430/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+85. Drift force of "fc_calcs/disp-06001/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+86. Drift force of "fc_calcs/disp-06002/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+87. Drift force of "fc_calcs/disp-06003/scf.out" to be subtracted
+ -0.00000000   0.00000000  -0.00000000
+88. Drift force of "fc_calcs/disp-06004/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+89. Drift force of "fc_calcs/disp-06005/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+90. Drift force of "fc_calcs/disp-06006/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+91. Drift force of "fc_calcs/disp-06577/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+92. Drift force of "fc_calcs/disp-06578/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+93. Drift force of "fc_calcs/disp-06579/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+94. Drift force of "fc_calcs/disp-06580/scf.out" to be subtracted
+  0.00000000  -0.00000000   0.00000000
+95. Drift force of "fc_calcs/disp-06581/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+96. Drift force of "fc_calcs/disp-06582/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+97. Drift force of "fc_calcs/disp-07225/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+98. Drift force of "fc_calcs/disp-07226/scf.out" to be subtracted
+ -0.00000000   0.00000000  -0.00000000
+99. Drift force of "fc_calcs/disp-07227/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+100. Drift force of "fc_calcs/disp-07228/scf.out" to be subtracted
+  0.00000000  -0.00000000   0.00000000
+101. Drift force of "fc_calcs/disp-07229/scf.out" to be subtracted
+ -0.00000000   0.00000000  -0.00000000
+102. Drift force of "fc_calcs/disp-07230/scf.out" to be subtracted
+  0.00000000  -0.00000000  -0.00000000
+103. Drift force of "fc_calcs/disp-07801/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+104. Drift force of "fc_calcs/disp-07802/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+105. Drift force of "fc_calcs/disp-07803/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+106. Drift force of "fc_calcs/disp-07804/scf.out" to be subtracted
+ -0.00000000   0.00000000  -0.00000000
+107. Drift force of "fc_calcs/disp-07805/scf.out" to be subtracted
+  0.00000000  -0.00000000   0.00000000
+108. Drift force of "fc_calcs/disp-07806/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+109. Drift force of "fc_calcs/disp-08377/scf.out" to be subtracted
+ -0.00000000   0.00000000  -0.00000000
+110. Drift force of "fc_calcs/disp-08378/scf.out" to be subtracted
+ -0.00000000   0.00000000  -0.00000000
+111. Drift force of "fc_calcs/disp-08379/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+112. Drift force of "fc_calcs/disp-08380/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+113. Drift force of "fc_calcs/disp-08381/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+114. Drift force of "fc_calcs/disp-08382/scf.out" to be subtracted
+  0.00000000  -0.00000000  -0.00000000
+115. Drift force of "fc_calcs/disp-08953/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+116. Drift force of "fc_calcs/disp-08954/scf.out" to be subtracted
+  0.00000000  -0.00000000   0.00000000
+117. Drift force of "fc_calcs/disp-08955/scf.out" to be subtracted
+ -0.00000000   0.00000000  -0.00000000
+118. Drift force of "fc_calcs/disp-08956/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+119. Drift force of "fc_calcs/disp-08957/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+120. Drift force of "fc_calcs/disp-08958/scf.out" to be subtracted
+ -0.00000000  -0.00000000  -0.00000000
+121. Drift force of "fc_calcs/disp-09529/scf.out" to be subtracted
+ -0.00000000  -0.00000000  -0.00000000
+122. Drift force of "fc_calcs/disp-09530/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+123. Drift force of "fc_calcs/disp-09531/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+124. Drift force of "fc_calcs/disp-09532/scf.out" to be subtracted
+ -0.00000000  -0.00000000  -0.00000000
+125. Drift force of "fc_calcs/disp-09533/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+126. Drift force of "fc_calcs/disp-09534/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+127. Drift force of "fc_calcs/disp-10105/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+128. Drift force of "fc_calcs/disp-10106/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+129. Drift force of "fc_calcs/disp-10107/scf.out" to be subtracted
+ -0.00000000  -0.00000000  -0.00000000
+130. Drift force of "fc_calcs/disp-10108/scf.out" to be subtracted
+ -0.00000000   0.00000000  -0.00000000
+131. Drift force of "fc_calcs/disp-10109/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+132. Drift force of "fc_calcs/disp-10110/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+133. Drift force of "fc_calcs/disp-10825/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+134. Drift force of "fc_calcs/disp-10826/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+135. Drift force of "fc_calcs/disp-10827/scf.out" to be subtracted
+ -0.00000000   0.00000000  -0.00000000
+136. Drift force of "fc_calcs/disp-10828/scf.out" to be subtracted
+ -0.00000000   0.00000000  -0.00000000
+137. Drift force of "fc_calcs/disp-10829/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+138. Drift force of "fc_calcs/disp-10830/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+139. Drift force of "fc_calcs/disp-11401/scf.out" to be subtracted
+ -0.00000000   0.00000000  -0.00000000
+140. Drift force of "fc_calcs/disp-11402/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+141. Drift force of "fc_calcs/disp-11403/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+142. Drift force of "fc_calcs/disp-11404/scf.out" to be subtracted
+  0.00000000  -0.00000000   0.00000000
+143. Drift force of "fc_calcs/disp-11405/scf.out" to be subtracted
+ -0.00000000  -0.00000000  -0.00000000
+144. Drift force of "fc_calcs/disp-11406/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+145. Drift force of "fc_calcs/disp-11977/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+146. Drift force of "fc_calcs/disp-11978/scf.out" to be subtracted
+  0.00000000  -0.00000000   0.00000000
+147. Drift force of "fc_calcs/disp-11979/scf.out" to be subtracted
+  0.00000000  -0.00000000   0.00000000
+148. Drift force of "fc_calcs/disp-11980/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+149. Drift force of "fc_calcs/disp-11981/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+150. Drift force of "fc_calcs/disp-11982/scf.out" to be subtracted
+ -0.00000000   0.00000000  -0.00000000
+151. Drift force of "fc_calcs/disp-12553/scf.out" to be subtracted
+ -0.00000000  -0.00000000  -0.00000000
+152. Drift force of "fc_calcs/disp-12554/scf.out" to be subtracted
+  0.00000000  -0.00000000  -0.00000000
+153. Drift force of "fc_calcs/disp-12555/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+154. Drift force of "fc_calcs/disp-12556/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+155. Drift force of "fc_calcs/disp-12557/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+156. Drift force of "fc_calcs/disp-12558/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+157. Drift force of "fc_calcs/disp-13129/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+158. Drift force of "fc_calcs/disp-13130/scf.out" to be subtracted
+ -0.00000000  -0.00000000  -0.00000000
+159. Drift force of "fc_calcs/disp-13131/scf.out" to be subtracted
+  0.00000000  -0.00000000  -0.00000000
+160. Drift force of "fc_calcs/disp-13132/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+161. Drift force of "fc_calcs/disp-13133/scf.out" to be subtracted
+  0.00000000  -0.00000000   0.00000000
+162. Drift force of "fc_calcs/disp-13134/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+163. Drift force of "fc_calcs/disp-13705/scf.out" to be subtracted
+  0.00000000  -0.00000000  -0.00000000
+164. Drift force of "fc_calcs/disp-13706/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+165. Drift force of "fc_calcs/disp-13707/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+166. Drift force of "fc_calcs/disp-13708/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+167. Drift force of "fc_calcs/disp-13709/scf.out" to be subtracted
+  0.00000000  -0.00000000   0.00000000
+168. Drift force of "fc_calcs/disp-13710/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+
+"FORCES_FC3" has been created.
+-------------------------[time 2026-08-21 18:33:48]-------------------------
+                 _
+   ___ _ __   __| |
+  / _ \ '_ \ / _` |
+ |  __/ | | | (_| |
+  \___|_| |_|\__,_|
+
+
+$ phono3py-init --cf3 fc_calcs/disp-00001/scf.out fc_calcs/disp-00002/scf.out fc_calcs/disp-00003/scf.out fc_calcs/disp-00004/scf.out fc_calcs/disp-00005/scf.out fc_calcs/disp-00006/scf.out fc_calcs/disp-00007/scf.out fc_calcs/disp-00008/scf.out fc_calcs/disp-00009/scf.out fc_calcs/disp-00010/scf.out fc_calcs/disp-00011/scf.out fc_calcs/disp-00012/scf.out fc_calcs/disp-00013/scf.out fc_calcs/disp-00014/scf.out fc_calcs/disp-00015/scf.out fc_calcs/disp-00016/scf.out fc_calcs/disp-00017/scf.out fc_calcs/disp-00018/scf.out fc_calcs/disp-00019/scf.out fc_calcs/disp-00020/scf.out fc_calcs/disp-00021/scf.out fc_calcs/disp-00022/scf.out fc_calcs/disp-00023/scf.out fc_calcs/disp-00024/scf.out fc_calcs/disp-00025/scf.out fc_calcs/disp-00026/scf.out fc_calcs/disp-00027/scf.out fc_calcs/disp-00028/scf.out fc_calcs/disp-00029/scf.out fc_calcs/disp-00030/scf.out fc_calcs/disp-00601/scf.out fc_calcs/disp-00602/scf.out fc_calcs/disp-00603/scf.out fc_calcs/disp-00604/scf.out fc_calcs/disp-00605/scf.out fc_calcs/disp-00606/scf.out fc_calcs/disp-01177/scf.out fc_calcs/disp-01178/scf.out fc_calcs/disp-01179/scf.out fc_calcs/disp-01180/scf.out fc_calcs/disp-01181/scf.out fc_calcs/disp-01182/scf.out fc_calcs/disp-01825/scf.out fc_calcs/disp-01826/scf.out fc_calcs/disp-01827/scf.out fc_calcs/disp-01828/scf.out fc_calcs/disp-01829/scf.out fc_calcs/disp-01830/scf.out fc_calcs/disp-02401/scf.out fc_calcs/disp-02402/scf.out fc_calcs/disp-02403/scf.out fc_calcs/disp-02404/scf.out fc_calcs/disp-02405/scf.out fc_calcs/disp-02406/scf.out fc_calcs/disp-02977/scf.out fc_calcs/disp-02978/scf.out fc_calcs/disp-02979/scf.out fc_calcs/disp-02980/scf.out fc_calcs/disp-02981/scf.out fc_calcs/disp-02982/scf.out fc_calcs/disp-03553/scf.out fc_calcs/disp-03554/scf.out fc_calcs/disp-03555/scf.out fc_calcs/disp-03556/scf.out fc_calcs/disp-03557/scf.out fc_calcs/disp-03558/scf.out fc_calcs/disp-04129/scf.out fc_calcs/disp-04130/scf.out fc_calcs/disp-04131/scf.out fc_calcs/disp-04132/scf.out fc_calcs/disp-04133/scf.out fc_calcs/disp-04134/scf.out fc_calcs/disp-04705/scf.out fc_calcs/disp-04706/scf.out fc_calcs/disp-04707/scf.out fc_calcs/disp-04708/scf.out fc_calcs/disp-04709/scf.out fc_calcs/disp-04710/scf.out fc_calcs/disp-05425/scf.out fc_calcs/disp-05426/scf.out fc_calcs/disp-05427/scf.out fc_calcs/disp-05428/scf.out fc_calcs/disp-05429/scf.out fc_calcs/disp-05430/scf.out fc_calcs/disp-06001/scf.out fc_calcs/disp-06002/scf.out fc_calcs/disp-06003/scf.out fc_calcs/disp-06004/scf.out fc_calcs/disp-06005/scf.out fc_calcs/disp-06006/scf.out fc_calcs/disp-06577/scf.out fc_calcs/disp-06578/scf.out fc_calcs/disp-06579/scf.out fc_calcs/disp-06580/scf.out fc_calcs/disp-06581/scf.out fc_calcs/disp-06582/scf.out fc_calcs/disp-07225/scf.out fc_calcs/disp-07226/scf.out fc_calcs/disp-07227/scf.out fc_calcs/disp-07228/scf.out fc_calcs/disp-07229/scf.out fc_calcs/disp-07230/scf.out fc_calcs/disp-07801/scf.out fc_calcs/disp-07802/scf.out fc_calcs/disp-07803/scf.out fc_calcs/disp-07804/scf.out fc_calcs/disp-07805/scf.out fc_calcs/disp-07806/scf.out fc_calcs/disp-08377/scf.out fc_calcs/disp-08378/scf.out fc_calcs/disp-08379/scf.out fc_calcs/disp-08380/scf.out fc_calcs/disp-08381/scf.out fc_calcs/disp-08382/scf.out fc_calcs/disp-08953/scf.out fc_calcs/disp-08954/scf.out fc_calcs/disp-08955/scf.out fc_calcs/disp-08956/scf.out fc_calcs/disp-08957/scf.out fc_calcs/disp-08958/scf.out fc_calcs/disp-09529/scf.out fc_calcs/disp-09530/scf.out fc_calcs/disp-09531/scf.out fc_calcs/disp-09532/scf.out fc_calcs/disp-09533/scf.out fc_calcs/disp-09534/scf.out fc_calcs/disp-10105/scf.out fc_calcs/disp-10106/scf.out fc_calcs/disp-10107/scf.out fc_calcs/disp-10108/scf.out fc_calcs/disp-10109/scf.out fc_calcs/disp-10110/scf.out fc_calcs/disp-10825/scf.out fc_calcs/disp-10826/scf.out fc_calcs/disp-10827/scf.out fc_calcs/disp-10828/scf.out fc_calcs/disp-10829/scf.out fc_calcs/disp-10830/scf.out fc_calcs/disp-11401/scf.out fc_calcs/disp-11402/scf.out fc_calcs/disp-11403/scf.out fc_calcs/disp-11404/scf.out fc_calcs/disp-11405/scf.out fc_calcs/disp-11406/scf.out fc_calcs/disp-11977/scf.out fc_calcs/disp-11978/scf.out fc_calcs/disp-11979/scf.out fc_calcs/disp-11980/scf.out fc_calcs/disp-11981/scf.out fc_calcs/disp-11982/scf.out fc_calcs/disp-12553/scf.out fc_calcs/disp-12554/scf.out fc_calcs/disp-12555/scf.out fc_calcs/disp-12556/scf.out fc_calcs/disp-12557/scf.out fc_calcs/disp-12558/scf.out fc_calcs/disp-13129/scf.out fc_calcs/disp-13130/scf.out fc_calcs/disp-13131/scf.out fc_calcs/disp-13132/scf.out fc_calcs/disp-13133/scf.out fc_calcs/disp-13134/scf.out fc_calcs/disp-13705/scf.out fc_calcs/disp-13706/scf.out fc_calcs/disp-13707/scf.out fc_calcs/disp-13708/scf.out fc_calcs/disp-13709/scf.out fc_calcs/disp-13710/scf.out

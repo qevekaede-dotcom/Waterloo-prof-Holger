@@ -1,0 +1,11 @@
+[stage0 2026-08-20 22:39:19] force-convergence checks
+[stage0 2026-08-20 22:39:19] running reference benchmark disp-00001 (90/720, 3x3x3)
+wrote 1 inputs, skipped 0 existing
+[stage0] k-mesh decision: 3 3 3
+[stage0] cutoff decision: 60/480 Ry
+[stage0] campaign settings: k = 3 3 3, cutoffs = 60/480 Ry
+wrote 167 inputs, skipped 1 existing
+[stage0.5 2026-08-21 01:35:38] pristine supercell residual-force check
+wrote checks/pristine/scf.in
+[stage0.5] WARNING: pristine run failed; campaign continues
+[stage0 2026-08-21 01:35:44] STOP_AFTER=stage0 — checks done, inputs ready; stage 1 runs as the job array

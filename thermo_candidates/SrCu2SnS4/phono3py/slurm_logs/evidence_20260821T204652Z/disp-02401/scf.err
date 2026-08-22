@@ -1,0 +1,13 @@
+--------------------------------------------------------------------------
+MPI_ABORT was invoked on rank 14 in communicator MPI_COMM_WORLD
+with errorcode 1.
+
+NOTE: invoking MPI_ABORT causes Open MPI to kill all MPI processes.
+You may or may not see output from other processes, depending on
+exactly when Open MPI kills them.
+--------------------------------------------------------------------------
+srun: Job step aborted: Waiting up to 62 seconds for job step to finish.
+slurmstepd: error: *** STEP 20260388.1 ON c114 CANCELLED AT 2026-08-21T16:45:57 ***
+srun: error: c114: tasks 0-13,15-31: Killed
+srun: Terminating StepId=20260388.1
+srun: error: c114: task 14: Exited with exit code 1
