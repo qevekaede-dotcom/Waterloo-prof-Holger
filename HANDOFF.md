@@ -33,7 +33,7 @@ just "you are here + do this next".
   administrative email about wet-lab-in-4th-year + volunteer forms was drafted
   in chat (not a package).
 
-## THE CURRENT TASK — phonons via phono3py (IN PROGRESS, 2026-07-13)
+## THE CURRENT TASK — phonons via phono3py (SrCu2SnS4 DONE 2026-08-22; package staged, NOT sent)
 
 Roy's ask (see `thermo_candidates/Roy_task_status.md`): professor recommended
 **phono3py**; Roy could not get it to run; deliverable includes a "how we got
@@ -122,8 +122,19 @@ story so far, including the failed attempts).
   `slurm_logs/evidence_*/`; workstation-side `scripts/fetch_home.sh`
   rsyncs the whole campaign home and commits+pushes in one command — that
   is the step that finally lands the raw logs and kappa_L in GitHub.
-- After kappa_L lands: package the fourth step result, update
-  `learning/08_phonons_and_kappa_L.md` [pending] sections, run the rigor
+- **kappa_L LANDED (2026-08-22) and the fourth-step package is STAGED.**
+  Headline [calculated]: 0.38 W m^-1 K^-1 at 300 K (xx=yy 0.40, zz 0.34),
+  ~1/T to 0.13 at 900 K; no imaginary modes; verified against the raw
+  HDF5. Flags: q-mesh ladder only ~5% converged (3% target missed);
+  pristine residual-force check OPEN (same lone-vector bug — nosym rerun
+  to submit). Package: `fourth step result (...)/` with EMAIL_DRAFT.md +
+  READY_TO_ATTACH (write-up, CSV, figure, summary) — freeze on send.
+  Remaining before send: (1) pristine nosym rerun on Nibi, (2) user
+  approves the email. THEN scale to SrZrS3 / Rb2Cu2SnS4 (own convergence
+  decisions; expect the same traps — recipe in DRAC_SETUP.md).
+- Historical plan note (superseded by the above): package the fourth step
+  result, update `learning/08_phonons_and_kappa_L.md` [pending] sections,
+  run the rigor
   review, THEN scale to SrZrS3 / Rb2Cu2SnS4 (each with its own convergence
   decisions).
 - The CV (`~/Desktop/CV_Yuhan Sun_updated.docx/.pdf`) already lists this

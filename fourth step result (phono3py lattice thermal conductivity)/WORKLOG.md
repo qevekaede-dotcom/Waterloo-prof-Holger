@@ -369,3 +369,54 @@ rerun = job 20260532; fresh stage2 = job 20260533 (afterok).** Expected:
 ~1-1.5 h per nosym run (27 vs 10 k-points), then stage2 (~1-2 h) writes
 kappa_L into `SrCu2SnS4/results/` on the cluster; archival via
 `scripts/fetch_home.sh` from the workstation afterwards.
+
+## 2026-08-22 — Session 5: campaign complete, kappa_L verified, package staged
+
+**All green.** nosym rerun 20260532: 24/24 COMPLETED (1:04-1:34 each —
+the expected ~2x from 27 vs 10 k-points). stage2 20260533: COMPLETED in
+31 min. Two small workstation traps closed while archiving: git needed a
+one-time identity on the WSL clone (`user.name`/`user.email`), and GitHub
+no longer accepts password pushes — a dedicated SSH key
+(`~/.ssh/id_ed25519_github`) was generated and registered, and the remote
+switched to SSH. `fetch_home.sh` then archived everything (main commit
+32bf814). FORCES_FC3 at 62.9 MB drew GitHub's >50 MB warning — under the
+100 MB hard limit, no action needed.
+
+**Results [calculated] and verification.**
+- kappa_L(300 K): xx = yy 0.4036, zz 0.3367, avg 0.3813 W m^-1 K^-1;
+  falls ~1/T to avg 0.1271 at 900 K (0.3813 x 300/900 = 0.1271 exactly).
+- Independent re-read of `kappa-m15157.hdf5` reproduces the CSV to all
+  four decimals; off-diagonal components ~1e-8; xx = yy exact — the
+  trigonal symmetry check passes for free.
+- Minimum phonon frequency -2e-6 THz (numerical zero): no imaginary
+  modes. fc3 solver: traditional (no symfc fallback needed).
+- Mesh ladder at 300 K: 0.341 / 0.328 / 0.376 / 0.364 / 0.381 W m^-1 K^-1
+  for 7x7x3 / 9x9x4 / 11x11x5 / 13x13x6 / 15x15x7 — the 3% criterion was
+  NOT reached (last step 4.7%); the largest mesh is reported and ~5% is
+  carried as the uncertainty everywhere the number appears.
+- Campaign stats (campaign_log_slurm.csv): 167 array timings, mean
+  43.7 min (31.9-93.7) on 32 ranks; 166 ok + 1 ok_retry; ~3,900
+  core-hours in stage 1, ~4,000 total.
+- OPEN ITEM: `checks/pristine` (undisplaced-supercell residual forces)
+  failed via the same lone-vector bug (task 7; 10 k-points, full
+  symmetry). To close before the package is sent: patch nosym/noinv into
+  `checks/pristine/scf.in` and rerun once (~1 h). freq_min ~ 0 already
+  supports dynamical stability, but the explicit residual number belongs
+  in the record.
+
+**Package assembled** (`fourth step result (phono3py lattice thermal
+conductivity)/`): README, CLAUDE, ATTACHMENTS, EMAIL_DRAFT (staged, NOT
+sent), READY_TO_ATTACH (HOW_WE_GOT_PHONO3PY_WORKING.md + CSV + figure +
+stage-2 summary), reproducibility (campaign scripts incl. the SLURM port
++ plot_kappa.py), results. learning/08 [pending] sections filled;
+Roy_task_status, SrCu2SnS4/CLAUDE.md and HANDOFF updated. READY_TO_ATTACH
+freezes on send, per package rules.
+
+**Rigor review (required by CLAUDE.md) — outcome.** Every reported number
+traces to `kappa-m15157.hdf5`, the stage-2 log, or
+`campaign_log_slurm.csv`; units are in every column header; values are
+tagged [calculated]; kappa_L is nowhere combined with tau-dependent
+quantities (no "full zT" claimed); no-SOC and no-NAC are stated wherever
+the number appears; convergence parameters were re-decided on the cluster
+(nothing copied between machines). Open items stated rather than glossed:
+the ~5% q-mesh convergence and the pending pristine check.
