@@ -3,7 +3,7 @@ phono3py:
   frequency_unit_conversion_factor: 15.633302
   symmetry_tolerance: 1.00000e-03
   configuration:
-    mesh_numbers: "15 15 7"
+    mesh_numbers: "13 13 6"
     symmetry_tolerance: "0.001"
     tmax: "900"
     tmin: "300"
