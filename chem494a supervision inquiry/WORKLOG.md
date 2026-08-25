@@ -29,3 +29,19 @@ Lab-notebook rules: dated, append-only entries.
 - Rigor self-review: every number in the draft traced to its source file;
   units present; no scientific rule violated.
 - Status: draft only, NOT sent. Append the outcome here after sending.
+
+## 2026-08-25 — Revision: shortened per the user
+
+- User's direction: drop the GitHub link and all numbers; the work summary
+  should be a brief mention only. The user sends the email themselves from
+  the university account (no address lookup needed).
+- The three-bullet summary was compressed to one sentence (candidate
+  selection, first-pass transport for all three, phono3py working with a
+  first-pass kappa_L for the first candidate). Compound names, gaps,
+  kappa_L values, and the repository link were removed. The three
+  questions and the DRAC thank-you are unchanged.
+- One sentence of summary was kept (rather than none) so the professor can
+  place who is writing.
+- Rigor self-review: with the numbers removed, no quantitative claims
+  remain; "first-pass" qualifiers kept; no rule violated.
+- Status: draft only, NOT sent. Append the outcome here after sending.
