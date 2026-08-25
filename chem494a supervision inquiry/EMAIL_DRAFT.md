@@ -12,15 +12,15 @@ CHEM 494A supervision inquiry for the Winter term
 
 Dear Professor Kleinke,
 
-I am Yuhan Sun, the undergraduate who has been working with Roy in your group this term. With Roy's guidance I selected three thermoelectric sulfide candidates from the screening list, completed the first-pass electronic-transport calculations for all three, and recently, following your recommendation, got phono3py working and computed a first-pass lattice thermal conductivity for the first candidate on Nibi. Thank you again for sponsoring my Digital Research Alliance account.
+I am Yuhan Sun, the undergraduate who has been working with Roy in your group this term. Thank you again for sponsoring my Digital Research Alliance account. A brief summary of what I have done so far:
 
-I am writing because I plan to take CHEM 494A in the upcoming Winter term, and I would very much like to do my research project under your supervision. May I ask:
+- Following the constraints you set (experimentally observed structures, band gaps below 1.0 eV), I selected three candidates from the screening list: SrCu2SnS4, SrZrS3, and Rb2Cu2SnS4.
+- I completed the first-pass Quantum ESPRESSO + BoltzTraP2 workflow for all three, with separate convergence tests for each material. The PBE gaps came out at about 0.34, 0.61, and 0.78 eV, and on the sampled doping grids SrCu2SnS4 and Rb2Cu2SnS4 favor p-type doping while SrZrS3 favors n-type. Roy has reviewed these results.
+- Following your recommendation, I got phono3py running end to end and computed a first-pass lattice thermal conductivity for SrCu2SnS4 on Nibi under the group's allocation: about 0.36 W m^-1 K^-1 at 300 K (a first-pass value under the documented approximations).
 
-1. Would you be willing to supervise my CHEM 494A project?
-2. If so, what direction would you suggest for the project?
-3. Is there anything I should learn or prepare between now and January?
+I am writing because I plan to take CHEM 494A in the upcoming Winter term, and I would be very glad to do my research project in your group. Would you be willing to supervise me, and is there a project you would like me to work on? I would be happy to continue the current computational work, or to take on whatever direction you think is most useful.
 
-I would be happy to meet in person or online if that is more convenient. Thank you very much for your time.
+Thank you very much for your time, and I look forward to hearing from you.
 
 Best regards,
 Yuhan Sun
