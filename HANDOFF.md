@@ -122,10 +122,26 @@ story so far, including the failed attempts).
   `slurm_logs/evidence_*/`; workstation-side `scripts/fetch_home.sh`
   rsyncs the whole campaign home and commits+pushes in one command — that
   is the step that finally lands the raw logs and kappa_L in GitHub.
-- After kappa_L lands: package the fourth step result, update
-  `learning/08_phonons_and_kappa_L.md` [pending] sections, run the rigor
-  review, THEN scale to SrZrS3 / Rb2Cu2SnS4 (each with its own convergence
-  decisions).
+- **kappa_L HAS LANDED (SrCu2SnS4 first pass COMPLETE).** All 168 force
+  calculations healthy after the nosym rerun (20260532); stage2 ran twice —
+  20260533 (no residual-force subtraction; ladder not <3%, fell back to
+  15x15x7, kappa_avg(300K)=0.381) and the FINAL 20311271 (pristine run
+  20305344 + `--cfz` subtraction; ladder converged at 13x13x6):
+  `SrCu2SnS4/results/kappa_L_first_pass.csv` = 0.364 W/m/K avg at 300 K
+  falling ~1/T to 0.121 at 900 K, no imaginary modes. Full reconstruction:
+  WORKLOG Session 5 in the fourth-step package. **Known gap: the `--cfz`
+  edit to postprocess.py lives only in the Nibi clone — port it into
+  `scripts/postprocess.py` before the next campaigns.**
+- **An interim progress email to Roy is DRAFTED, not sent**: `fourth step
+  result (phono3py lattice thermal conductivity)/EMAIL_DRAFT.md` +
+  `ATTACHMENTS.md` + `READY_TO_ATTACH/` (one CSV). Send from the uwaterloo
+  mailbox (the Roy thread is not in the personal Gmail); freeze
+  READY_TO_ATTACH/ on send.
+- Still ahead for the fourth step: SrZrS3 / Rb2Cu2SnS4 campaigns (own
+  convergence decisions; patch nosym into symmetry-preserving displacements
+  from the start), the full "how we got it working" writeup, package
+  reproducibility/ + results/, update
+  `learning/08_phonons_and_kappa_L.md` [pending] sections, rigor review.
 - The CV (`~/Desktop/CV_Yuhan Sun_updated.docx/.pdf`) already lists this
   phonon work as "currently building"; phono3py is deliberately NOT yet in
   the Skills list — add it once kappa_L actually lands.

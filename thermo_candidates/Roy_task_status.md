@@ -72,8 +72,17 @@ obligation.
 phono3py; Roy himself never got it to work and asked us to give it a go and
 report if/how it works. Scientific target: third-order force constants ->
 phonon-phonon scattering -> lattice thermal conductivity kappa_L, the
-missing denominator of every zT_e upper bound reported so far. Status: not
-started.
+missing denominator of every zT_e upper bound reported so far.
+
+Status: phono3py runs end to end. The SrCu2SnS4 first pass is COMPLETE on
+Nibi (168 force calculations; RTA, 2x2x1 supercell, 4.0 A pair cutoff,
+q-mesh 13x13x6): kappa_L [calculated] falls from ~0.36 W m^-1 K^-1 (300 K)
+to ~0.12 W m^-1 K^-1 (900 K), no imaginary modes; authoritative table in
+`SrCu2SnS4/results/kappa_L_first_pass.csv`. An interim progress email to Roy
+is drafted in `../fourth step result (phono3py lattice thermal
+conductivity)/EMAIL_DRAFT.md` (not yet sent). SrZrS3 and Rb2Cu2SnS4
+campaigns and the full "how we got it working" writeup are still to come;
+the running story is in that package's WORKLOG.md.
 
 ## Cluster Access (2026-07-15)
 

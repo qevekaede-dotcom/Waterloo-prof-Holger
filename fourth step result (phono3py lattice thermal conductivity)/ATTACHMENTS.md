@@ -1,0 +1,15 @@
+# Attach These Files
+
+Interim progress email — one attachment only, staged in `READY_TO_ATTACH/`:
+
+1. `SrCu2SnS4_kappa_L_first_pass.csv` - lattice thermal conductivity 300-900 K
+   [calculated]: kappa_xx, kappa_yy, kappa_zz and the scalar average, units
+   W m^-1 K^-1 in every column header. Copy of the authoritative
+   `thermo_candidates/SrCu2SnS4/results/kappa_L_first_pass.csv`.
+
+Do not attach raw QE logs, `FORCES_FC3`, `.hdf5` force-constant or kappa
+files, slurm logs, or supercell inputs. They are large and not needed for a
+progress update; the full records stay in
+`thermo_candidates/SrCu2SnS4/phono3py/`. The reproducibility bundle and the
+full "how we got it working" writeup ship with the complete package once all
+three materials are done, not with this interim email.
