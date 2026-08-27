@@ -501,3 +501,14 @@ figure. Both attachments were also zipped and handed to the user directly
 (the user cannot reach the repo checkout from their device); sending to
 Roy still happens from the uwaterloo mailbox. READY_TO_ATTACH/ freezes on
 send, as before.
+
+## 2026-08-27 — Session 6b: interim email SENT; READY_TO_ATTACH frozen
+
+The user sent the interim progress email to Roy from the uwaterloo mailbox
+(body per EMAIL_DRAFT.md with the figure sentence, plus a personal P.S.
+added at send time — deliberately not recorded in this public repo), with
+the two staged attachments (kappa_L CSV + PNG). Following the convention of
+the earlier packages, `READY_TO_ATTACH/` is now FROZEN as the record of
+exactly what was sent; the package CLAUDE.md was updated accordingly. The
+package itself stays IN PROGRESS (SrZrS3 / Rb2Cu2SnS4 campaigns and the
+full "how we got it working" writeup are still ahead).

@@ -9,10 +9,11 @@ authoritative records in `thermo_candidates/SrCu2SnS4/phono3py/` and
   and Rb2Cu2SnS4 phonon campaigns have not started; the full writeup and
   reproducibility bundle are still to be assembled here.
 - `EMAIL_DRAFT.md` is the INTERIM progress email (SrCu2SnS4 kappa_L +
-  short trap list). `READY_TO_ATTACH/` is NOT yet frozen — freeze it the
-  moment the email is sent, matching the earlier packages.
-- Sending happens from the uwaterloo mailbox (where the Roy thread lives),
-  not the personal Gmail.
+  short trap list). **The interim email WAS SENT (from the uwaterloo
+  mailbox); `READY_TO_ATTACH/` is now frozen** — it records exactly the two
+  attachments that were sent; do not edit it. The draft body was sent with
+  a personal P.S. added at send time that is deliberately not recorded
+  here. Any future attachments go in new files or the final full package.
 - The authoritative raw/derived records live in the material workspace;
   treat copies here as read-only snapshots. If a number changes upstream,
   regenerate here rather than editing the copy.
