@@ -477,3 +477,27 @@ stated, none glossed over; no Scientific-rules violations found in the
 final draft (PF/tau absent, zT_e called an upper bound, no-SOC stated,
 kappa_L labeled calculated first-pass, per-material convergence promised
 for the next two materials).
+
+## 2026-08-27 — Session 6: kappa_L figure added to the interim email package
+
+User request while preparing to send: the earlier packages all carried
+figures, so the interim email gets one too. New script
+`thermo_candidates/SrCu2SnS4/phono3py/scripts/plot_kappa_L.py` (same style
+as the boltztrap2 plot scripts: read-only inputs, printed checks, Agg,
+results/ output) plots in-plane, c-axis, and scalar-average kappa_L vs T
+from the authoritative `results/kappa_L_first_pass.csv`. Checks before
+plotting: (1) CSV columns == raw `kappa-m13136.hdf5` to the CSV's 4-decimal
+rounding [passed]; (2) kappa_xx == kappa_yy and avg == trace/3 [passed
+after widening the tolerance to 1.5e-4 — the CSV rounds each column
+independently, so the recomputed average differs from the rounded avg
+column by up to ~1e-4; first run failed at 5e-5, a tolerance bug in the
+new script, not a data problem]. The two series hues were checked with a
+colorblind-safety validator (the scalar average is a dashed neutral
+reference line, not a third hue). Output
+`results/kappa_L_first_pass.png` copied into this package's
+`READY_TO_ATTACH/` as `SrCu2SnS4_kappa_L_first_pass.png`; ATTACHMENTS.md
+now lists two files; EMAIL_DRAFT.md gained half a sentence pointing at the
+figure. Both attachments were also zipped and handed to the user directly
+(the user cannot reach the repo checkout from their device); sending to
+Roy still happens from the uwaterloo mailbox. READY_TO_ATTACH/ freezes on
+send, as before.

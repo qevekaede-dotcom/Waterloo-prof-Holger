@@ -80,7 +80,8 @@ kappa_zz the c-axis value):
 | 700   | 0.170                        | 0.128                      | 0.156                 |
 | 900   | 0.132                        | 0.100                      | 0.121                 |
 
-The full 300-900 K table is in the attached CSV. It falls roughly as 1/T —
+The full 300-900 K table is in the attached CSV, and the attached figure
+shows the same data. It falls roughly as 1/T —
 as it should here, since phonon-phonon scattering is the only channel
 included in this calculation, so I read that as a consistency check rather
 than a validation.
