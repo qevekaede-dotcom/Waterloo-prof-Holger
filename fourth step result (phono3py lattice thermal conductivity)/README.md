@@ -10,32 +10,36 @@ the layout of the earlier step-result packages.
 - The SrCu2SnS4 campaign is COMPLETE: 168 force calculations on Nibi
   (DRAC), force constants, q-mesh ladder, kappa_L(300-900 K). All raw
   records are archived in `thermo_candidates/SrCu2SnS4/phono3py/`.
-- This package: kappa_L table + figure + settings summary + the
-  "how we got it working" write-up, staged in `READY_TO_ATTACH/`.
 - The pristine residual-force check is CLOSED: max residual 5.5e-4
   Ry/bohr (above the 1e-4 guideline), measured and then SUBTRACTED from
   all displaced-cell forces via phono3py `--cfz`; the correction moved
   kappa_L by < 0.1% at fixed mesh.
-- **NOT yet sent.** Only remaining step: the user reviews
-  `EMAIL_DRAFT.md` and sends. Freeze `READY_TO_ATTACH/` on send.
+- **An INTERIM progress email WAS SENT to Roy** (kappa_L numbers + a
+  short trap list; `EMAIL_DRAFT.md` is the sent text and
+  `READY_TO_ATTACH/` is FROZEN with exactly the two sent attachments).
+- **The package as a whole is IN PROGRESS**: the full "how we got it
+  working" write-up (staged draft at the package root) and the
+  reproducibility bundle ship with the COMPLETE package once the SrZrS3
+  and Rb2Cu2SnS4 phonon campaigns are done.
 
 ## Contents
 
 ```text
 README.md            - this file
-EMAIL_DRAFT.md       - staged reply to Roy (first person; not yet sent)
-ATTACHMENTS.md       - the four attachment files + send plan
+EMAIL_DRAFT.md       - the interim email SENT to Roy (frozen record)
+EMAIL_DRAFT_full_package_unsent.md - superseded fuller draft (reference)
+HOW_WE_GOT_PHONO3PY_WORKING.md - STAGED DRAFT of the full write-up
+                       (ships with the final three-material package)
+ATTACHMENTS.md       - the two sent attachments (frozen record)
 CLAUDE.md            - rules for this package
-WORKLOG.md           - the full campaign lab notebook (five sessions,
-                       including every failed attempt)
-READY_TO_ATTACH/     - the staged attachments
-  HOW_WE_GOT_PHONO3PY_WORKING.md      (the write-up Roy asked for)
+WORKLOG.md           - the full campaign lab notebook (all sessions from
+                       both parallel tracks + reconciliation note)
+READY_TO_ATTACH/     - FROZEN: exactly the two files that were sent
   SrCu2SnS4_kappa_L_first_pass.csv    (kappa_L tensor vs T, W m^-1 K^-1)
-  SrCu2SnS4_kappa_L_vs_T.png          (figure)
-  SrCu2SnS4_kappa_L_summary.md        (settings + checks, from stage 2)
+  SrCu2SnS4_kappa_L_first_pass.png    (figure that was sent)
 reproducibility/     - exact campaign scripts (SLURM port included) +
-                       plot_kappa.py to regenerate the figure
-results/             - working copies of the table and figure
+                       plot_kappa.py (alternative figure)
+results/             - working copies: table, figures, stage-2 summary
 ```
 
 ## Authoritative records

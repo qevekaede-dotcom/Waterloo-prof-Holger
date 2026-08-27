@@ -130,6 +130,12 @@ its own symmetrization to the force constants afterwards.
 
 - All 168 force runs pass three health checks (JOB DONE, SCF convergence,
   forces present) at conv_thr 1e-9.
+- One deliberate mixed setting, recorded: disp-00001 doubled as the
+  stage-0 reference benchmark, so its forces sit at 90/720 Ry among 167
+  runs at the decided 60/480 Ry. Harmless at our tolerance (the cutoff
+  check measured max |dF| = 5.2e-6 Ry/bohr between the two settings,
+  ~1% of the acceptance threshold), but worth knowing when reading
+  FORCES_FC3.
 - The kappa tensor obeys the trigonal symmetry (kappa_xx = kappa_yy;
   off-diagonal components ~1e-8) and the derived tables were re-checked
   against the raw phono3py HDF5 output.

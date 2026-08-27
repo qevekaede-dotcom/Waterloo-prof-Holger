@@ -74,20 +74,21 @@ report if/how it works. Scientific target: third-order force constants ->
 phonon-phonon scattering -> lattice thermal conductivity kappa_L, the
 missing denominator of every zT_e upper bound reported so far.
 
-**Status: SrCu2SnS4 DONE; package staged, not yet sent.** phono3py runs
-end to end (168 force calculations on Nibi/DRAC). First-pass kappa_L
-[calculated, residual-corrected]: 0.36 W m^-1 K^-1 at 300 K (in-plane
-0.40, c-axis 0.30), falling ~1/T to 0.12 at 900 K — very low,
-encouraging. RTA, 2x2x1 supercell, cutoff-pair 4.0 A, q-mesh 13x13x6,
-PBE, no SOC, no NAC; no imaginary modes. Pristine-supercell residual
-forces measured at 5.5e-4 Ry/bohr (above the 1e-4 guideline) and
-subtracted via phono3py --cfz (< 0.1% effect on kappa_L at fixed mesh —
-robustness confirmed). q-mesh ladder met the 3% criterion marginally
-(2.9%); ~5% quoted as the uncertainty. The "how we got it working"
-write-up Roy asked for is staged in
-`fourth step result (phono3py lattice thermal conductivity)/`. Only
-remaining step: user reviews and sends the email. Then: same campaign for
-SrZrS3 and Rb2Cu2SnS4, each with its own convergence decisions.
+**Status: SrCu2SnS4 DONE; interim progress email SENT to Roy (from the
+uwaterloo mailbox).** phono3py runs end to end (168 force calculations on
+Nibi/DRAC). First-pass kappa_L [calculated, residual-corrected]: 0.36
+W m^-1 K^-1 at 300 K (in-plane 0.40, c-axis 0.30), falling ~1/T to 0.12 at
+900 K — very low, encouraging. RTA, 2x2x1 supercell, cutoff-pair 4.0 A,
+q-mesh 13x13x6, PBE, no SOC, no NAC; no imaginary modes; pristine residual
+forces (5.5e-4 Ry/bohr) measured and subtracted via --cfz; the email quotes
+"roughly 0.35-0.40 W/(m K)" with the documented caveats. The interim email
+and its two frozen attachments live in
+`../fourth step result (phono3py lattice thermal conductivity)/`
+(EMAIL_DRAFT.md + READY_TO_ATTACH/, frozen). The full "how we got it
+working" writeup is deliberately NOT sent yet — it ships with the complete
+package once SrZrS3 and Rb2Cu2SnS4 are done (staged draft:
+HOW_WE_GOT_PHONO3PY_WORKING.md in that package). Next: the SrZrS3 phonon
+campaign, with its own convergence decisions.
 
 ## Cluster Access (2026-07-15)
 

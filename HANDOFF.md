@@ -33,7 +33,7 @@ just "you are here + do this next".
   administrative email about wet-lab-in-4th-year + volunteer forms was drafted
   in chat (not a package).
 
-## THE CURRENT TASK — phonons via phono3py (SrCu2SnS4 DONE 2026-08-22; package staged, NOT sent)
+## THE CURRENT TASK — phonons via phono3py (SrCu2SnS4 DONE; interim email SENT 2026-08-26; full package pending)
 
 Roy's ask (see `thermo_candidates/Roy_task_status.md`): professor recommended
 **phono3py**; Roy could not get it to run; deliverable includes a "how we got
@@ -132,10 +132,25 @@ story so far, including the failed attempts).
   is the PRE-correction artifact, kept as the record behind the earlier
   numbers. Package: `fourth step result (...)/` with EMAIL_DRAFT.md +
   READY_TO_ATTACH (write-up, CSV, figure, summary) — freeze on send.
-  ONLY remaining step: user approves and sends the email. THEN scale to
-  SrZrS3 / Rb2Cu2SnS4 (own convergence decisions; expect the same traps —
+  **INTERIM EMAIL SENT (2026-08-26, via a parallel session on branch
+  claude/holger-repo-access-a8ikbc, from the uwaterloo mailbox):**
+  EMAIL_DRAFT.md in the package is the sent text (plus an unrecorded
+  personal P.S.); READY_TO_ATTACH/ is FROZEN with exactly the two sent
+  files (kappa_L CSV + figure). The full "how we got it working" writeup
+  was deliberately held back — it ships with the complete three-material
+  package; the staged draft is HOW_WE_GOT_PHONO3PY_WORKING.md at the
+  package root, and the fuller unsent email draft is kept as
+  EMAIL_DRAFT_full_package_unsent.md. Parallel-session flags now
+  reconciled (WORKLOG reconciliation note): disp-00001's forces sit at
+  90/720 Ry among 167 at 60/480 (harmless, dF 5.2e-6; in the writeup);
+  the --cfz port into scripts/postprocess.py is DONE in this repo; the
+  0-byte pristine_*.out slurm logs are expected (the wrapped job wrote
+  everything to scf.out/scf.err, which are archived). NEXT: the SrZrS3
+  phonon campaign (own convergence decisions; expect the same traps —
   recipe in DRAC_SETUP.md; measure the pristine cell and pass --cfz from
-  the start).
+  the start; consider nosym from the start for symmetry-preserving
+  members). Tightening option raised in the email: 5.0 A pair cutoff
+  (600 supercells) + supercell-size check for SrCu2SnS4.
 - Historical plan note (superseded by the above): package the fourth step
   result, update `learning/08_phonons_and_kappa_L.md` [pending] sections,
   run the rigor

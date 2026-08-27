@@ -467,3 +467,176 @@ numbers.** The --cfz rerun completed; verification repeated and passed
   HANDOFF and the figure all refreshed to the corrected numbers.
   Remaining: user approves EMAIL_DRAFT.md and sends; freeze
   READY_TO_ATTACH on send.
+
+## 2026-08-26 — Session 5: campaign closed out from archived records; interim progress email drafted
+
+**Campaign completion, reconstructed from the on-disk archive** (the previous
+entry ended at "nosym rerun submitted"; the finishing session on the cluster
+never wrote its WORKLOG entry, so this one records what the archived records
+show, after tracing each number back to them).
+
+- **nosym rerun 20260532: all 24 succeeded — all 168 force calculations
+  healthy.** The health record spans TWO logs: `campaign_log_slurm.csv`
+  (the stage-2 gate's assembled log) holds 167 data rows (166 `ok` plus
+  disp-04705 `ok_retry` at nk=1); the 168th, disp-00001, doubled as the
+  stage-0 reference benchmark at the 90/720 Ry settings and is logged as
+  `benchmark_00001, ok` in `campaign_log.csv`. Consequence [flagged]:
+  FORCES_FC3 mixes one 90/720 Ry force set (disp-00001) with 167 at
+  60/480 Ry — harmless at our tolerance (max |dF| between the two settings
+  is 5.2e-6 Ry/bohr per `checks/lowcut_report.txt`, ~1% of the 5e-5
+  threshold), but it belongs in the writeup.
+- **stage2 ran TWICE, and only the second is the final answer:**
+  1. **Job 20260533**: built FORCES_FC3 *without* subtracting residual
+     forces of the undisplaced supercell. Its q-mesh ladder
+     (kappa_avg(300 K) = 0.341 / 0.328 / 0.376 / 0.364 / 0.381 W/m/K at
+     7x7x3 / 9x9x4 / 11x11x5 / 13x13x6 / 15x15x7) never had a <3% step, so
+     it fell back to the largest mesh with its own logged WARNING to flag
+     this — final-m15157, kappa_avg(300 K) = 0.381 W/m/K.
+  2. The undisplaced ("pristine") supercell was then run on Nibi (job
+     20305341 failed — its CRASH shows a `seqopn ... ./tmp/sc.restart26`
+     error; job 20305344 completed; the archived `checks/pristine/scf.in`
+     carries the nosym/noinv patch, as expected for the maximally symmetric
+     configuration). **Job 20311271** rebuilt FORCES_FC3 with
+     `--cfz checks/pristine/scf.out` (residual-force subtraction). That
+     small fc3 change nudged the ladder to 0.341 / 0.328 / 0.375 / 0.364,
+     the 11x11x5 -> 13x13x6 step became ~2.96% < 3% (from the
+     full-precision hdf5 values 0.37503 -> 0.36394; the log's rounded
+     values give 2.93%), and the final full-T run
+     at **13x13x6** wrote `results/kappa_L_first_pass.csv` +
+     `kappa_L_summary.md` — the curated numbers (300 K: xx=yy 0.3960,
+     zz 0.2999, avg 0.3639; 900 K avg 0.1213 W m^-1 K^-1; min phonon
+     frequency -0.0000 THz, no imaginary modes).
+- Everything was archived home by `fetch_home.sh` in three commits
+  (32bf814, cd882c2, 9bfe607). Numbers in the summary/CSV verified against
+  `log_kappa.txt` (final run at 13x13x6) and the stage2 slurm logs — they
+  match line for line.
+- **Honest spread [flagged]:** chosen 13x13x6 avg (0.364) vs the
+  no-subtraction 15x15x7 pass (0.381) differ by ~5% at 300 K, and the
+  ladder convergence at 13x13x6 is borderline (2.9% vs the 3% criterion).
+  The interim email therefore quotes "roughly 0.35-0.40 W m^-1 K^-1", not
+  three significant figures.
+- **Reproducibility gap [action item]:** the `--cfz` / pristine-subtraction
+  step exists only in the Nibi clone's locally edited `postprocess.py`
+  (fetch_home.sh excludes `scripts/`; the repo copy has no `--cfz`). Port it
+  into `scripts/postprocess.py` BEFORE the SrZrS3 / Rb2Cu2SnS4 campaigns.
+  Also: the archived `pristine_20305341.out` / `pristine_20305344.out` slurm
+  logs are 0 bytes, so the pristine jobs' stdout is not in the archive.
+
+**Interim progress email to Roy drafted (user request).** New in this
+package: `EMAIL_DRAFT.md` (subject + body, modest first-person voice,
+no dates in the body), `ATTACHMENTS.md`, `READY_TO_ATTACH/` with one file
+(`SrCu2SnS4_kappa_L_first_pass.csv`, copy of the authoritative results CSV),
+and this package's `CLAUDE.md`. Content: it-runs-now trap list
+(phono3py-init split, symmetry tolerance/P1, wheelhouse pin, OpenMP
+oversubscription, QE lone-vector -> nosym), first-pass setup and kappa_L
+table with the caveats (RTA, 4.0 A pair cutoff, 2x2x1 supercell, no NAC,
+PBE no SOC, ~5% numerical spread), and next-step question (other two
+materials vs tightening SrCu2SnS4 first). The personal Gmail was checked
+and holds no Roy thread — the correspondence lives in the uwaterloo
+mailbox, so no Gmail draft was created; the user copies the draft there.
+NOT sent; READY_TO_ATTACH/ freezes on send. Also updated:
+`thermo_candidates/Roy_task_status.md` (was still "not started") and
+`HANDOFF.md` (kappa_L landed; what remains).
+
+**Still open for the full fourth-step package:** port `--cfz` into the repo
+postprocess.py; SrZrS3 + Rb2Cu2SnS4 campaigns (patch nosym into
+symmetry-preserving displacements from the start); the complete writeup;
+`learning/08_phonons_and_kappa_L.md` [pending] sections; reproducibility/
+and results/ folders here; add phono3py to the CV skills list only now that
+kappa_L has landed.
+
+**Rigor review (required; ran three independent audits — number tracing,
+rules/tone compliance, adversarial physics — before finalizing the draft).**
+Every number in the email and this entry traced to a primary output
+(CSV/hdf5/log/slurm/yaml agreement confirmed line for line; the staged
+attachment is byte-identical to the authoritative CSV). Corrections applied
+as a result: the campaign_log_slurm.csv row-count claim above (originally
+misstated as 168 rows; disp-00001 lives in campaign_log.csv as the 90/720 Ry
+benchmark), and in the email — softened the opening and install phrasing,
+credited cluster access to Roy AND the professor (the repo attributes the
+DRAC authorization to the professor), corrected the nosym explanation
+(nosym also disables charge/force symmetrization, not just k-point
+bookkeeping; forces agree within the force tolerance, which is the honest
+claim), separated the quantifiable ~5% numerical spread from the unbounded
+systematics (pair cutoff / supercell / RTA / no NAC), made the "quite low
+for a sulfide" comparison conditional on the tightened follow-up and
+explicitly memory-based, flagged the 13x13x6 convergence as borderline,
+labeled the 1/T fall a consistency check (only ph-ph scattering is
+included, so 1/T is near built-in), and mapped the email table columns to
+the CSV headers. Notebook-grade audit notes for the future writeup:
+log_kappa.txt prints "Non-analytical term correction (NAC): True" as a
+default-settings echo — no BORN data exists anywhere, so no NAC was
+actually applied; the "-0.0000 THz" minimum is -2.15e-6 THz in
+kappa-m13136.hdf5 (numerical zero of the Gamma acoustic modes); the 83,088
+(P1) and 600 (5.0 A) displacement counts survive only as Session-1
+notebook records (the P1 inputs were deliberately deleted), unlike 13,848
+and 168 which are confirmed by phono3py_disp.yaml. Remaining limitations
+stated, none glossed over; no Scientific-rules violations found in the
+final draft (PF/tau absent, zT_e called an upper bound, no-SOC stated,
+kappa_L labeled calculated first-pass, per-material convergence promised
+for the next two materials).
+
+## 2026-08-27 — Session 6: kappa_L figure added to the interim email package
+
+User request while preparing to send: the earlier packages all carried
+figures, so the interim email gets one too. New script
+`thermo_candidates/SrCu2SnS4/phono3py/scripts/plot_kappa_L.py` (same style
+as the boltztrap2 plot scripts: read-only inputs, printed checks, Agg,
+results/ output) plots in-plane, c-axis, and scalar-average kappa_L vs T
+from the authoritative `results/kappa_L_first_pass.csv`. Checks before
+plotting: (1) CSV columns == raw `kappa-m13136.hdf5` to the CSV's 4-decimal
+rounding [passed]; (2) kappa_xx == kappa_yy and avg == trace/3 [passed
+after widening the tolerance to 1.5e-4 — the CSV rounds each column
+independently, so the recomputed average differs from the rounded avg
+column by up to ~1e-4; first run failed at 5e-5, a tolerance bug in the
+new script, not a data problem]. The two series hues were checked with a
+colorblind-safety validator (the scalar average is a dashed neutral
+reference line, not a third hue). Output
+`results/kappa_L_first_pass.png` copied into this package's
+`READY_TO_ATTACH/` as `SrCu2SnS4_kappa_L_first_pass.png`; ATTACHMENTS.md
+now lists two files; EMAIL_DRAFT.md gained half a sentence pointing at the
+figure. Both attachments were also zipped and handed to the user directly
+(the user cannot reach the repo checkout from their device); sending to
+Roy still happens from the uwaterloo mailbox. READY_TO_ATTACH/ freezes on
+send, as before.
+
+## 2026-08-27 — Session 6b: interim email SENT; READY_TO_ATTACH frozen
+
+The user sent the interim progress email to Roy from the uwaterloo mailbox
+(body per EMAIL_DRAFT.md with the figure sentence, plus a personal P.S.
+added at send time — deliberately not recorded in this public repo), with
+the two staged attachments (kappa_L CSV + PNG). Following the convention of
+the earlier packages, `READY_TO_ATTACH/` is now FROZEN as the record of
+exactly what was sent; the package CLAUDE.md was updated accordingly. The
+package itself stays IN PROGRESS (SrZrS3 / Rb2Cu2SnS4 campaigns and the
+full "how we got it working" writeup are still ahead).
+
+## 2026-08-27 — Reconciliation note: two parallel sessions merged
+
+Two sessions worked this package in parallel without seeing each other:
+this one (branch claude/canada-computing-center-task-d165w2; the 2026-08-22
+"Session 5" above, plus the staged full package) and a second session
+(branch claude/holger-repo-access-a8ikbc; the 2026-08-26 "Session 5" above
+— the duplicate numbering is an artifact of the split and is left as
+written, per append-only rules). Reconciliation decisions:
+
+- The SENT record wins: EMAIL_DRAFT.md is the interim email actually sent
+  (2026-08-26, uwaterloo mailbox, personal P.S. unrecorded);
+  READY_TO_ATTACH/ is frozen with exactly the two sent files. Verified
+  against the corrected results: every number in the sent email is
+  correct.
+- The fuller unsent draft is kept as EMAIL_DRAFT_full_package_unsent.md;
+  the full writeup draft moved to the package root
+  (HOW_WE_GOT_PHONO3PY_WORKING.md) as staging for the final
+  three-material package, per the plan the interim email states.
+- The 2026-08-26 session's action items, resolved: (1) the --cfz port
+  into scripts/postprocess.py was already done on this branch (commit
+  1389943) — no gap; (2) the 0-byte pristine_*.out slurm logs are
+  expected — the wrapped sbatch redirected all output to
+  checks/pristine/scf.out and scf.err, both archived; (3) its disp-00001
+  observation (forces at 90/720 Ry among 167 at 60/480, dF 5.2e-6 —
+  harmless) is a genuine catch, now added to the writeup draft's
+  validation section.
+- Both sessions' HANDOFF / Roy_task_status edits were merged into single
+  reconciled versions (interim SENT; full package pending SrZrS3 +
+  Rb2Cu2SnS4).
