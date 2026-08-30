@@ -32,6 +32,13 @@ just "you are here + do this next".
 - Roy approved a computational focus (no wet-lab obligation). A separate
   administrative email about wet-lab-in-4th-year + volunteer forms was drafted
   in chat (not a package).
+- **CHEM 494A supervision inquiry (Winter term): DRAFTED, not yet sent.**
+  The email asking Professor Kleinke to supervise the user's CHEM 494A
+  project (opening with a brief summary of the term's work) is in
+  `chem494a supervision inquiry/EMAIL_DRAFT.md`. The user sends it
+  themselves from the university account; the recipient address is
+  deliberately not in this public repo. Record the outcome in that
+  folder's WORKLOG.
 
 ## THE CURRENT TASK — phonons via phono3py (SrCu2SnS4 DONE; interim email SENT 2026-08-26; full package pending)
 
