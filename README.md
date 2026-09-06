@@ -45,16 +45,19 @@ phonon postprocessing belong on DRAC, not this Mac.
 1. Run `git status --short --branch`; preserve any uncommitted work.
 2. Run `git fetch origin`; inspect remote branches and recent commits.
    Do not assume `main` contains the latest research work.
-3. Switch to the agreed branch. Use `git pull --ff-only` on its clean,
-   matching checkout; never reset local work just to force a sync.
+3. Switch to `main` (or an explicitly agreed task branch). Use
+   `git pull --ff-only` on its clean, matching checkout; never reset local
+   work just to force a sync.
 4. Read `HANDOFF.md`; update it at milestones and append a work-log entry.
    Review and explicitly stage relevant files before committing/pushing.
 
-The 2026-09-06 cleanup starts from `0024114` on
-`claude/canada-computing-center-task-d165w2`, which includes the other
-research branches and was 13 commits ahead of `main`. Consolidation is on
-`codex/research-repository-cleanup`; merging into `main` is a separate
-review step.
+The 2026-09-06 cleanup started from `0024114` on
+`claude/canada-computing-center-task-d165w2`, which included the other
+research branches and was then 13 commits ahead of `main`. This work was
+merged into `main` through [PR #1](https://github.com/qevekaede-dotcom/Waterloo-prof-Holger/pull/1)
+at the user's request. **Use `main` as the current shared baseline.**
+The temporary `codex/research-repository-cleanup` branch was deleted locally
+and on GitHub; its commits remain in `main`. Other research branches remain.
 
 Not in this repo: QE scratch data (regenerable, ~34 GB) and the group's
 internal/private material (ML screening dataset, slides, correspondence).

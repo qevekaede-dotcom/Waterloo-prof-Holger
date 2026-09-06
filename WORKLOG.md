@@ -52,3 +52,26 @@ added; no new simulation or full convergence claim was made.
 a draft PR into main; do not merge, force-push, delete research branches,
 or send research communications. The PR includes the 13 existing research
 commits inherited from the complete GitHub basis.
+
+## 2026-09-06 — Merge approved cleanup into main and remove temporary branch
+
+**New authorization:** the user requested publishing the cleanup to main and
+deleting this task's draft branch, preferring a tidy repository. This
+supersedes the previous task's no-merge publication scope for PR #1 only.
+
+1. Confirmed a clean local checkout, fetched GitHub, and checked PR #1:
+   head `9234a5e`, base main, mergeable, no reported status checks.
+2. Marked the draft ready and merged through GitHub using the expected head
+   SHA. Merge commit `88c2da2` preserves the existing research commits.
+3. Fast-forwarded local main to the remote merge. Verified `9234a5e` is an
+   ancestor and the merge tree is identical to the reviewed cleanup tree.
+4. Deleted only `codex/research-repository-cleanup`, remotely and with
+   safe local `git branch -d`. Its history remains in main; other research
+   branches and local ignored files were not touched.
+5. Updated README, HANDOFF, and the repository audit to point to main and
+   record the completed integration. Kept historical log entries unchanged.
+
+**Scientific review:** this publication adds no calculations or scientific
+claims. The merged tree preserves the previously audited records, scripts,
+frozen attachments, numerical results, and documented limitations. The
+follow-up edits change only publication status and this log.

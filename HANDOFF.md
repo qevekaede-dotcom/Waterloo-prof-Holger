@@ -4,8 +4,12 @@ Last repository/evidence audit: 2026-09-06. Research state reconciled from
 GitHub commit `0024114291043468c69f1d3a382cee51b64428d3` (2026-08-30),
 on `claude/canada-computing-center-task-d165w2`. That branch includes
 the other two Claude branches and was 13 commits ahead of `main`.
-The cleanup branch is `codex/research-repository-cleanup`; do not assume
-it has been merged into `main`. See [audit](docs/REPOSITORY_AUDIT.md).
+The research and cleanup were merged into **`main`** through
+[PR #1](https://github.com/qevekaede-dotcom/Waterloo-prof-Holger/pull/1)
+on 2026-09-06 (merge commit `88c2da2`). Resume from `main`.
+The temporary `codex/research-repository-cleanup` branch was deleted locally
+and on GitHub; all its commits are retained in `main`. Other research
+branches were left unchanged. See [audit](docs/REPOSITORY_AUDIT.md).
 
 Read [CLAUDE.md](CLAUDE.md) for standing rules and [AGENTS.md](AGENTS.md)
 for continuity. This file records state, not authorization to launch work.

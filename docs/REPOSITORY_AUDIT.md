@@ -21,9 +21,13 @@ Inspection of all fetched research branches found the complete basis:
 
 The local main was fast-forwarded, then
 `codex/research-repository-cleanup` was created from the complete basis.
-No remote research branch was deleted or force-pushed. Review consolidation
-into main separately; a cleanup PR also contains the 13 previously unmerged
-research commits, not just this maintenance change.
+The cleanup PR included the 13 previously unmerged research commits as well
+as the maintenance change. At the user's subsequent request,
+[PR #1](https://github.com/qevekaede-dotcom/Waterloo-prof-Holger/pull/1)
+was merged into `main` on 2026-09-06 (`88c2da2`), preserving commit history.
+The temporary cleanup branch was then deleted locally and remotely; its
+commits remain reachable from `main`. Other research branches were preserved,
+and no history was force-pushed. `main` is now the shared working baseline.
 
 The existing checkout was reused. Ignored local scratch and private
 background files were not deleted, inspected for content, or published.
