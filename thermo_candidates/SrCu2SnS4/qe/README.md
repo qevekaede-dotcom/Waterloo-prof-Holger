@@ -2,25 +2,17 @@
 
 Use this folder for QE relax, SCF, dense NSCF, and convergence tests.
 
-The templates in `00_relax`, `01_scf`, and `02_nscf` are not production inputs
-because they intentionally do not contain fake lattice vectors or atomic
-coordinates. After adding `structures/SrCu2SnS4.cif`, generate real starter
-inputs with:
+The `.in` files in `00_relax`, `01_scf`, and `02_nscf` are the archived inputs
+for the completed first pass. The old `.in.template` placeholders were removed;
+they contained no usable lattice or atomic coordinates. Preserve the actual
+inputs and the evidence in `convergence/` and `../logs/`.
 
-```bash
-source "$HOME/scientific-tools/env/thermo-bt2.sh"
-python thermo_candidates/scripts/make_qe_inputs.py thermo_candidates/SrCu2SnS4 structures/SrCu2SnS4.cif
-```
-
-Starting SSSP cutoffs:
-
-```text
-ecutwfc = 90 Ry
-ecutrho = 720 Ry
-```
-
-These are starting values only. Run convergence tests before using production
-results.
+For a fresh calculation workspace, `thermo_candidates/scripts/make_qe_inputs.py`
+can generate starter inputs from a CIF. Run it only in a fresh workspace: it
+writes `.in` files directly and would overwrite this completed calculation's
+inputs. Starter settings still require this material's own convergence tests.
+The commands below document the completed workflow and should be rerun only
+in a separate calculation workspace.
 
 ## Selected Parameters
 

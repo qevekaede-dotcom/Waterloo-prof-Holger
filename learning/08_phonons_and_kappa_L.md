@@ -101,7 +101,7 @@ kappa_L. Work directory: `thermo_candidates/SrCu2SnS4/phono3py/`.
 ## 6. How to read the result (now with the real numbers)
 
 - kappa_L is a tensor; trigonal symmetry forces kxx = kyy != kzz, and the
-  computed tensor obeys it exactly — a free correctness check. Numbers at
+  computed tensor obeys it within numerical precision — a useful check. Numbers at
   300 K [calculated, residual-corrected]: in-plane 0.40, c-axis 0.30,
   average **0.36 W m^-1 K^-1**. The anisotropy is modest (~25%); heat
   flows worse along c.
@@ -110,26 +110,30 @@ kappa_L. Work directory: `thermo_candidates/SrCu2SnS4/phono3py/`.
 - kappa_L falls roughly as 1/T in this regime (more phonons to scatter
   off): our 900 K average is 0.1213, and 0.3639 x (300/900) = 0.1213 —
   the trend holds to the last digit. High-T zT benefits twice.
-- Sanity checks from the summary: minimum phonon frequency -2e-6 THz
-  (zero to numerical precision — no imaginary modes, dynamically stable
-  structure). The q-mesh ladder met the < 3% target at 13x13x6, but only
-  just (0.375 -> 0.364, a 2.9% change; values across the whole ladder
-  span ~0.33-0.38), so ~5% is quoted as the honest q-mesh uncertainty
-  wherever the number appears.
+- Sanity checks from the summary: minimum phonon frequency -2e-6 THz,
+  numerically near zero. No significant imaginary modes occur on the
+  sampled mesh; this does not prove dynamical stability everywhere.
+  The corrected 11x11x5 -> 13x13x6 step changes the average by -2.9559%,
+  just meeting the average-only 3% stopping criterion, while kzz changes
+  by -12.2745%. The historical ~5% estimate is not a demonstrated tensor
+  or total physical uncertainty. Further q-mesh checks remain necessary.
 - A worked lesson in robustness: the residual-force correction (--cfz)
-  changed the average at fixed mesh by < 0.1% (0.364 -> 0.3639), while
-  switching mesh (15x15x7 -> 13x13x6, both defensible) changed it by
-  ~4%. The q-mesh, not the residual forces, is the real uncertainty here
-  — measuring both is what lets you say so.
+  changed the average at fixed mesh by < 0.1% (0.364 -> 0.3639).
+  The archived 15x15x7 result predates residual correction, so comparing
+  it with the final corrected 13x13x6 result changes both mesh and force
+  treatment. It is a historical record, not the next corrected mesh point
+  or a basis for assigning a total error bar.
 
 ## 7. What this still is NOT
 
 - Still RTA + PBE + no SOC, fc3 truncated at 4.0 A pairs, 2x2x1 supercell,
   no non-analytic (Born-charge) correction yet — each is documented and
   each can be tightened later.
-- The q-mesh is converged only at the ~3-5% level (see section 6). The
-  residual-force question is closed: measured at 5.5e-4 Ry/bohr and
-  subtracted via `--cfz`, with a < 0.1% effect on kappa_L at fixed mesh.
+- The q-mesh stopping test covered the tensor average only (section 6);
+  tensor, supercell, and pair-cutoff convergence remain unestablished.
+  These are first-pass results, without a demonstrated total uncertainty.
+  Pristine residual forces were measured at 5.5e-4 Ry/bohr and subtracted
+  via `--cfz`, with a < 0.1% effect on average kappa_L at fixed mesh.
 - Combining kappa_L with our PF/tau still does not give an absolute zT:
   the electronic side keeps its unknown relaxation time tau. What kappa_L
   buys is (a) one honest, material-specific piece of the denominator, and

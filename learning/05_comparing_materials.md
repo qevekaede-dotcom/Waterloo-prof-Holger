@@ -1,6 +1,6 @@
 # Comparing materials and judging a candidate
 
-This document teaches you how to place two (soon three) materials side by side
+This document teaches you how to place three materials side by side
 and decide, honestly, which one still looks promising after the first
 computational pass. It assumes you have read the pipeline playbook
 (`04_per_material_playbook.md`) or at least sections 1-4 of
@@ -28,8 +28,11 @@ have no lab data yet).
 
 **Status note.** All three materials have now finished their first
 scalar-relativistic PBE pass, including Rb2Cu2SnS4
-(`../thermo_candidates/Rb2Cu2SnS4/results/workflow_summary.md`). Every cell in
-the comparison table below is now a real [calculated] value.
+(`../thermo_candidates/Rb2Cu2SnS4/results/workflow_summary.md`). The comparison
+table now contains completed first-pass results alongside the separately
+tagged [database] entries. A first-pass lattice thermal conductivity is also
+available for SrCu2SnS4; SrZrS3 and Rb2Cu2SnS4 phonons remain pending
+(section 6). No full thermoelectric zT has been established.
 
 ---
 
@@ -333,11 +336,10 @@ its place.
 semiconductor assumption (see `../WORKFLOW_EXPLAINED.md` section 3.6). If the
 material were actually metallic at the PBE level, fixed occupations would
 fail to converge or produce nonsense, and a metal has essentially zero
-Seebeck coefficient, ending its thermoelectric story immediately. Both
-finished materials converged cleanly with fixed occupations and show real
-gaps, and Rb2Cu2SnS4's relaxation and final SCF also converged cleanly under
-the same assumption (`../thermo_candidates/Rb2Cu2SnS4/WORKLOG.md`), so all
-three pass. This is the cheapest, earliest kill criterion.
+Seebeck coefficient, ending its thermoelectric story immediately. All three
+materials converged cleanly with fixed occupations and show sampled PBE
+gaps (the three `results/workflow_summary.md` files), so all three pass
+this first-pass check. This is the cheapest, earliest kill criterion.
 
 **2. Is the gap in the useful window?** From section 3.1: too small means
 bipolar losses eat the high-temperature Seebeck (SrCu2SnS4's 0.3445 eV
@@ -347,8 +349,8 @@ large means doping is hard, and the screening rule caps it at 1.0 eV
 [database criterion] anyway. Remember the PBE bias: our calculated gaps are
 underestimates, so a "slightly too small" PBE gap may be fine in reality,
 while a PBE gap near 1 eV would suggest the real gap exceeds the window.
-SrCu2SnS4 (0.3445 eV) and SrZrS3 (0.6096 eV) both pass; Rb2Cu2SnS4's gap is
-in progress.
+SrCu2SnS4 (0.3445 eV), SrZrS3 (0.6096 eV), and Rb2Cu2SnS4 (0.7811 eV)
+all pass this sampled-PBE check [calculated, table in section 4].
 
 **3. Was the relaxation healthy?** A trustworthy first pass needs the
 variable-cell relaxation (`vc-relax`, `../WORKFLOW_EXPLAINED.md` section 4.3)
@@ -363,10 +365,13 @@ some other crystal.
 **4. Are Seebeck magnitudes ~100+ uV/K at achievable densities?** Good
 thermoelectrics typically need |S| of roughly 100 uV/K or more at carrier
 densities a chemist can realistically dope (the 1e19-1e21 cm^-3 grid spans
-the plausible range, but the top of it is aggressive). Both finished
-materials clear this bar at moderate densities: +157.2 uV/K at 1e20 cm^-3
+the plausible range, but the top of it is aggressive). SrCu2SnS4 and SrZrS3
+clear this bar at moderate sampled densities: +157.2 uV/K at 1e20 cm^-3
 (SrCu2SnS4, 300 K) and -173.8 uV/K at 1e20 cm^-3 (SrZrS3, 700 K)
-[calculated]. S is tau-independent (section 3.2), so this is the most
+[calculated]. Rb2Cu2SnS4 also clears the magnitude check: +199.7 uV/K at
+its 300 K best-PF/tau point, at the higher sampled density of 5e20 cm^-3
+[calculated, `../thermo_candidates/Rb2Cu2SnS4/results/workflow_summary.md`].
+S is tau-independent (section 3.2), so this is the most
 trustworthy transport check on the list -- but "achievable" is still an
 assumption: nobody has shown these compounds *can* be doped to these
 densities (see dopability in section 6).
@@ -377,8 +382,14 @@ temperature. SrCu2SnS4's p-type best PF/tau climbs monotonically from
 5.562e10 (300 K) to 2.144e11 W m^-1 K^-2 s^-1 (900 K), and its p-type zT_e
 peaks at 1.898 at 800 K before dipping [calculated,
 `../thermo_candidates/SrCu2SnS4/results/workflow_summary.md`]; SrZrS3's
-n-type zT_e peaks at 1.625 at 700 K [calculated] -- healthy shapes. A
-material whose best values *decay* with temperature from 300 K onward would
+n-type zT_e peaks at 1.625 at 700 K [calculated] -- healthy shapes.
+Rb2Cu2SnS4's p-type best PF/tau peaks at 1.981e11 W m^-1 K^-2 s^-1 at
+700 K and remains 1.966e11 at 900 K; its zT_e at the selected p-type
+PF/tau points rises to 6.419 at 900 K [calculated,
+`../thermo_candidates/Rb2Cu2SnS4/results/workflow_summary.md`]. These zT_e
+peaks are among the best-PF/tau points, not separate zT_e optimizations
+or full-zT predictions. A material whose best values *decay* with
+temperature from 300 K onward would
 be a low-temperature-only story at best. Check both metrics, per section 3.5,
 and remember both are grid samples, not fitted optima.
 
@@ -393,10 +404,11 @@ number looks weird, first ask whether the *computer* or the *setup* did
 something weird, and trace the value back to the raw log before blaming or
 crediting the material (`06_data_handling.md` shows the commands).
 
-Scorecard today: SrCu2SnS4 and SrZrS3 pass all six (with the dopability
-asterisk on item 4); Rb2Cu2SnS4 passes items 1, 3, and 6 so far, with items
-2, 4, and 5 in progress. A material that passes all six is "still promising
-after the first pass" -- nothing more. It has earned a second pass, not a
+Scorecard today: all three pass these first-pass screening checks, with the
+dopability caveat on item 4 applying to every material. These checks do not
+establish transport-mesh convergence or absolute performance. A material
+that passes all six is "still promising after the first pass" -- nothing
+more. It has earned a second pass, not a
 recommendation letter.
 
 ---
@@ -404,13 +416,21 @@ recommendation letter.
 ## 6. What is still missing before any real ranking
 
 This mirrors `../WORKFLOW_EXPLAINED.md` section 8, focused on the comparison
-decision. None of the following exist yet for any candidate, and each one
-could reorder the materials:
+decision. The remaining ingredients and checks below could reorder the
+materials. Lattice thermal conductivity has advanced for SrCu2SnS4 only:
+its first-pass average is 0.3639 W m^-1 K^-1 at 300 K [calculated,
+`../thermo_candidates/SrCu2SnS4/results/kappa_L_first_pass.csv`]. This is a
+residual-corrected phono3py RTA result with a 2x2x1 supercell, 4.0 A pair
+cutoff, 13x13x6 q-mesh, PBE, no SOC, and no NAC. The final mesh step only
+just meets the 3% criterion for the tensor average; broader convergence
+checks remain. SrZrS3 and Rb2Cu2SnS4 have no completed phonon campaigns.
+Even for SrCu2SnS4, the electronic relaxation time is still unknown, so
+this result does not establish a full zT.
 
 | Missing ingredient | Why it blocks a ranking | What would provide it |
 |---|---|---|
 | Relaxation time tau (s) | PF/tau becomes a real power factor only with tau; two materials can have different tau by large factors, flipping any PF/tau-based ordering | electron-phonon calculation (expensive) or fit to measured mobility |
-| Lattice thermal conductivity kappa_L (W m^-1 K^-1) | zT_e -> real zT requires kappa_L in the denominator; a material with soft, anharmonic phonons (low kappa_L) can beat one with a higher zT_e | phonon / lattice-dynamics calculation |
+| Lattice thermal conductivity kappa_L (W m^-1 K^-1) | Full zT requires kappa_L; only SrCu2SnS4 has a first-pass result, so there is no three-material lattice comparison yet | complete the other two phonon campaigns with their own convergence decisions; check q-mesh, supercell, and pair-cutoff convergence for the results |
 | Spin-orbit coupling (SOC) | all runs are scalar-relativistic; SOC can shift band edges and gaps, and differently per material | rerun with fully relativistic treatment |
 | Beyond-PBE gap (eV) | PBE underestimates gaps, so the bipolar-loss onset temperatures are systematically pessimistic, and differently so per material | hybrid functional or GW (much more expensive) |
 | Dopability / defect chemistry | the grid *assumes* every density up to 1e21 cm^-3 is reachable with rigid bands; real dopants may saturate earlier or distort the bands | defect-formation-energy study |
@@ -419,24 +439,28 @@ could reorder the materials:
 
 **What could be said to Roy today** (each with its tag and caveat):
 
-- Both finished candidates are PBE semiconductors with gaps inside the
-  screening window: 0.3445 eV (SrCu2SnS4, indirect) and 0.6096 eV (SrZrS3)
-  [calculated]; real gaps are likely somewhat larger (PBE bias).
-- Both relaxed cleanly, keeping their database space groups with small
+- All three candidates are PBE semiconductors with gaps inside the
+  screening window: 0.3445 eV (SrCu2SnS4, indirect), 0.6096 eV (SrZrS3),
+  and 0.7811 eV (Rb2Cu2SnS4) [calculated]; real gaps are likely somewhat
+  larger (PBE bias).
+- All three relaxed cleanly, keeping their database space groups with small
   volume drifts [calculated] -- no structural red flags.
-- On the shared sampled grid, under CRTA and without SOC, the two materials
-  prefer opposite carriers: SrCu2SnS4 looks p-type (by PF/tau at every
+- On the shared sampled grid, under CRTA and without SOC,
+  SrCu2SnS4 looks p-type (by PF/tau at every
   sampled temperature), SrZrS3 looks n-type (by zT_e at every sampled
   temperature, with the PF/tau-vs-zT_e disagreement of section 3.5 stated
-  alongside) [calculated].
-- Seebeck magnitudes at moderate sampled densities are in the healthy
-  100+ uV/K range for both [calculated], and S is absolute under the stated
-  approximations.
-- Both stay on the candidate list; nothing observed so far disqualifies
-  either. Rb2Cu2SnS4 has passed its own convergence tests (90/720 Ry; relax
-  2x4x4; final SCF 3x5x5) and relaxation (Ibam kept, +0.93% volume), and its
-  final SCF gives 78 occupied bands [calculated]; its dense NSCF and
-  transport are in progress.
+  alongside); Rb2Cu2SnS4 favors p-type by both PF/tau and zT_e at the
+  PF-selected points at every sampled temperature [calculated].
+- All three have sampled Seebeck magnitudes above 100 uV/K [calculated],
+  with the carrier densities and dopability caveat stated in item 4 above.
+  S is absolute under the stated approximations.
+- All three stay on the candidate list. Rb2Cu2SnS4 completed its own
+  convergence tests (90/720 Ry; relax 2x4x4; final SCF 3x5x5), relaxation
+  (Ibam kept, +0.93% volume), 8x14x14 dense NSCF, and 300-900 K
+  BoltzTraP2 transport [calculated].
+- SrCu2SnS4 now has a first-pass kappa_L result under the settings and
+  limitations above. The other two lattice calculations remain pending;
+  absolute performance and a final material ranking remain open.
 
 **What must NOT be said to Roy today:**
 
@@ -451,13 +475,14 @@ could reorder the materials:
 - A real-world gap value -- our numbers are PBE underestimates, and the
   listed [database] gaps (0.4032 / 0.5512 / 0.8641 eV) are database entries,
   not measurements we can vouch for.
-- Anything at all about Rb2Cu2SnS4's gap or transport -- those numbers do
-  not exist yet.
+- That Rb2Cu2SnS4's electronic zT_e of 6.419 is a full-zT prediction, or
+  that SrCu2SnS4's first-pass kappa_L removes the unknown electronic tau.
 
 The honest one-sentence summary a beginner can reuse: *"the electronic
-structures of both finished candidates look favorable -- SrCu2SnS4 for p-type
-and SrZrS3 for n-type doping on the sampled grid -- but absolute performance
-and any final ranking still require tau, kappa_L, and the remaining checks."*
+structures of all three candidates remain promising on the sampled grid,
+and SrCu2SnS4 now has a first-pass lattice thermal conductivity, but absolute
+performance and any final ranking still require electronic relaxation times,
+the other two lattice calculations, and the remaining convergence checks."*
 
 ---
 
@@ -469,6 +494,11 @@ and any final ranking still require tau, kappa_L, and the remaining checks."*
 - `../thermo_candidates/SrCu2SnS4/results/workflow_summary.md` -- SrCu2SnS4 DFT facts + transport table
 - `../thermo_candidates/SrCu2SnS4/results/seebeck_vs_mu.md` and `seebeck_vs_mu.csv` -- bipolar Seebeck story, tau cancellation, E_F
 - `../thermo_candidates/SrCu2SnS4/results/transport_full.csv` -- 98-row grid check
+- `../thermo_candidates/SrCu2SnS4/results/kappa_L_first_pass.csv` and
+  `../thermo_candidates/SrCu2SnS4/results/kappa_L_summary.md`
+  -- first-pass lattice thermal conductivity and settings
+- `../thermo_candidates/SrCu2SnS4/phono3py/slurm_logs/stage2_20311271.out`
+  -- residual-corrected force collection and final q-mesh selection
 - `../thermo_candidates/SrCu2SnS4/boltztrap2/run_bt2.sh` -- the explicit 14-level doping list
 - `../thermo_candidates/SrCu2SnS4/CLAUDE.md` -- volume drift line
 - `../thermo_candidates/SrZrS3/results/workflow_summary.md` -- SrZrS3 DFT facts + transport table

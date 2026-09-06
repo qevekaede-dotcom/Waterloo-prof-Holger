@@ -14,9 +14,12 @@ Key verified facts:
   cutoff-pair 4.0 A, q-mesh 13x13x6, measured pristine residual forces
   5.5e-4 Ry/bohr subtracted via --cfz, PBE, no SOC, no NAC):
   0.36 W m^-1 K^-1 at 300 K (xx = yy 0.40, zz 0.30), ~1/T down to 0.12
-  at 900 K; no imaginary modes; q-mesh ladder met the 3% criterion only
-  marginally (2.9%; ladder spread ~0.33-0.38) — always carry the ~5%
-  uncertainty with the number.
+  at 900 K; no significant imaginary modes on the sampled mesh. The q-mesh
+  ladder met its average-only 3% criterion marginally (last change -2.9559%),
+  while zz changed -12.2745%. The earlier ~5% estimate is not a demonstrated
+  tensor or total physical uncertainty; supercell/pair-cutoff convergence
+  remains unestablished. Preserve frozen sent records, but use this qualified
+  interpretation in new writing.
 
 Preserve `logs/`, `qe/convergence/`, `qe/tmp/final/`, and `boltztrap2/` as the
 evidence behind the processed results. Do not call the current transport result

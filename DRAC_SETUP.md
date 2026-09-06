@@ -3,8 +3,16 @@
 Goal: the 168 force calculations (and the checks around them) run on a
 Digital Research Alliance of Canada (DRAC) cluster instead of a laptop or
 workstation. The professor has authorized an account under the group's
-allocation. Local machines (Mac / Windows-WSL) keep doing preparation,
-small tests, and the writeup; the cluster does the heavy compute.
+allocation. Local machines (Mac / Windows-WSL) handle preparation, transfer,
+Git, writeup, and lightweight read-only checks; the cluster does both the
+force calculations and heavy phonon postprocessing.
+
+Recorded status: the SrCu2SnS4 campaign is complete; do not resubmit it simply
+to resume this project. Read `HANDOFF.md` for current state, convergence
+limitations, and the unresolved residual-force reporting issue. This guide
+records the working setup and past fixes; recheck current cluster environment
+and access before a future authorized campaign. Archived job IDs are not live
+queue status.
 
 Plain-language picture: you `ssh` into a **login node** (a shared computer
 for editing files and submitting work — never for running QE itself), hand

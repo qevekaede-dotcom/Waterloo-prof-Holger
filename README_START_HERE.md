@@ -1,7 +1,11 @@
 # Start Here
 
-**Resuming / new session? Read `HANDOFF.md` first** — current status and the
-next task (phono3py / lattice thermal conductivity) in one page.
+For a new or resumed session, read [CLAUDE.md](CLAUDE.md) and
+[AGENTS.md](AGENTS.md) for scientific/file-handling rules, then
+[HANDOFF.md](HANDOFF.md) for verified state and next research work.
+Before editing a material or package, read its scoped `CLAUDE.md` and the
+original evidence. Old logs and archived handoffs are history, not active
+instructions to restart completed calculations.
 
 Completely new to DFT, Quantum ESPRESSO, or BoltzTraP2? Read
 `WORKFLOW_EXPLAINED.md` first — it explains from zero background what these
@@ -50,3 +54,9 @@ All three first-pass workflows are now complete. `SrZrS3` and `Rb2Cu2SnS4`
 each repeated the full convergence workflow with their own parameters rather
 than copying SrCu2SnS4's; their results are in the respective `results/`
 folders. The side-by-side comparison is in `learning/05_comparing_materials.md`.
+
+SrCu2SnS4 also has first-pass lattice thermal conductivity from the completed
+168-displacement DRAC campaign. SrZrS3 and Rb2Cu2SnS4 phonons remain pending.
+The fourth-step interim email and its two attachments were sent; the full
+three-material writeup remains a draft. See `HANDOFF.md` for limitations
+and `README.md` for cross-computer Git workflow.

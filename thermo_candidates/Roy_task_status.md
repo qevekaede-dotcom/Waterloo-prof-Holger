@@ -1,6 +1,6 @@
 # Roy Task Status
 
-Roy's latest instruction was to select a few crystals from the renewed list,
+Roy's original screening instruction was to select a few crystals from the renewed list,
 with the professor's constraints in mind:
 
 - use candidates already filtered through Materials Project
@@ -42,14 +42,15 @@ convergence tests, variable-cell relaxation, final SCF, a `12x12x6` dense NSCF,
 and BoltzTraP2 transport tables from 300 to 900 K.
 
 Key first-pass result: the QE-PBE indirect gap is 0.3445 eV, and the sampled
-power factors favor p-type doping. Full zT still requires a relaxation time and
-lattice thermal conductivity.
+PF/tau values favor p-type doping. First-pass lattice thermal conductivity
+is now available (below), but full zT still requires a relaxation-time model.
 
 The `SrZrS3` first pass is also finished, with its own convergence tests
 (50/400 Ry; relax 6x3x2; final SCF 8x4x2), a Pnma-preserving relaxation, a
 20x10x6 dense NSCF, and the same BoltzTraP2 grid. Sampled PBE gap: 0.6096 eV.
-On the sampled grid the n-type best electronic zT_e exceeds the p-type best at
-every temperature - the opposite carrier preference to SrCu2SnS4. The same
+On the sampled grid, zT_e at the n-type PF-selected point exceeds that at
+the p-type PF-selected point at every temperature; these are not independent
+zT_e optima. The same
 full-zT caveats apply.
 
 The `Rb2Cu2SnS4` first pass is now also finished, with its own convergence
@@ -79,7 +80,8 @@ uwaterloo mailbox).** phono3py runs end to end (168 force calculations on
 Nibi/DRAC). First-pass kappa_L [calculated, residual-corrected]: 0.36
 W m^-1 K^-1 at 300 K (in-plane 0.40, c-axis 0.30), falling ~1/T to 0.12 at
 900 K — very low, encouraging. RTA, 2x2x1 supercell, cutoff-pair 4.0 A,
-q-mesh 13x13x6, PBE, no SOC, no NAC; no imaginary modes; pristine residual
+q-mesh 13x13x6, PBE, no SOC, no NAC; no significant imaginary modes on the
+sampled mesh; pristine residual
 forces (5.5e-4 Ry/bohr) measured and subtracted via --cfz; the email quotes
 "roughly 0.35-0.40 W/(m K)" with the documented caveats. The interim email
 and its two frozen attachments live in
@@ -90,12 +92,17 @@ package once SrZrS3 and Rb2Cu2SnS4 are done (staged draft:
 HOW_WE_GOT_PHONO3PY_WORKING.md in that package). Next: the SrZrS3 phonon
 campaign, with its own convergence decisions.
 
-## Cluster Access (2026-07-15)
+Audit qualification: the corrected last q-mesh step changes average kappa_L
+by -2.9559%, but zz by -12.2745%. The earlier approximate 5% estimate is not
+a demonstrated tensor or total physical uncertainty. Supercell and pair-cutoff
+convergence remain unestablished. See `../HANDOFF.md` for the open
+residual-force reporting issue before any new campaign.
 
-Roy emailed (after talking to the professor): apply for a Digital Research
-Alliance of Canada (CCDB) account with Professor Kleinke as PI/sponsor, via
-https://docs.alliancecan.ca/wiki/Apply_for_a_CCDB_account. Registration is as
-a sponsored Group Member and requires the PI's CCRI (role identifier), which
-Roy's email did not include — must ask Roy/the professor for it. Register with
-the institutional (@uwaterloo.ca) email; after email confirmation the PI must
-approve the sponsorship in CCDB. Status: application not yet submitted.
+## Cluster access history
+
+The 2026-07-15 request to apply for a sponsored CCDB account is complete:
+account/role activation was recorded on 2026-08-03, and the SrCu2SnS4 campaign
+subsequently completed on Nibi. The old "application not yet submitted"
+state is superseded. The fourth-step `WORKLOG.md` retains the setup and
+failed-submission history; `../DRAC_SETUP.md` records the working recipe.
+This is historical account/job evidence, not a live access or queue check.

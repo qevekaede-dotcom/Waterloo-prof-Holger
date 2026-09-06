@@ -7,6 +7,11 @@ BoltzTraP2. Read `README_START_HERE.md` before making changes.
 
 ## Current scope
 
+Read `HANDOFF.md` for the current verified state and pending work; archived
+handoffs and job chains are historical, not active launch instructions.
+GitHub is the shared authority across machines, but `main` may lag research
+branches: fetch/compare history and preserve dirty/ignored local files.
+
 - `SrCu2SnS4`: first scalar-relativistic PBE workflow completed; QE-vs-BoltzTraP2
   DOS comparison and Seebeck(mu) figure completed.
 - `SrZrS3`: first scalar-relativistic PBE pass complete (own convergence:
@@ -29,6 +34,13 @@ BoltzTraP2. Read `README_START_HERE.md` before making changes.
   constants -> phonon-phonon scattering -> lattice thermal conductivity
   kappa_L, the missing denominator of every zT_e reported so far. Status in
   `thermo_candidates/Roy_task_status.md`.
+- SrCu2SnS4's 168-displacement DRAC campaign and residual-corrected first-pass
+  kappa_L are complete. Its interim email was sent; the fourth package's two
+  `READY_TO_ATTACH/` files are frozen. The full writeup remains a staged draft.
+  SrZrS3 and Rb2Cu2SnS4 phonon campaigns remain pending.
+- Heavy calculations and phonon postprocessing run on DRAC compute nodes;
+  local machines handle preparation, transfer, Git, writeup, and lightweight
+  read-only checks. Do not launch calculations during repository cleanup.
 
 ## Scientific rules
 
@@ -38,6 +50,10 @@ BoltzTraP2. Read `README_START_HERE.md` before making changes.
 - The current SrCu2SnS4 run does not include explicit SOC.
 - A best point is the best point on the sampled carrier-density grid, not a
   continuous optimum.
+- zT_e comparisons in the best-PF tables refer to PF-selected points, not
+  independently optimized zT_e. The SrCu2SnS4 kappa_L mesh criterion checks
+  the average only; a ~3% final average change is not a 5% tensor/physical
+  uncertainty (the final zz change is about 12%).
 - Do not reuse SrCu2SnS4 convergence parameters for another material without
   repeating convergence tests.
 - Keep raw outputs unchanged. Put derived tables and summaries in `results/`.

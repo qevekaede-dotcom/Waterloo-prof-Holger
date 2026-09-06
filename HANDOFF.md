@@ -1,196 +1,97 @@
-# Session handoff — current state and what's next
+# Research handoff — current state
 
-A snapshot so a fresh session can pick up without re-deriving anything. The
-standing rules are in `CLAUDE.md` (auto-loaded); the beginner tutorial is
-`WORKFLOW_EXPLAINED.md`; the hands-on curriculum is `learning/`. This file is
-just "you are here + do this next".
+Last repository/evidence audit: 2026-09-06. Research state reconciled from
+GitHub commit `0024114291043468c69f1d3a382cee51b64428d3` (2026-08-30),
+on `claude/canada-computing-center-task-d165w2`. That branch includes
+the other two Claude branches and was 13 commits ahead of `main`.
+The cleanup branch is `codex/research-repository-cleanup`; do not assume
+it has been merged into `main`. See [audit](docs/REPOSITORY_AUDIT.md).
 
-## Where things stand (all verified on disk)
+Read [CLAUDE.md](CLAUDE.md) for standing rules and [AGENTS.md](AGENTS.md)
+for continuity. This file records state, not authorization to launch work.
 
-- The workspace is a git repo pushed to the **public** GitHub repo
-  `qevekaede-dotcom/Waterloo-prof-Holger` (made public on request; private
-  group material stays local-only). QE scratch (`**/tmp/`, `*.wfc*`,
-  `*.save/`) and the unrelated law-coursework folder are gitignored. After
-  finishing a task, commit and push.
+## Verified completed work
 
-- **All three first-pass workflows are COMPLETE**: SrCu2SnS4, SrZrS3,
-  Rb2Cu2SnS4. Each has its own convergence tests, vc-relax, final SCF, dense
-  NSCF, BoltzTraP2, and `results/workflow_summary.md`.
-  - Sampled PBE gaps [calculated]: 0.3445 / 0.6096 / 0.7811 eV.
-  - Favored carrier on the sampled grid: p (SrCu2SnS4), n by zT_e (SrZrS3),
-    p (Rb2Cu2SnS4). Full comparison: `learning/05_comparing_materials.md`.
-- **Reported to Roy and approved.** Two deliverable packages were sent as one
-  combined email (Folder 1 + Folder 2) and are now **frozen**:
-  - `second step result (DOS and Seebeck)/` — SrCu2SnS4 QE-vs-BoltzTraP2 DOS
-    comparison + Seebeck(mu) figure.
-  - `third step result (three-material first pass)/` — the three-material
-    comparison. (`first step result (submission_to_roy)/` = the original
-    SrCu2SnS4 submission.)
-  - Do NOT edit any `READY_TO_ATTACH/`; they record exactly what was sent.
-- No background compute is running. The temporary `folder1.zip`/`folder2.zip`
-  were removed after sending.
-- Roy approved a computational focus (no wet-lab obligation). A separate
-  administrative email about wet-lab-in-4th-year + volunteer forms was drafted
-  in chat (not a package).
-- **CHEM 494A supervision inquiry (Winter term): DRAFTED, not yet sent.**
-  The email asking Professor Kleinke to supervise the user's CHEM 494A
-  project (opening with a brief summary of the term's work) is in
-  `chem494a supervision inquiry/EMAIL_DRAFT.md`. The user sends it
-  themselves from the university account; the recipient address is
-  deliberately not in this public repo. Record the outcome in that
-  folder's WORKLOG.
+| Material | Electronic first pass | Sampled PBE gap [calculated] | Lattice thermal conductivity |
+| --- | --- | --- | --- |
+| SrCu2SnS4 | QE + BoltzTraP2 complete | 0.3445 eV | First pass complete |
+| SrZrS3 | QE + BoltzTraP2 complete | 0.6096 eV | No campaign records yet |
+| Rb2Cu2SnS4 | QE + BoltzTraP2 complete | 0.7811 eV | No campaign records yet |
 
-## THE CURRENT TASK — phonons via phono3py (SrCu2SnS4 DONE; interim email SENT 2026-08-26; full package pending)
+Each electronic pass includes independent convergence tests, vc-relax,
+final SCF, dense NSCF, and 300–900 K transport tables. Evidence:
+`thermo_candidates/<material>/results/workflow_summary.md`, adjacent CSVs,
+QE logs, and BoltzTraP2 trace/tensor files.
+[Three-material comparison](learning/05_comparing_materials.md) explains
+carrier preference; reported zT_e comparisons use PF-selected grid points,
+not independently optimized zT_e.
 
-Roy's ask (see `thermo_candidates/Roy_task_status.md`): professor recommended
-**phono3py**; Roy could not get it to run; deliverable includes a "how we got
-it working" writeup packaged as `fourth step result (phono3py lattice thermal
-conductivity)/` (folder + WORKLOG.md already exist — the WORKLOG has the full
-story so far, including the failed attempts).
+SrCu2SnS4 lattice evidence: `thermo_candidates/SrCu2SnS4/phono3py/` and
+`thermo_candidates/SrCu2SnS4/results/`. All 168 displacement outputs have
+completed SCF/force records. Residual-corrected `kappa-m13136.hdf5` matches
+`results/kappa_L_first_pass.csv`: average **0.3639 at 300 K** and
+**0.1213 at 900 K**, in W m^-1 K^-1 [calculated].
 
-**State right now** (verify on disk before acting):
-- phonopy 4.3.1 + phono3py 4.3.3 installed via pip wheels in `thermo-bt2` —
-  install was trivially easy; the traps were elsewhere. phono3py 4.x moved
-  setup commands to `phono3py-init`; QE cell needed `--tolerance 1e-3` or
-  symmetry collapsed to P1 (83k displacements instead of 168).
-- Displacement set generated: SrCu2SnS4, 2x2x1 supercell (96 atoms),
-  cutoff-pair 4.0 A -> **168 force calculations**, P3_121 confirmed.
-- Full automation in `thermo_candidates/SrCu2SnS4/phono3py/scripts/`
-  (see that folder's README.md): `run_campaign.sh` = resumable driver
-  (stage 0 k-mesh/cutoff force checks -> stage 1 all 168 SCFs -> stage 2
-  FORCES_FC3 + q-mesh ladder + kappa_L 300-900 K into `../results/`).
-- **Windows workstation: local env COMPLETE (2026-07-21).** WSL2 Ubuntu
-  24.04 on the Ryzen 9800X3D box; conda env `thermo` (QE 7.5 + OpenMPI,
-  phonopy/phono3py 4.4.0, h5py), SSSP 1.3.0 precision verified against the
-  manifest, repo cloned at `~/Waterloo-prof-Holger`. Local QE runs need
-  `QE_NP=6` (the conda OpenMPI counts the 6 physical cores WSL exposes).
-  Smoke-tested end to end; WORKLOG Session 2 has the details. The campaign
-  does NOT run here — and since 2026-08-21 the user's local compute is
-  committed elsewhere, so stage-2 postprocessing moved onto the cluster
-  too: local machines do prep, file transfer, git, and writeup only.
-- **CAMPAIGN runs on DRAC — do not launch locally.** The disp-00001
-  benchmark showed >= 2 h per force calculation on the laptop (1-2 weeks per
-  material), and the professor has now authorized a Digital Research
-  Alliance account under the group allocation, which supersedes the
-  resources-email question. The SLURM port is DONE: `scripts/slurm/`
-  (stage0 sbatch reusing run_campaign.sh via its new STOP_AFTER hook ->
-  168-task array -> stage2 gate + postprocess, chained by `submit_all.sh`)
-  plus a student-oriented walkthrough in `DRAC_SETUP.md`. SSH key pairs for
-  the cluster exist in the workstation WSL and on the Mac (both named
-  `~/.ssh/id_ed25519_drac`); the Mac public key was handed to the user to
-  paste into CCDB. **Account details confirmed from CCDB (2026-08-03):**
-  role active (sponsored by the professor, expires 2027-06-15), allocation
-  `ACCOUNT=def-kleinke` now filled in `scripts/slurm/cluster.env` (RAP
-  asw-382-aa, "8 active allocations - No RAC" = default share on any
-  general-purpose cluster). The login username lives in the local
-  `~/.ssh/config` (`Host drac`) on both machines, deliberately not in this
-  public repo.
-- **CAMPAIGN RESUBMITTED ON NIBI (2026-08-21): stage0 = job 20213855,
-  stage1 168-task array = job 20213856 (afterok-chained), and stage2 now
-  runs on the cluster as well** (chained after the array; the at-home
-  stage2 plan is dead — local compute is committed elsewhere). The FIRST
-  submission (2026-08-03, jobs 19030260/19030261) computed NOTHING in 18
-  days: the Alliance QE module is an MPI+OpenMP hybrid and no thread cap
-  was set, so 32 ranks x ~11 threads thrashed the 32-core allocation
-  ("running on 352 processor cores"); stage0 hit its 10 h TIMEOUT still
-  on SCF iteration 7 of the first benchmark, and stage1 sat at
-  DependencyNeverSatisfied. Fix: `export OMP_NUM_THREADS=1` in
-  cluster.env + 12 h caps (WORKLOG Session 4). The Session-3 wheelhouse
-  trap (pip pins phono3py to 3.25, no phono3py-init) AND the Alliance
-  python's veto of PyPI manylinux wheels are bypassed with a permissive
-  `_manylinux` shim on PYTHONPATH during install (recipe: DRAC_SETUP.md
-  section 3): `~/venvs/p3` now holds phono3py 4.4.0 + phonopy 4.4.0 +
-  numpy/scipy/h5py, all prebuilt wheels, zero compilation. 4.4.0 was
-  verified (Session 2) to read the 4.3.3-generated dataset identically.
-  **stage2 = job 20215178**, afterok on the array — the full chain
-  20213855 -> 20213856 -> 20215178 runs unattended. When kappa_L lands
-  in the cluster's
-  `SrCu2SnS4/results/`: rsync everything home with `--exclude 'scripts/'`
-  (the Nibi clone carries local script edits; `git checkout -- ...scripts/`
-  there before any future pull) and commit — transfer and git only, no
-  local compute. Traps already burned: per-cluster activation at
-  ccdb.alliancecan.ca/me/access_systems was the "connection closed"
-  cause; Nibi needs an explicit partition (cpubase_bycore_b2) and the
-  `_cpu` account variant. Monitor with `sacct -j 20213855` /
-  `sacct -j 20213856` over `ssh drac` (ControlMaster gives 8 h of
-  Duo-free reuse after one interactive login) — and check within a day
-  of any submission, not 18 days later.
-- **Campaign outcome (2026-08-21 afternoon): 144/168 done (~40 min each);
-  24 patterned fast-failures (one per pair block, MPI task 13/14 exit 1
-  right after the RAM printout)** — verbatim record in
-  `SrCu2SnS4/phono3py/slurm_logs/evidence_2026-08-21_stage1_fastfails.md`;
-  root cause: QE `sym_rho_init_shell` "lone vector" on the
-  symmetry-preserving member of each pair block (10 vs 14 irreducible
-  k-points); fixed by patching nosym/noinv into those 24 scf.in.
-  **Current chain: nosym rerun = 20260532 -> stage2 = 20260533**
-  (WORKLOG Session 4 end has the full analysis). **Archival workflow**:
-  cluster-side `scripts/slurm/collect_evidence.sh` (auto at stage2 start;
-  run manually BEFORE any rerun) snapshots failures into timestamped
-  `slurm_logs/evidence_*/`; workstation-side `scripts/fetch_home.sh`
-  rsyncs the whole campaign home and commits+pushes in one command — that
-  is the step that finally lands the raw logs and kappa_L in GitHub.
-- **kappa_L FINAL (2026-08-22, residual-corrected) and the fourth-step
-  package is STAGED.** Headline [calculated]: 0.36 W m^-1 K^-1 at 300 K
-  (xx=yy 0.40, zz 0.30), ~1/T to 0.12 at 900 K; no imaginary modes;
-  verified against the raw HDF5 (kappa-m13136). Pristine check CLOSED:
-  residual measured 5.5e-4 Ry/bohr (> 1e-4 guideline) and subtracted via
-  phono3py --cfz — effect on kappa_L < 0.1% at fixed mesh; q-mesh ladder
-  met 3% marginally (2.9%), ~5% quoted. kappa-m15157.hdf5 in the archive
-  is the PRE-correction artifact, kept as the record behind the earlier
-  numbers. Package: `fourth step result (...)/` with EMAIL_DRAFT.md +
-  READY_TO_ATTACH (write-up, CSV, figure, summary) — freeze on send.
-  **INTERIM EMAIL SENT (2026-08-26, via a parallel session on branch
-  claude/holger-repo-access-a8ikbc, from the uwaterloo mailbox):**
-  EMAIL_DRAFT.md in the package is the sent text (plus an unrecorded
-  personal P.S.); READY_TO_ATTACH/ is FROZEN with exactly the two sent
-  files (kappa_L CSV + figure). The full "how we got it working" writeup
-  was deliberately held back — it ships with the complete three-material
-  package; the staged draft is HOW_WE_GOT_PHONO3PY_WORKING.md at the
-  package root, and the fuller unsent email draft is kept as
-  EMAIL_DRAFT_full_package_unsent.md. Parallel-session flags now
-  reconciled (WORKLOG reconciliation note): disp-00001's forces sit at
-  90/720 Ry among 167 at 60/480 (harmless, dF 5.2e-6; in the writeup);
-  the --cfz port into scripts/postprocess.py is DONE in this repo; the
-  0-byte pristine_*.out slurm logs are expected (the wrapped job wrote
-  everything to scf.out/scf.err, which are archived). NEXT: the SrZrS3
-  phonon campaign (own convergence decisions; expect the same traps —
-  recipe in DRAC_SETUP.md; measure the pristine cell and pass --cfz from
-  the start; consider nosym from the start for symmetry-preserving
-  members). Tightening option raised in the email: 5.0 A pair cutoff
-  (600 supercells) + supercell-size check for SrCu2SnS4.
-- Historical plan note (superseded by the above): package the fourth step
-  result, update `learning/08_phonons_and_kappa_L.md` [pending] sections,
-  run the rigor
-  review, THEN scale to SrZrS3 / Rb2Cu2SnS4 (each with its own convergence
-  decisions).
-- The CV (`~/Desktop/CV_Yuhan Sun_updated.docx/.pdf`) already lists this
-  phonon work as "currently building"; phono3py is deliberately NOT yet in
-  the Skills list — add it once kappa_L actually lands.
+Conditions: PBE, no explicit SOC, RTA, no NAC, 2x2x1 supercell (96 atoms),
+4.0 A pair cutoff, 3x3x3 force k mesh, final phonon q mesh 13x13x6.
+167 displacements used 60/480 Ry; benchmark disp-00001 retained 90/720 Ry
+after a force-difference test (5.2e-6 Ry/bohr versus a 5e-5 threshold).
+Pristine residual maximum component 5.4513e-4 Ry/bohr was measured and
+subtracted using `--cfz`.
 
-## Machine + tooling gotchas (learned this session — reuse them)
+## Scientific limits and open technical issue
 
-- Activate everything with: `source "$HOME/scientific-tools/env/thermo-bt2.sh"`
-  (conda env `thermo-bt2`; QE binaries under `~/scientific-tools/apps/qe`).
-- Hardware: Apple **M5 Pro, 18-core CPU, 24 GB unified memory**. Run QE with
-  `QE_NP=12 QE_NK=2` (12 MPI ranks, 2 k-point pools) and leave headroom; more
-  than ~2 pools risks the 24 GB limit. The 20-core GPU is useless for this QE
-  (GPU accel is CUDA/NVIDIA-only).
-- Wrap long runs in `caffeinate -i` so idle sleep doesn't throttle them; a
-  **closed lid still sleeps** — tell the user to keep it open on mains power.
-- Run heavy QE in the **background** and continue when the task-notification
-  fires. Health-check every step: `JOB DONE`, electron-count vs pseudo-valence
-  arithmetic, symmetry kept, volume drift <~1%, pressure plateau.
-- The pre-made per-material `boltztrap2/run_bt2.sh` template ships with THREE
-  bugs every time (qe_source path missing `/final`; bare `btp2` crashes under
-  NumPy 2 -> use `btp2_compat.py`; half-open `300:900:100` and through-zero
-  `-1e21:1e21:1e20` ranges). Fix before running; see any material's
-  `boltztrap2/run_bt2.sh` for the corrected form.
+- PF/tau is not absolute PF; electronic-only zT_e is not full zT.
+  Full zT still needs a relaxation-time model; the other two materials
+  also lack kappa_L. All electronic workflows omit explicit SOC.
+- The final q-mesh step changes average kappa_L by -2.9559%, but zz by
+  -12.2745%. The earlier "~5%" estimate is not a demonstrated tensor or
+  total physical uncertainty. Supercell and pair-cutoff convergence remain
+  unestablished. No significant imaginary frequency on the sampled mesh
+  does not prove stability everywhere.
+- `kappa-m15157.hdf5` is a preserved **pre-residual-correction** result,
+  not the next point of the corrected mesh ladder.
+- The residual-force `awk` in
+  `thermo_candidates/SrCu2SnS4/phono3py/scripts/run_campaign.sh` printed zero on
+  this Mac for the nonzero pristine log during this audit. Diagnose/test
+  numeric handling before a future campaign. Scripts are unchanged; no
+  campaign or postprocessing was rerun. Read-only force-comparison checks
+  were run. Raw forces and archived `--cfz` evidence support existing results.
+- Dense electronic k-mesh/transport-property convergence is not established
+  merely by having completed the first-pass pipeline.
 
-## Rules that bite (from CLAUDE.md — do not relearn the hard way)
+## Communications and immutable records
 
-Never call PF/tau an absolute power factor; never call zT_e the final zT;
-state no-SOC; "best" = best on the sampled grid; convergence params are
-per-material (never copied). Keep raw outputs immutable; derived tables go in
-`results/`. Tag values [calculated]/[database]/[experimental], units in every
-header. Anything sent to Roy uses the modest first-person student voice.
-Run the scientific-rigor self-review after every task.
+- First SrCu2SnS4 submission: sent.
+- Second (DOS/Seebeck) and third (three-material first pass) packages:
+  sent together and approved by Roy; computational focus approved.
+- Fourth package: **in progress**. SrCu2SnS4 interim email sent on
+  2026-08-26; `READY_TO_ATTACH/` contains exactly its two frozen
+  attachments (CSV + figure). `HOW_WE_GOT_PHONO3PY_WORKING.md` is the
+  staged, unsent full writeup; `EMAIL_DRAFT_full_package_unsent.md` is
+  superseded reference text.
+- CHEM 494A supervision inquiry: drafted, no sent outcome recorded.
+  See `chem494a supervision inquiry/`.
+- Never edit any of the four packages' `READY_TO_ATTACH/` folders.
+  Presentation/reproducibility copies are intentional, not cleanup waste.
+
+## Next research work, when requested
+
+1. Resolve the residual-force reporting issue and review cluster traps.
+2. SrZrS3 phonons with independent convergence decisions and pristine-force
+   checks; then Rb2Cu2SnS4. Do not copy SrCu2SnS4 numerical settings.
+3. Optionally tighten SrCu2SnS4 pair cutoff (5.0 A / 600 supercells was
+   proposed) and supercell/q-mesh convergence; not yet performed.
+4. Assemble the full three-material phonon writeup/package when supported
+   by results; keep interim attachments frozen.
+
+Use [DRAC_SETUP.md](DRAC_SETUP.md) and the campaign
+[README](thermo_candidates/SrCu2SnS4/phono3py/README.md).
+Heavy calculations **and phonon postprocessing run on DRAC**, not local
+machines. Do not infer live cluster status from archived jobs.
+No cluster connection or calculation was made during this cleanup.
+
+Detailed failed attempts, job IDs, and communications remain in the
+fourth-step `WORKLOG.md`. The previous full handoff is preserved verbatim
+in [the historical snapshot](docs/archive/HANDOFF_2026-08-30.md); its old
+launch commands, "current chain", and package instructions are superseded.

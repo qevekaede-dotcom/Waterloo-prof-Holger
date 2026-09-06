@@ -134,14 +134,14 @@ its own symmetrization to the force constants afterwards.
   stage-0 reference benchmark, so its forces sit at 90/720 Ry among 167
   runs at the decided 60/480 Ry. Harmless at our tolerance (the cutoff
   check measured max |dF| = 5.2e-6 Ry/bohr between the two settings,
-  ~1% of the acceptance threshold), but worth knowing when reading
-  FORCES_FC3.
+  10.4% of the 5e-5 Ry/bohr acceptance threshold), but worth knowing
+  when reading FORCES_FC3.
 - The kappa tensor obeys the trigonal symmetry (kappa_xx = kappa_yy;
   off-diagonal components ~1e-8) and the derived tables were re-checked
   against the raw phono3py HDF5 output.
-- Minimum phonon frequency on the final mesh: -2e-6 THz, i.e. zero to
-  numerical precision — no imaginary modes, so the relaxed structure is
-  dynamically stable at this level of theory.
+- Minimum phonon frequency on the final mesh: -2e-6 THz, numerically near
+  zero. No significant imaginary modes occur on the sampled mesh; this
+  does not establish dynamical stability everywhere.
 - Undisplaced-supercell residual forces: measured (nosym, same settings)
   at max 5.5e-4 Ry/bohr — above our 1e-4 guideline, about 18% of the
   typical displaced-cell force — so the measured residual field was
@@ -150,7 +150,9 @@ its own symmetrization to the force constants afterwards.
   by less than 0.1% at fixed q-mesh, which confirms the result was robust
   against it; we would still recommend measuring the pristine cell and
   passing `--cfz` routinely.
-- q-mesh convergence at 300 K: the ladder (7,7,3 upward) met our 3%
-  criterion at 13x13x6, though only just (2.9% change from the previous
-  mesh; values across the ladder span roughly 0.33-0.38 W m^-1 K^-1), so
-  we quote ~5% as the honest q-mesh uncertainty.
+- q-mesh check at 300 K: the corrected 11x11x5 -> 13x13x6 step changes
+  the average by -2.9559%, just meeting our average-only 3% stopping
+  criterion, while kappa_zz changes by -12.2745%. The historical ~5%
+  estimate is not a demonstrated tensor or total physical uncertainty.
+  Further q-mesh, supercell, and pair-cutoff convergence checks remain;
+  these are first-pass RTA/PBE results without SOC or NAC.

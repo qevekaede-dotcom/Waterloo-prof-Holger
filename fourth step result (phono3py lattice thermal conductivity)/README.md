@@ -55,8 +55,11 @@ SrCu2SnS4 kappa_L [calculated, first pass]: **0.36 W m^-1 K^-1 at 300 K**
 (in-plane 0.40, c-axis 0.30), falling ~1/T to 0.12 W m^-1 K^-1 at 900 K.
 Very low — encouraging for a thermoelectric. Method: phono3py RTA, 2x2x1
 supercell, cutoff-pair 4.0 A, q-mesh 13x13x6, measured residual forces
-subtracted (--cfz), PBE, no SOC, no NAC. No imaginary phonon frequencies.
-Honest caveats: the q-mesh ladder met the 3% criterion only marginally
-(2.9%; ladder spread ~0.33-0.38, so ~5% is quoted as the uncertainty),
-and kappa_L alone does not give a full zT (the electronic side still has
-an unknown relaxation time tau).
+subtracted (--cfz), PBE, no SOC, no NAC. No significant imaginary phonon
+frequencies occur on the sampled mesh; this is not a global stability proof.
+The corrected 11x11x5 -> 13x13x6 step changes the average by -2.9559%,
+just meeting the average-only 3% stopping criterion, while kappa_zz changes
+by -12.2745%. The historical ~5% estimate is not a demonstrated tensor or
+total physical uncertainty. Further q-mesh, supercell, and pair-cutoff
+convergence checks remain. kappa_L alone does not give a full zT: the
+electronic side still has an unknown relaxation time tau.
