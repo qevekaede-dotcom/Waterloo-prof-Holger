@@ -8,6 +8,19 @@ repo). Send from the university account.
 
 CHEM 494A supervision inquiry for the Winter term
 
+# Status note
+
+Historical draft behind the initial inquiry to Professor Kleinke. On
+2026-09-06, the user supplied a screenshot of their sent follow-up in the same
+thread, dated 2026-08-28. It confirms that Professor Kleinke had given
+conditional approval if Roy continued mentoring, Roy agreed in person, and
+the user explicitly reported that outcome back to Professor Kleinke. The user
+also promised to ask the Undergraduate Office which enrolment form was needed
+and send it to him. The screenshot does not contain the full initial inquiry
+or Professor Kleinke's full reply, so the body below remains a draft copy
+rather than a verbatim sent record. Personal details from the screenshot are
+deliberately omitted from this public repository.
+
 # Body
 
 Dear Professor Kleinke,

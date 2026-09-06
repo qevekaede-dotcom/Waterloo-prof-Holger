@@ -74,8 +74,18 @@ subtracted using `--cfz`.
   attachments (CSV + figure). `HOW_WE_GOT_PHONO3PY_WORKING.md` is the
   staged, unsent full writeup; `EMAIL_DRAFT_full_package_unsent.md` is
   superseded reference text.
-- CHEM 494A supervision inquiry: drafted, no sent outcome recorded.
-  See `chem494a supervision inquiry/`.
+- CHEM 494A/B: Professor Kleinke gave conditional approval if Roy continued
+  mentoring, and Roy agreed in person. A user-provided screenshot confirms
+  that, on 2026-08-28, the user closed this loop with Professor Kleinke by
+  email: they reported Roy's agreement and next-work direction, said they
+  would continue the remaining two phonon campaigns remotely, and promised to
+  ask the Undergraduate Office which enrolment form was needed. The CHEM 494A
+  target is Winter; joining the group's meetings in Fall/on return is a
+  separate commitment. The user reports sending the Roy follow-up preserved
+  in `chem494a supervision inquiry/EMAIL_DRAFT_TO_ROY.md` on 2026-09-06; a
+  reply is pending. Do not send Professor Kleinke another message merely to
+  report Roy's agreement. The next professor contact should carry a concrete
+  office/form outcome or an agreed project scope.
 - Never edit any of the four packages' `READY_TO_ATTACH/` folders.
   Presentation/reproducibility copies are intentional, not cleanup waste.
 
