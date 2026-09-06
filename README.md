@@ -6,18 +6,57 @@ Quantum ESPRESSO, BoltzTraP2, and phono3py.
 
 | Read this | For |
 | --- | --- |
-| `RESEARCH_BACKGROUND.md` | What the project is and where candidates come from |
-| `README_START_HERE.md` | Orientation inside the workspace |
-| `HANDOFF.md` | Current status + the immediate next task |
-| `WORKFLOW_EXPLAINED.md` | Beginner-level tutorial for every calculation step |
-| `learning/` | Hands-on curriculum (tools, code, data, comparisons) |
-| `WINDOWS_SETUP.md` | Running the current phonon campaign on a Windows workstation (WSL2) |
-| `CLAUDE.md` | House rules: scientific caveats, file handling, rigor review |
+| [HANDOFF.md](HANDOFF.md) | Current verified state, open issues, next research work |
+| [README_START_HERE.md](README_START_HERE.md) | Reading order for new/resumed sessions |
+| [AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md) | Continuity, scientific caveats, file handling, rigor review |
+| [RESEARCH_BACKGROUND.md](RESEARCH_BACKGROUND.md) | Project motivation and candidate selection |
+| [Material workspace](thermo_candidates/README.md) | Inputs, original records, derived results |
+| [WORKFLOW_EXPLAINED.md](WORKFLOW_EXPLAINED.md), [learning](learning/README.md) | Beginner tutorial and curriculum |
+| [DRAC_SETUP.md](DRAC_SETUP.md) | Cluster workflow; verify environment before reuse |
+| [WINDOWS_SETUP.md](WINDOWS_SETUP.md) | Historical WSL setup, not the active compute plan |
+| [Repository audit](docs/REPOSITORY_AUDIT.md), [WORKLOG.md](WORKLOG.md) | Branch reconciliation, cleanup and verification |
 
-Materials: SrCu2SnS4, SrZrS3, Rb2Cu2SnS4 — first-pass electronic transport
-done for all three (`thermo_candidates/*/results/`); lattice thermal
-conductivity via phono3py is in progress
-(`thermo_candidates/SrCu2SnS4/phono3py/`).
+## Current research state
+
+| Material | Electronic first pass | Lattice thermal conductivity |
+| --- | --- | --- |
+| SrCu2SnS4 | Complete | First pass complete; convergence limits remain |
+| SrZrS3 | Complete | Next campaign; no results recorded |
+| Rb2Cu2SnS4 | Complete | Pending |
+
+Each electronic workflow has independent convergence tests, relaxation,
+SCF/NSCF, and 300–900 K transport tables. SrCu2SnS4's residual-corrected
+first-pass average kappa_L is 0.3639 W m^-1 K^-1 at 300 K [calculated,
+PBE, no SOC, RTA, no NAC]. This is not a fully converged tensor or a final
+zT; see [status and limitations](HANDOFF.md).
+
+The numbered step-result folders are presentation packages; the material
+workspace retains the authoritative raw/derived records. Every
+`READY_TO_ATTACH/` is a frozen record of sent files. The fourth package's
+interim email is sent; its full three-material writeup is not.
+
+## Working across computers
+
+**GitHub is the shared source of truth.** A local checkout is a working
+copy for inspection, editing, and validation. Another clone is unnecessary
+when an existing checkout can be updated safely. Heavy computation and
+phonon postprocessing belong on DRAC, not this Mac.
+
+1. Run `git status --short --branch`; preserve any uncommitted work.
+2. Run `git fetch origin`; inspect remote branches and recent commits.
+   Do not assume `main` contains the latest research work.
+3. Switch to the agreed branch. Use `git pull --ff-only` on its clean,
+   matching checkout; never reset local work just to force a sync.
+4. Read `HANDOFF.md`; update it at milestones and append a work-log entry.
+   Review and explicitly stage relevant files before committing/pushing.
+
+The 2026-09-06 cleanup starts from `0024114` on
+`claude/canada-computing-center-task-d165w2`, which includes the other
+research branches and was 13 commits ahead of `main`. Consolidation is on
+`codex/research-repository-cleanup`; merging into `main` is a separate
+review step.
 
 Not in this repo: QE scratch data (regenerable, ~34 GB) and the group's
 internal/private material (ML screening dataset, slides, correspondence).
+Existing local ignored files were left untouched; GitHub cannot restore
+them. Do not publish private correspondence, internal datasets, or credentials.

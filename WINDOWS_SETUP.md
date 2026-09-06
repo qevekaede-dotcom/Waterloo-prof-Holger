@@ -1,9 +1,14 @@
-# Running the phono3py campaign on a Windows workstation
+# Historical Windows / WSL toolchain setup
 
-Goal: clone this repo on a Windows machine and run the SrCu2SnS4
-force-calculation campaign there. Quantum ESPRESSO needs a Unix environment
-with MPI, so everything runs inside **WSL2** (Windows Subsystem for Linux);
-Windows itself only hosts it.
+This is the recorded workstation setup and an earlier local-compute plan,
+retained for environment provenance. The SrCu2SnS4 campaign subsequently
+completed on DRAC/Nibi. **Do not launch it locally from this guide.** Heavy
+calculations and phonon postprocessing now run on the cluster; local machines
+handle preparation, file transfer, Git, writeup, and lightweight read-only
+checks. See `HANDOFF.md` and `DRAC_SETUP.md` for the active workflow.
+
+The commands below describe the historical WSL2 setup, not a freshly verified
+installation recipe. Review current dependencies before reinstalling anything.
 
 ## 1. Install WSL2 + Ubuntu (once)
 
@@ -61,7 +66,7 @@ cd Waterloo-prof-Holger/thermo_candidates/SrCu2SnS4/phono3py
 (/mnt/c works but file I/O there is several times slower — keep the working
 copy in the WSL home directory.)
 
-## 5. Launch the campaign
+## 5. Historical local launch example — superseded, do not execute
 
 ```sh
 conda activate thermo
@@ -83,7 +88,7 @@ QE_NP=<cores> QE_NK=2 nohup bash scripts/run_campaign.sh >> campaign.out 2>&1 &
   on this workstation too, stop and wait for cluster access instead
   (see HANDOFF.md).
 
-## 6. Windows-side settings (or the campaign dies overnight)
+## 6. Historical Windows-side settings for long local jobs
 
 - Settings -> System -> Power: set "Put my device to sleep" to **Never**
   while plugged in. (WSL pauses when Windows sleeps.)
@@ -101,6 +106,9 @@ QE_NP=<cores> QE_NK=2 nohup bash scripts/run_campaign.sh >> campaign.out 2>&1 &
 
 ## 7. Getting results back
 
-Commit and push from WSL (`git add -A && git commit && git push`), then pull
-on the Mac. Raw QE scratch never enters git (`.gitignore`); the derived
-tables land in `thermo_candidates/SrCu2SnS4/results/`.
+Follow the cross-computer procedure in `README.md`: inspect status, fetch and
+confirm the agreed branch, review and explicitly stage relevant files, then
+commit/push. Do not blindly stage private or unrelated files. Raw QE scratch
+is excluded by `.gitignore`; derived tables live in
+`thermo_candidates/SrCu2SnS4/results/`. GitHub may contain research branches
+newer than `main`.

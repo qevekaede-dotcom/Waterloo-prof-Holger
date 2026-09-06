@@ -27,7 +27,7 @@ Candidate/
   candidate.yml          # data copied from Materials renew.csv
   README.md              # what this material is and what to do next
   structures/            # put CIF or Materials Project structure files here
-  qe/                    # Quantum ESPRESSO templates and run helper
+  qe/                    # archived Quantum ESPRESSO inputs and run helpers
   boltztrap2/            # BoltzTraP2 command notes and run helper
   notes/                 # selection notes and provenance
   results/               # processed plots/tables/summaries
@@ -47,14 +47,9 @@ Rb2Cu2SnS4/structures/Rb2Cu2SnS4.cif
 All three first-pass workflows are complete; each of SrZrS3 and Rb2Cu2SnS4 ran
 its own convergence tests rather than copying SrCu2SnS4's parameters (own
 cutoffs 50/400 and 90/720 Ry; sampled PBE gaps 0.6096 and 0.7811 eV). The
-shared input generator can be used when a fresh set of inputs is needed:
-
-```bash
-source "$HOME/scientific-tools/env/thermo-bt2.sh"
-python thermo_candidates/scripts/make_qe_inputs.py thermo_candidates/SrCu2SnS4 structures/SrCu2SnS4.cif
-```
-
-Replace the material path and CIF filename as needed.
+shared input generator `scripts/make_qe_inputs.py` is for a separate, fresh
+workspace only. Do not run it over these completed material folders: the
+actual `.in` files are archived research records, not disposable templates.
 
 ## Project Status
 
@@ -65,12 +60,17 @@ Completed:
 - kept the band gap target below 1.0 eV
 - avoided the most problematic elements for the first pass
 - prepared clean QE and BoltzTraP2 workspaces for the top three
-- completed the first-pass QE + BoltzTraP2 workflow for SrCu2SnS4
-- sent the SrCu2SnS4 progress package to Roy
+- completed independent first-pass QE + BoltzTraP2 workflows for all three
+- sent the original SrCu2SnS4, DOS/Seebeck, and three-material packages
+- completed the SrCu2SnS4 first-pass phono3py campaign on DRAC/Nibi
+- sent its interim kappa_L CSV and figure; kept those attachments frozen
 
-Still required for SrZrS3 and Rb2Cu2SnS4:
+Next research work (not yet performed):
 
-- run material-specific cutoff and k-point convergence tests
-- run QE vc-relax, final SCF, and dense NSCF
-- run BoltzTraP2 from each dense NSCF output
-- verify transport-property convergence and document all limitations
+- SrZrS3, then Rb2Cu2SnS4 phonon campaigns with independent force convergence
+- complete the three-material phonon writeup/package
+- establish stronger kappa_L and transport-property convergence before
+  treating first-pass values as converged predictions
+- choose an explicit electronic relaxation-time model before computing full zT
+
+Current status and open issues: [HANDOFF.md](../HANDOFF.md).

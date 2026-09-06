@@ -104,7 +104,10 @@ itself); the `make_qe_inputs.py` usage pattern above matches its docstring
 (which uses SrCu2SnS4 as its example). Both live in `thermo_candidates/scripts/`.
 
 **(d) Artifacts.** `structures/<name>.cif` (a research record — never edit or
-delete), starter input templates under `qe/`, provenance notes in `notes/`.
+delete), starter `.in` files generated from the CIF in a fresh workspace under
+`qe/`, and provenance notes in `notes/`. The three completed material workspaces
+already contain their archived calculation inputs; do not rerun the starter
+generator over those records.
 
 **(e) Checks and acceptance.** The MP id is the intended *experimentally
 observed* entry; formula and atom count in the CIF match the database entry;

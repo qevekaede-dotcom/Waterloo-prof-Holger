@@ -1,8 +1,10 @@
 # 08 — Phonons and lattice thermal conductivity (the phono3py step)
 
-Status: the SrCu2SnS4 force-calculation campaign is **running**; the numbers
-sections below say "[pending]" until it finishes. Everything else here is
-stable and you can read it while the machine works.
+Status: the SrCu2SnS4 campaign is **finished** and kappa_L is in
+`thermo_candidates/SrCu2SnS4/results/`. Section 6 now reads the real
+numbers; sections 1-4 are unchanged background. The blow-by-blow of how
+the campaign actually went (five sessions, every failure included) is the
+fourth step result's `WORKLOG.md`.
 
 ## 1. Why we are doing this
 
@@ -72,40 +74,66 @@ thousands of supercell calculations. Our campaign was tamed in three steps
    energies, so this often buys a 2-5x speedup *with evidence*, not by
    copying parameters.
 
-## 5. What is actually running (and how to watch it)
+## 5. What actually ran (and where the records live)
 
-Work directory: `thermo_candidates/SrCu2SnS4/phono3py/`.
+The campaign did NOT run on a laptop in the end: one force calculation
+took >= 2 h locally, so the whole thing moved to the Nibi cluster (DRAC)
+as three chained SLURM jobs — stage 0 redid the force-convergence checks
+on the cluster itself, stage 1 ran the 168 force SCFs as a job array
+(~44 min each on 32 cores), stage 2 built the force constants and
+kappa_L. Work directory: `thermo_candidates/SrCu2SnS4/phono3py/`.
 
 - `fc_calcs/disp-XXXXX/` — one pw.x force run per displaced supercell
   (96 atoms = 2x2x1 copies of the 24-atom cell).
-- `campaign_log.csv` — one line per finished run: wall seconds, settings,
-  status. `tail` it to see progress.
-- `campaign.out` — the driver's narrative log.
-- `checks/` — the k-mesh/cutoff decisions and the undisplaced-supercell
-  sanity run (its forces should be ~zero; if not, the relaxation was too
-  loose and the phonons could not be trusted).
-- When all 168 finish, the driver collects forces (`FORCES_FC3`), builds
-  fc2/fc3, converges the q-mesh at 300 K, and writes:
-  - `../results/kappa_L_first_pass.csv` — kappa_L tensor vs T [calculated]
-  - `../results/kappa_L_summary.md` — settings, checks, caveats
+- `campaign_log_slurm.csv` — one line per run: wall seconds, status.
+- `slurm_logs/` — per-stage logs plus timestamped `evidence_*/` snapshots
+  of every failure (taken before reruns could overwrite them).
+- `checks/` — the on-cluster decisions: the cheaper 2x2x2 k-mesh FAILED
+  the 5e-5 Ry/bohr force criterion (3x3x3 kept), the cheaper 60/480 Ry
+  cutoffs PASSED. The undisplaced-supercell sanity run measured a max
+  residual force of 5.5e-4 Ry/bohr — above the 1e-4 guideline — so the
+  measured residual field was subtracted from every displaced-cell force
+  before fitting (phono3py `--cfz`); the correction moved kappa_L by
+  < 0.1% at fixed mesh, i.e. the result was robust against it.
+- Outputs: `../results/kappa_L_first_pass.csv` (tensor vs T
+  [calculated]) and `../results/kappa_L_summary.md` (settings + checks).
 
-## 6. How to read the result when it lands [pending]
+## 6. How to read the result (now with the real numbers)
 
-- kappa_L comes out as a tensor; in this trigonal crystal kxx = kyy != kzz.
-  Anisotropy tells you which crystal direction conducts heat worse (better
-  for zT).
+- kappa_L is a tensor; trigonal symmetry forces kxx = kyy != kzz, and the
+  computed tensor obeys it within numerical precision — a useful check. Numbers at
+  300 K [calculated, residual-corrected]: in-plane 0.40, c-axis 0.30,
+  average **0.36 W m^-1 K^-1**. The anisotropy is modest (~25%); heat
+  flows worse along c.
 - Typical good thermoelectrics sit near or below ~1 W m^-1 K^-1 at 300 K;
-  ordinary semiconductors are tens of W m^-1 K^-1.
+  ordinary semiconductors are tens. 0.36 is very low — encouraging.
 - kappa_L falls roughly as 1/T in this regime (more phonons to scatter
-  off), so high-T zT benefits twice.
-- Sanity checks to look for in the summary: no imaginary frequencies away
-  from Gamma (a dynamically stable structure), q-mesh converged to < 3%.
+  off): our 900 K average is 0.1213, and 0.3639 x (300/900) = 0.1213 —
+  the trend holds to the last digit. High-T zT benefits twice.
+- Sanity checks from the summary: minimum phonon frequency -2e-6 THz,
+  numerically near zero. No significant imaginary modes occur on the
+  sampled mesh; this does not prove dynamical stability everywhere.
+  The corrected 11x11x5 -> 13x13x6 step changes the average by -2.9559%,
+  just meeting the average-only 3% stopping criterion, while kzz changes
+  by -12.2745%. The historical ~5% estimate is not a demonstrated tensor
+  or total physical uncertainty. Further q-mesh checks remain necessary.
+- A worked lesson in robustness: the residual-force correction (--cfz)
+  changed the average at fixed mesh by < 0.1% (0.364 -> 0.3639).
+  The archived 15x15x7 result predates residual correction, so comparing
+  it with the final corrected 13x13x6 result changes both mesh and force
+  treatment. It is a historical record, not the next corrected mesh point
+  or a basis for assigning a total error bar.
 
 ## 7. What this still is NOT
 
 - Still RTA + PBE + no SOC, fc3 truncated at 4.0 A pairs, 2x2x1 supercell,
   no non-analytic (Born-charge) correction yet — each is documented and
   each can be tightened later.
+- The q-mesh stopping test covered the tensor average only (section 6);
+  tensor, supercell, and pair-cutoff convergence remain unestablished.
+  These are first-pass results, without a demonstrated total uncertainty.
+  Pristine residual forces were measured at 5.5e-4 Ry/bohr and subtracted
+  via `--cfz`, with a < 0.1% effect on average kappa_L at fixed mesh.
 - Combining kappa_L with our PF/tau still does not give an absolute zT:
   the electronic side keeps its unknown relaxation time tau. What kappa_L
   buys is (a) one honest, material-specific piece of the denominator, and

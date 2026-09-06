@@ -57,13 +57,24 @@ parameters (`CLAUDE.md` has the full list).
 
 ## Current phase: lattice thermal conductivity
 
-Every zT_e above is an upper bound because **kappa_L is missing from the
-denominator**. The current task (professor's recommendation, via Roy) is to
+Every zT_e above omits **kappa_L from the denominator** and is not full zT.
+The current task (professor's recommendation, via Roy) is to
 compute it with **phono3py**: third-order force constants from displaced
 supercells -> phonon-phonon scattering -> kappa_L(T). Status and the
 step-by-step story (including failed attempts): the WORKLOG in
 `fourth step result (phono3py lattice thermal conductivity)/` and
-`thermo_candidates/SrCu2SnS4/phono3py/README.md`. The 168-supercell force
-campaign for SrCu2SnS4 is generated and scripted, but a laptop benchmark
-showed it needs a bigger machine — see `WINDOWS_SETUP.md` for running it on
-a Windows workstation.
+`thermo_candidates/SrCu2SnS4/phono3py/README.md`. The 168-displacement force
+campaign for SrCu2SnS4 is complete on DRAC/Nibi. Residual-corrected first-pass
+average kappa_L [calculated] is 0.3639 W m^-1 K^-1 at 300 K and 0.1213 at
+900 K (RTA, no SOC, no NAC, 2x2x1 supercell, 4.0 A pair cutoff).
+The q-mesh average met the recorded 3% stopping criterion, but the final
+zz change was about 12%; this is not a demonstrated 5% tensor uncertainty.
+Full supercell/pair-cutoff convergence and an electronic relaxation-time
+model remain outstanding.
+
+The SrCu2SnS4 interim email was sent; the full three-material phonon
+writeup is still staged. Next research work is SrZrS3 phonons, then
+Rb2Cu2SnS4, each with independent convergence decisions. Heavy calculations
+and phonon postprocessing run on DRAC; local machines handle preparation,
+transfer, Git, writeup, and lightweight read-only checks. See `HANDOFF.md`
+for current state and `DRAC_SETUP.md` for the recorded cluster workflow.
