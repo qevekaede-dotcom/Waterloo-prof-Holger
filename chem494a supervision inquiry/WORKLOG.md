@@ -156,3 +156,76 @@ Lab-notebook rules: dated, append-only entries.
 - Rigor self-review: this update changes administrative/communication state
   only. No scientific result, numerical claim, raw record, or
   `READY_TO_ATTACH/` content was changed.
+
+## 2026-09-10 — Fall term correction, course requirements and Holger draft
+
+- The user wants a final course-arrangement email to Professor Kleinke and
+  reliable continuity across separate project chats. Three read-only agents
+  checked course requirements, lab recruitment information and the repository
+  communication history. Fetched origin: local and remote main both pointed
+  to `b033098` before this task; the worktree was clean.
+- Important user correction: **CHEM 494A is Fall 2026**. Winter in the early
+  inquiry was an error. The user had sent Professor Kleinke another email
+  correcting the term before the professor said the arrangement was fine if
+  Roy agreed. This supersedes earlier entries and active summaries that
+  treated Winter as the intended term. The correction email has not been
+  exported; this chronology comes from the user's explicit account.
+- The user reports no reply yet to the 2026-09-06 Roy follow-up. Its prepared
+  source still contains Winter wording; do not change its historical body or
+  claim to know whether the actual sent version retained that wording. Added
+  a status correction to both historical email files, and updated HANDOFF
+  and README so another chat does not propagate the old error.
+- The new user-supplied Fall LEARN screenshot requires confirmation with the
+  supervisor at the start of the A term and formal recording with the course
+  coordinator. The official public general-information page agrees and says
+  recording is typically via LEARN. Its procedure differs from the screenshot's
+  office-visit wording; the current course instructions/coordinator must
+  resolve the exact mechanism. No evidence establishes a specific form that
+  Professor Kleinke must supply or sign, or guarantees that no form is needed.
+- The screenshot's end-of-second-week provision concerns students without a
+  firm supervisor arrangement; it is not proof of a universal registration
+  deadline. It also mentions visiting at least two faculty members: if the
+  user has not done that, ask the coordinator how this applies to the existing
+  arrangement. Quest course enrolment and coordinator supervisor-recording
+  are separate tasks; a LEARN screenshot does not independently verify Quest.
+- Public course information names J. Corrigan as coordinator, requires
+  consecutive A/B terms absent an approved exception, and specifies at least
+  six hours of research per week. The A-term interim report is a proposal-style
+  report, with detailed format agreed with the supervisor and deadline on
+  LEARN. These support asking about the research question, expected new work
+  and progress reporting; prior research is a starting point, not assumed
+  automatically sufficient for the course.
+- The user says computational work is continuing remotely with Roy and expects
+  to return at the end of the second week of classes. This is a user-reported
+  activity and estimate, not verification of live cluster jobs or completion
+  of new calculations. The draft asks whether the temporary remote arrangement
+  is acceptable; the public pages did not establish automatic approval.
+- Created `EMAIL_DRAFT_CONFIRMATION_TO_HOLGER.md`, a shared draft omitting the
+  personal explanation, and a full local-only copy under the already ignored
+  `background info/` directory. Both are **DRAFT ONLY; NOT SENT**. The main body
+  asks for Fall confirmation, continued day-to-day guidance by Roy, project
+  scope/new work and possible experiments, remote arrangements, and reporting
+  format/frequency. It then commits to coordinator registration. No attachment
+  is planned. No third-party message or registration was sent.
+- Recruitment check: the official Kleinke lab homepage advertises two PhD
+  positions but supplies no visible posting date, deadline or intake. Current
+  availability cannot be inferred. The main draft leaves graduate interest
+  out; an optional closing sentence proposes discussing it after returning.
+  The group page lists Roy as an MSc student, possibly subject to update;
+  address him simply as Roy instead of assigning an unverified degree status.
+- Calendar check: undergraduate Fall classes begin 2026-09-09 and Labour Day
+  closure was 2026-09-07. Avoid repeating the claim that 2026-09-10 is the first
+  Waterloo working day; no comment on Roy's response speed is needed.
+- Official sources checked on 2026-09-10:
+  - [General information](https://uwaterloo.ca/chemistry/undergraduate-studies/chem-494-research-project/chem-494-general-information)
+  - [Course requirements and coordinator](https://uwaterloo.ca/chemistry/undergraduate-studies/course/chem-494)
+  - [Interim report](https://uwaterloo.ca/chemistry/undergraduate-studies/chem-494-research-project/chem-494-interim-report)
+  - [Course announcements](https://uwaterloo.ca/chemistry/undergraduate-studies/chem-494-research-project)
+  - [Lab recruitment notice](https://uwaterloo.ca/kleinke-lab)
+  - [Group roster](https://uwaterloo.ca/kleinke-lab/group)
+  - [Classes begin](https://uwaterloo.ca/important-dates/undergraduate/2026-2027/classes-begin)
+  - [Labour Day](https://uwaterloo.ca/important-dates/undergraduate/2026-2027/labour-day)
+- Rigor review: no new numerical scientific claims, results or raw data changes.
+  Computational work and possible experiments are not labeled as completed;
+  no campaign, postprocessing or cluster connection was initiated. Checked
+  source attribution, source-copy/sent status, privacy exclusion and whitespace.

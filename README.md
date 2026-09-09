@@ -9,6 +9,7 @@ Quantum ESPRESSO, BoltzTraP2, and phono3py.
 | [HANDOFF.md](HANDOFF.md) | Current verified state, open issues, next research work |
 | [README_START_HERE.md](README_START_HERE.md) | Reading order for new/resumed sessions |
 | [AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md) | Continuity, scientific caveats, file handling, rigor review |
+| [CHEM 494 communications](chem494a%20supervision%20inquiry/README.md) | Current course term, supervisor confirmation, sent status and drafts |
 | [RESEARCH_BACKGROUND.md](RESEARCH_BACKGROUND.md) | Project motivation and candidate selection |
 | [Material workspace](thermo_candidates/README.md) | Inputs, original records, derived results |
 | [WORKFLOW_EXPLAINED.md](WORKFLOW_EXPLAINED.md), [learning](learning/README.md) | Beginner tutorial and curriculum |

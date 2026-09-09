@@ -10,16 +10,19 @@ CHEM 494A supervision inquiry for the Winter term
 
 # Status note
 
-Historical draft behind the initial inquiry to Professor Kleinke. On
-2026-09-06, the user supplied a screenshot of their sent follow-up in the same
-thread, dated 2026-08-28. It confirms that Professor Kleinke had given
-conditional approval if Roy continued mentoring, Roy agreed in person, and
-the user explicitly reported that outcome back to Professor Kleinke. The user
-also promised to ask the Undergraduate Office which enrolment form was needed
-and send it to him. The screenshot does not contain the full initial inquiry
-or Professor Kleinke's full reply, so the body below remains a draft copy
-rather than a verbatim sent record. Personal details from the screenshot are
-deliberately omitted from this public repository.
+Historical source draft; preserve the subject and body. On 2026-09-10 the user
+clarified that the intended CHEM 494A term is Fall 2026: Winter in this draft
+was an error, and they sent Professor Kleinke a separate correction before
+he gave conditional approval if Roy continued mentoring. The correction and
+the professor's full reply have not been archived; those facts come from the
+user's account.
+
+A user-provided screenshot of their 2026-08-28 sent follow-up shows that they
+reported Roy's in-person agreement back to Professor Kleinke and promised to
+ask the Undergraduate Office about the enrolment procedure. It does not show
+the full initial inquiry or the professor's full reply. The body below is not
+a verbatim sent record. See `EMAIL_DRAFT_CONFIRMATION_TO_HOLGER.md` for the
+new, unsent Fall confirmation draft.
 
 # Body
 

@@ -74,18 +74,23 @@ subtracted using `--cfz`.
   attachments (CSV + figure). `HOW_WE_GOT_PHONO3PY_WORKING.md` is the
   staged, unsent full writeup; `EMAIL_DRAFT_full_package_unsent.md` is
   superseded reference text.
-- CHEM 494A/B: Professor Kleinke gave conditional approval if Roy continued
-  mentoring, and Roy agreed in person. A user-provided screenshot confirms
-  that, on 2026-08-28, the user closed this loop with Professor Kleinke by
-  email: they reported Roy's agreement and next-work direction, said they
-  would continue the remaining two phonon campaigns remotely, and promised to
-  ask the Undergraduate Office which enrolment form was needed. The CHEM 494A
-  target is Winter; joining the group's meetings in Fall/on return is a
-  separate commitment. The user reports sending the Roy follow-up preserved
-  in `chem494a supervision inquiry/EMAIL_DRAFT_TO_ROY.md` on 2026-09-06; a
-  reply is pending. Do not send Professor Kleinke another message merely to
-  report Roy's agreement. The next professor contact should carry a concrete
-  office/form outcome or an agreed project scope.
+- CHEM 494A is **Fall 2026**. On 2026-09-10, the user clarified that Winter
+  was an earlier email error, corrected with Professor Kleinke before he
+  gave conditional approval if Roy continued mentoring. Roy agreed in person;
+  the user's 2026-08-28 sent-email screenshot confirms that this agreement was
+  reported back to the professor. The old Winter wording is historical error,
+  not an active plan. The correction email itself has not been archived.
+- The user reports sending the Roy follow-up on 2026-09-06 and still awaiting
+  a reply on 2026-09-10. Its source copy, `EMAIL_DRAFT_TO_ROY.md`, contains
+  stale Winter wording; preserve the body, do not presume the sent email was
+  identical. The new `EMAIL_DRAFT_CONFIRMATION_TO_HOLGER.md` is **not sent**.
+  Both files are in `chem494a supervision inquiry/`.
+- Current CHEM 494 action: reconfirm the Fall project scope, expected new
+  work, any experimental component, temporary remote arrangement and reporting
+  frequency with Professor Kleinke, then formally register the supervisor
+  with the coordinator (typically via LEARN). No specific supervisor-supplied
+  form has been established. See the package README and latest WORKLOG entry
+  for evidence and pending questions; official registration is not yet verified.
 - Never edit any of the four packages' `READY_TO_ATTACH/` folders.
   Presentation/reproducibility copies are intentional, not cleanup waste.
 

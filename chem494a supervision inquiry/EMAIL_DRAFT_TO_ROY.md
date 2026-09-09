@@ -20,6 +20,16 @@ reported that agreement to Professor Kleinke on 2026-08-28. The separate
 `EMAIL_DRAFT.md` is the historical draft behind the initial inquiry to
 Professor Kleinke.
 
+# Term correction recorded 2026-09-10
+
+The user confirms that CHEM 494A is Fall 2026. Winter was an earlier error
+already corrected in a separate email to Professor Kleinke before his
+conditional agreement. The Winter language remaining in this source draft
+is stale and must not guide future plans. The exact sent Roy message has not
+been archived, so do not assume whether that wording was retained or corrected
+in the sent version. Preserve the body below. The user reports that Roy's
+reply is still pending on 2026-09-10.
+
 # Body
 
 Hi Roy,
