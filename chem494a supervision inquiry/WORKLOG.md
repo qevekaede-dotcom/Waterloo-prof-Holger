@@ -240,3 +240,18 @@ Lab-notebook rules: dated, append-only entries.
   unchanged; the email remains DRAFT ONLY, NOT SENT.
 - Rigor review: wording matches the user-confirmed communication history; no
   scientific claims or research records changed.
+
+## 2026-09-10 — Full draft revised for a more deferential student voice
+
+- At the user's request, softened the full draft into a respectful request
+  for guidance, with an opening thank-you and a courteous closing. Retained
+  the explicit acknowledgement that Roy agreed in person and that the
+  professor had already been informed, as requested in the prior revision.
+- The questions still cover project scope, possible experiments, goals/new
+  work, temporary remote arrangements and progress reporting. Remote work
+  is phrased as a request for approval. Graduate interest remains optional.
+- The first edit failed its context check because paragraph changes were
+  ordered incorrectly; reapplied them in document order.
+- Updated both the shared draft and the ignored full local copy. Draft only;
+  no email sent. Rigor review: no factual or scientific claims were added;
+  research records and historical correspondence bodies remain unchanged.

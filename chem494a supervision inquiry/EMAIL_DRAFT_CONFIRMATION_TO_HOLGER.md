@@ -20,33 +20,38 @@ CHEM 494A: project scope and supervision arrangements for Fall
 
 Dear Professor Kleinke,
 
-As I mentioned in my previous email, Roy and I spoke in person before I left,
-and he was very happy to continue working with me. Following that discussion
-and our earlier exchange, I wanted to clarify the project scope and working
-arrangements for CHEM 494A this Fall before having the supervision arrangement
-formally recorded with the course coordinator.
+Thank you again for your support and for the opportunity to continue working
+in your group. As I mentioned in my previous email, Roy and I spoke in person
+before I left, and he was very happy to continue working with me. I would be
+grateful for your guidance on a few details of my CHEM 494A project this Fall
+before I have the supervisory arrangement formally recorded with the course
+coordinator.
 
-For the project itself, should I build on my existing computational work on
-thermoelectric sulfides with Roy, including the phonon and lattice thermal
-conductivity calculations, or would you like to adjust the scope? Roy also
-mentioned the possibility of some experimental work last term, and I would
-be happy to include this if you think it would benefit the project. It would
-help me to clarify the main research question and the new work I should aim
-to complete during CHEM 494A.
+For the project itself, would you recommend building on my existing
+computational work on thermoelectric sulfides with Roy, including the phonon
+and lattice thermal conductivity calculations, or would you prefer a
+different direction for CHEM 494A? Roy also mentioned the possibility of some
+experimental work last term, and I would be happy to take part if you think
+it would be useful for the project. It would help me to understand the main
+research goals and the new work you would like me to focus on this term.
 
 As mentioned in my previous email, I am currently away from Waterloo and
 expect to return on the weekend at the end of the second week of classes.
 In the meantime, I am continuing the computational work remotely and staying
-in contact with Roy, as discussed with him. Would this temporary arrangement
-be acceptable until I return?
+in contact with Roy, as discussed with him. I would be grateful if you could
+let me know whether this temporary arrangement would be acceptable until I
+return.
 
-How would you prefer me to keep you informed of my progress? Should updates
-mainly go through Roy, or would you prefer direct updates through group
-presentations or brief meetings? If you would like direct updates, what
-frequency would you suggest?
+Could you also advise me on how best to keep you informed of my progress?
+I would be happy to provide updates in whichever format and frequency you
+prefer, whether through group presentations, brief meetings, or regular
+communication through Roy.
 
-Once these details are confirmed, I will contact the CHEM 494 coordinator to
-have the arrangement formally recorded. Thank you again for your guidance.
+Once we have confirmed these details, I will contact the CHEM 494 coordinator
+to have the arrangement formally recorded.
+
+Thank you very much for your time and guidance. I look forward to continuing
+the project and joining the group in person when I return.
 
 Best regards,
 Yuhan
