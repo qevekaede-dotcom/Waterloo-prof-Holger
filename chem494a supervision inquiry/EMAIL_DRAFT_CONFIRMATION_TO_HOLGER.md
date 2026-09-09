@@ -20,11 +20,11 @@ CHEM 494A: project scope and supervision arrangements for Fall
 
 Dear Professor Kleinke,
 
-I have reviewed the CHEM 494A instructions, which ask us to reconfirm our
-supervisory arrangements before having them formally recorded with the course
-coordinator. Could I please confirm our arrangement for CHEM 494A this Fall,
-with you as my research supervisor and Roy continuing to guide my day-to-day
-work?
+As I mentioned in my previous email, Roy and I spoke in person before I left,
+and he was very happy to continue working with me. Following that discussion
+and our earlier exchange, I wanted to clarify the project scope and working
+arrangements for CHEM 494A this Fall before having the supervision arrangement
+formally recorded with the course coordinator.
 
 For the project itself, should I build on my existing computational work on
 thermoelectric sulfides with Roy, including the phonon and lattice thermal

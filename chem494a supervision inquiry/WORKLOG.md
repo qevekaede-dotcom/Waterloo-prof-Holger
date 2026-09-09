@@ -229,3 +229,14 @@ Lab-notebook rules: dated, append-only entries.
   Computational work and possible experiments are not labeled as completed;
   no campaign, postprocessing or cluster connection was initiated. Checked
   source attribution, source-copy/sent status, privacy exclusion and whitespace.
+
+## 2026-09-10 — Opening revised to acknowledge the existing agreement
+
+- The user asked that the opening explicitly acknowledge Roy's enthusiastic
+  in-person agreement and that Professor Kleinke had already been informed.
+- Revised the first paragraph in both the shared draft and the ignored local
+  full draft. It now builds on those exchanges and asks to clarify scope and
+  working arrangements before coordinator recording. The remaining body is
+  unchanged; the email remains DRAFT ONLY, NOT SENT.
+- Rigor review: wording matches the user-confirmed communication history; no
+  scientific claims or research records changed.
