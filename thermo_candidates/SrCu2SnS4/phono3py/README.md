@@ -12,9 +12,11 @@ model. Task context:
 - `unitcell.in` — copy of the relaxed final SCF input (`../qe/01_scf/`);
   the structural source of truth for displacement generation.
 - `phono3py_disp.yaml`, `phono3py.yaml` — displacement dataset
-  (2x2x1 supercell, cutoff-pair 4.0 A, tolerance 1e-3 -> P3_121).
+  (2x2x1 supercell, historical cutoff-pair 4.0 bohr = 2.1167 A,
+  tolerance 1e-3 -> P3_121).
 - `supercell-XXXXX.in` — 168 phono3py structure fragments (sparse IDs out of
-  13,848; only pairs within the 4.0 A cutoff are generated).
+  13,848; all included pair groups at this very short cutoff are onsite;
+  the shortest nonzero pair, about 4.3383 bohr, was excluded).
 - `scripts/prepare_inputs.py` — wraps fragments with the QE header
   (fixed occupations, tprnfor, conv_thr 1e-9) -> `fc_calcs/`. Actual force
   settings selected by checks: 3x3x3, 60/480 Ry for 167 displacements;
@@ -37,6 +39,9 @@ model. Task context:
   300 K and 0.1213 at 900 K [calculated, PBE, no SOC, RTA, no NAC].
 - `log_cf3.txt` and `slurm_logs/stage2_20311271.out` record `--cfz`
   processing. The pristine maximum force component was 5.4513e-4 Ry/bohr.
+  That force block is complete and numerically reconstructs the final
+  `FORCES_FC3`, but its QE output later records `seqopn(90)` and MPI abort;
+  no separate healthy rerun output is archived.
 - `kappa-m15157.hdf5` is an intentionally retained pre-correction result;
   do not use it as the next point in the corrected q-mesh ladder.
 - The last corrected mesh step changes the average by -2.9559%, but zz
@@ -66,6 +71,9 @@ land in `../results/`.
   `--version` does not exist; QE cell mode needs `--qe -c unitcell.in`.
 - Without `--tolerance 1e-3` the 6-decimal coordinates read as P1 and the
   displacement count explodes (83k instead of 168 within cutoff).
+- For QE, phono3py records lengths as `au`: `--cutoff-pair 4.0` meant
+  4 bohr, not 4 A. Always convert an explicit Angstrom design value to bohr
+  and verify `physical_unit.length` plus the stored cutoff in generated YAML.
 - Cluster traps (OpenMP thread oversubscription, wheel installation,
   symmetry-related fast failures) and their fixes are recorded in the
   fourth-step WORKLOG. Preserve failed logs as evidence.

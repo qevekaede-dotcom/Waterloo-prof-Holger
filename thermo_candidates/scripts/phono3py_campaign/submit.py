@@ -10,7 +10,9 @@ Slurm scripts; this module never runs QE or phono3py itself.
 from __future__ import annotations
 
 import argparse
+import csv
 import fcntl
+import math
 import json
 import os
 import re
@@ -25,12 +27,14 @@ from typing import Any, Iterable, Mapping, Sequence
 
 from campaign import (
     CampaignError,
+    canonical_sha256,
     load_json,
     required,
     safe_run_dir,
     sha256_path,
     validate_config,
     verify_manifest,
+    verify_upstream_manifest,
 )
 
 
@@ -100,6 +104,12 @@ class StagePlan:
     task_count: int | None
     task_map: Path | None
     task_map_sha256: str | None
+    force_manifest: Path | None = None
+    force_manifest_sha256: str | None = None
+    budget_receipt: Path | None = None
+    budget_receipt_sha256: str | None = None
+    force_mode: str | None = None
+    scheduler_options: tuple[str, ...] = ()
 
 
 def utc_now() -> str:
@@ -156,7 +166,12 @@ def resolve_context(config_path: Path, run_dir: Path, stage: str) -> SubmissionC
         raise SubmissionError(f"prepared run directory does not exist: {run_dir}")
     config, validation = validate_config(config_path)
     policy_stage = "structure" if stage == "relax" else "preflight"
-    manifest = verify_manifest(config, config_path, run_dir, stage=policy_stage)
+    if stage in {"relax", "preflight"}:
+        manifest = verify_manifest(config, config_path, run_dir, stage=policy_stage)
+    else:
+        manifest = verify_upstream_manifest(
+            config, config_path, run_dir, stage=policy_stage
+        )
     config_sha = validation.get("config_sha256")
     if not isinstance(config_sha, str) or not SHA256_RE.fullmatch(config_sha):
         raise SubmissionError("config validation has no valid config_sha256")
@@ -249,6 +264,242 @@ def validate_task_map(path: Path, run_dir: Path, hard_cap: int) -> tuple[Path, i
     return path, len(rows), sha256_path(path)
 
 
+def format_slurm_time(hours: Any) -> str:
+    """Render an exactly second-resolved positive budgeted walltime."""
+
+    if isinstance(hours, bool) or not isinstance(hours, (int, float)):
+        raise SubmissionError("budget receipt walltime_hours must be numeric")
+    seconds_float = float(hours) * 3600
+    if (
+        not math.isfinite(seconds_float)
+        or seconds_float <= 0
+        or not math.isclose(seconds_float, round(seconds_float), abs_tol=1e-9)
+    ):
+        raise SubmissionError(
+            "budget receipt walltime must be positive and exactly representable in seconds"
+        )
+    seconds = int(round(seconds_float))
+    days, remainder = divmod(seconds, 24 * 3600)
+    hours_part, remainder = divmod(remainder, 3600)
+    minutes, seconds_part = divmod(remainder, 60)
+    if days:
+        return f"{days}-{hours_part:02d}:{minutes:02d}:{seconds_part:02d}"
+    return f"{hours_part:02d}:{minutes:02d}:{seconds_part:02d}"
+
+
+def validate_force_bundle(
+    context: SubmissionContext, task_map: Path
+) -> tuple[Path, int, str, Path, dict[str, Any], Path, dict[str, Any]]:
+    """Validate the immutable force manifest and its resource receipt."""
+
+    hard_cap_value = required(context.config, "displacements.hard_cap")
+    if isinstance(hard_cap_value, bool) or not isinstance(hard_cap_value, int):
+        raise SubmissionError("displacements.hard_cap must be an integer")
+    resolved, task_count, task_map_sha = validate_task_map(
+        task_map, context.run_dir, hard_cap_value + 2
+    )
+    bundle = resolved.parent
+    manifest_path = bundle / "force_manifest.json"
+    receipt_path = bundle / "budget_receipt.json"
+    if not manifest_path.is_file() or not receipt_path.is_file():
+        raise SubmissionError(
+            "force task map requires adjacent force_manifest.json and budget_receipt.json"
+        )
+    manifest = load_json(manifest_path)
+    receipt = load_json(receipt_path)
+    manifest_sha = sha256_path(manifest_path)
+    receipt_sha = sha256_path(receipt_path)
+    if manifest.get("schema_version") != 1 or manifest.get("stage") != "force":
+        raise SubmissionError("unsupported force manifest schema/stage")
+    mode = manifest.get("mode")
+    if mode not in {"pilot", "production"}:
+        raise SubmissionError("force manifest mode must be pilot or production")
+    if manifest.get("material") != context.config["material"]["formula"]:
+        raise SubmissionError("force manifest belongs to another material")
+    if manifest.get("config_sha256") != context.config_sha256:
+        raise SubmissionError("force manifest was prepared from another configuration")
+    if (
+        manifest.get("task_map_sha256") != task_map_sha
+        or manifest.get("task_count") != task_count
+        or not isinstance(manifest.get("tasks"), list)
+        or len(manifest["tasks"]) != task_count
+    ):
+        raise SubmissionError("force manifest does not bind the exact task map/domain")
+    columns = ("task_id", "displacement_id", "role", "input_path", "input_sha256")
+    try:
+        with resolved.open(newline="") as handle:
+            rows = list(csv.reader(handle, delimiter="\t", strict=True))
+    except csv.Error as exc:
+        raise SubmissionError("force TASK_MAP contains malformed TSV quoting") from exc
+    if not rows or tuple(rows[0]) != columns:
+        raise SubmissionError("force TASK_MAP header must be task_id/displacement_id/role/input_path/input_sha256 in that order")
+    if len(rows) != task_count + 1 or any(len(row) != len(columns) for row in rows[1:]):
+        raise SubmissionError("force TASK_MAP must contain exactly five fields per task and no blank/comment rows")
+    pristine_count = 0
+    displacement_ids: set[int] = set()
+    original_input_hashes: dict[int, str] = {}
+    for index, (row, task) in enumerate(zip(rows[1:], manifest["tasks"])):
+        if not isinstance(task, Mapping):
+            raise SubmissionError(f"force manifest task {index} is not a mapping")
+        if type(task.get("task_id")) is not int or task["task_id"] != index or row[0] != str(index):
+            raise SubmissionError("force task ids must be unique, ordered, and exactly 0..N-1 in map and manifest")
+        if type(task.get("displacement_id")) is not int:
+            raise SubmissionError("force displacement_id must be an integer")
+        if any(key not in task or str(task[key]) != value for key,value in zip(columns,row)):
+            raise SubmissionError(f"force TASK_MAP row {index} differs from manifest.tasks")
+        role, displacement_id = task["role"], task["displacement_id"]
+        if role == "pristine":
+            if displacement_id != 0:
+                raise SubmissionError("pristine tasks must use displacement_id 0")
+            pristine_count += 1
+        elif role == "displacement":
+            if displacement_id <= 0 or (mode == "production" and displacement_id in displacement_ids):
+                raise SubmissionError("displacement task IDs must be unique positive integers")
+            if displacement_id in original_input_hashes and task["input_sha256"] != original_input_hashes[displacement_id]:
+                raise SubmissionError("pilot duplicate input SHA-256 differs from its original displacement task")
+            original_input_hashes.setdefault(displacement_id, task["input_sha256"])
+            displacement_ids.add(displacement_id)
+        else:
+            raise SubmissionError("force task role must be pristine or displacement")
+        if not isinstance(task["input_path"], str) or not Path(task["input_path"]).is_absolute():
+            raise SubmissionError("force input_path must be an absolute path")
+        input_path = Path(task["input_path"]).resolve()
+        if input_path == bundle or not input_path.is_relative_to(bundle) or "READY_TO_ATTACH" in input_path.parts:
+            raise SubmissionError("force input must be a strict descendant of the immutable bundle")
+        digest = task["input_sha256"]
+        if not isinstance(digest, str) or not SHA256_RE.fullmatch(digest) or not input_path.is_file() or sha256_path(input_path) != digest:
+            raise SubmissionError(f"force input file missing or SHA-256 mismatch: {input_path}")
+    if mode == "production" and pristine_count != 1:
+        raise SubmissionError("production force bundle requires exactly one pristine task")
+    if mode == "pilot" and pristine_count not in (1,2):
+        raise SubmissionError("pilot force bundle requires one or two pristine tasks")
+    if mode == "pilot":
+        spec = manifest.get("pilot_spec")
+        if not isinstance(spec, Mapping):
+            raise SubmissionError("pilot force bundle requires explicit pilot_spec task semantics")
+        original_ids, duplicate_ids = spec.get("displacement_ids"), spec.get("duplicate_displacement_ids", [])
+        pristine_repetitions = spec.get("pristine_repetitions", 1)
+        if (
+            type(pristine_repetitions) is not int
+            or pristine_repetitions not in (1,2)
+            or not isinstance(original_ids, list)
+            or not original_ids
+            or any(type(value) is not int or value <= 0 for value in original_ids)
+            or len(set(original_ids)) != len(original_ids)
+            or not isinstance(duplicate_ids, list)
+            or any(type(value) is not int or value not in original_ids for value in duplicate_ids)
+        ):
+            raise SubmissionError("pilot_spec must explicitly identify unique original IDs and valid duplicate associations")
+        expected_ids = [0]*pristine_repetitions + original_ids + duplicate_ids
+        if [task["displacement_id"] for task in manifest["tasks"]] != expected_ids:
+            raise SubmissionError("pilot task order differs from declared pristine/original/duplicate semantics")
+    backend = Path(__file__).with_name("force_backend.py")
+    if manifest.get("backend_sha256") != sha256_path(backend):
+        raise SubmissionError("force backend changed after bundle preparation")
+    workflow = manifest.get("workflow_sha256")
+    if not isinstance(workflow, Mapping) or not workflow:
+        raise SubmissionError("force manifest has no workflow hash set")
+    for raw_path, digest in workflow.items():
+        path = Path(raw_path)
+        if (
+            not path.is_absolute()
+            or not path.is_file()
+            or not isinstance(digest, str)
+            or not SHA256_RE.fullmatch(digest)
+            or sha256_path(path) != digest
+        ):
+            raise SubmissionError(f"force workflow evidence changed: {path}")
+    if manifest.get("budget_receipt_sha256") != receipt_sha:
+        raise SubmissionError("force manifest budget-receipt hash mismatch")
+    if (
+        receipt.get("schema_version") != 1
+        or receipt.get("material") != manifest["material"]
+        or receipt.get("task_map_sha256") != task_map_sha
+        or receipt.get("task_count") != task_count
+    ):
+        raise SubmissionError("budget receipt does not bind the force task map")
+    expected_policy = canonical_sha256(context.config["resource_budget"])
+    if receipt.get("resource_policy_sha256") != expected_policy:
+        raise SubmissionError("budget receipt resource policy mismatch")
+    phase = receipt.get("phase")
+    if phase not in {"initial", "validation", "production"}:
+        raise SubmissionError("budget receipt phase is invalid")
+    if (mode == "production") != (phase == "production"):
+        raise SubmissionError("force mode and budget phase disagree")
+    if mode == "pilot":
+        from force_backend import audit_signed_pilot_dataset, validate_initial_pilot_composition
+        signed = manifest.get("signed_pilot_dataset")
+        if not isinstance(signed, Mapping) or not isinstance(signed.get("dataset_dir"), str):
+            raise SubmissionError("pilot force bundle requires bound signed-pilot dataset evidence")
+        try:
+            audited = audit_signed_pilot_dataset(Path(signed["dataset_dir"]), context.run_dir,
+                context.config, manifest["settings"], manifest["pilot_spec"],
+                expected_manifest_sha256=signed.get("expected_manifest_sha256"))
+            if audited != signed:
+                raise SubmissionError("signed pilot dataset re-audit differs from force manifest")
+            if phase == "initial":
+                validate_initial_pilot_composition(manifest["pilot_spec"], audited["task_kinds"])
+                if task_count != 6 or pristine_count != 2:
+                    raise SubmissionError("initial pilot must contain exactly six SCFs including two pristine")
+        except (CampaignError, KeyError, TypeError, ValueError) as exc:
+            raise SubmissionError(f"signed pilot dataset gate failed: {exc}") from exc
+        evidence = manifest.get("evidence_sha256", {})
+        if any(evidence.get(path) != digest for path,digest in signed["files_sha256"].items()):
+            raise SubmissionError("force manifest does not bind every signed pilot dataset file")
+        pilot_code = Path(__file__).with_name("pilot_dataset.py")
+        if workflow.get(str(pilot_code)) != sha256_path(pilot_code):
+            raise SubmissionError("force workflow does not freeze pilot_dataset.py")
+    if mode == "production":
+        require_production_selection(context.config)
+        selection = manifest.get("selection_validation")
+        if not isinstance(selection, Mapping) or selection.get("pass") is not True:
+            raise SubmissionError("production force manifest lacks passing pilot evidence")
+    elif manifest.get("selection_validation") is not None:
+        raise SubmissionError("pilot manifest may not claim production selection evidence")
+    from force_backend import verify_selection_provenance
+    try:
+        verify_selection_provenance(manifest, context.run_dir, config_path=context.config_path)
+    except (CampaignError, KeyError, TypeError, ValueError) as exc:
+        raise SubmissionError(f"force selection provenance gate failed: {exc}") from exc
+    ranks = receipt.get("mpi_ranks")
+    concurrency = receipt.get("maximum_concurrency")
+    if (
+        isinstance(ranks, bool)
+        or not isinstance(ranks, int)
+        or ranks < 1
+        or isinstance(concurrency, bool)
+        or not isinstance(concurrency, int)
+        or not 1 <= concurrency <= 2
+    ):
+        raise SubmissionError("budget receipt has invalid ranks or concurrency")
+    if receipt.get("maximum_technical_retries_per_task") != 1:
+        raise SubmissionError("budget receipt retry policy mismatch")
+    # Parse here so malformed or unrepresentable time is rejected before sbatch.
+    format_slurm_time(receipt.get("walltime_hours"))
+    ledger = context.run_dir / ".force_budget"
+    if not ledger.is_dir():
+        raise SubmissionError("material force-budget ledger is missing")
+    matching = []
+    for path in ledger.glob("reservation-*.json"):
+        record = load_json(path)
+        if (
+            record.get("receipt_path") == str(receipt_path)
+            and record.get("receipt_sha256") == receipt_sha
+        ):
+            matching.append(path)
+    if len(matching) != 1:
+        raise SubmissionError("budget receipt is not uniquely anchored in this material ledger")
+    return (
+        resolved,
+        task_count,
+        task_map_sha,
+        manifest_path,
+        manifest,
+        receipt_path,
+        receipt,
+    )
+
+
 def safe_export_value(name: str, value: Path | str) -> str:
     rendered = str(value)
     if not rendered or any(character in rendered for character in (",", "\n", "\r", "\x00")):
@@ -262,7 +513,7 @@ def stage_plan(
     *,
     attempt_id: str,
     task_map: Path | None = None,
-    max_in_flight: int = 32,
+    max_in_flight: int | None = None,
 ) -> StagePlan:
     if stage not in STAGE_SCRIPTS:
         raise SubmissionError(f"unsupported stage: {stage}")
@@ -288,24 +539,51 @@ def stage_plan(
     task_count: int | None = None
     task_map_sha: str | None = None
     resolved_task_map: Path | None = None
+    force_manifest_path: Path | None = None
+    force_manifest_sha: str | None = None
+    budget_receipt_path: Path | None = None
+    budget_receipt_sha: str | None = None
+    force_mode: str | None = None
+    scheduler_options: tuple[str, ...] = ()
 
     if stage == "preflight":
         require_relax_gate(context)
     elif stage == "force":
         require_relax_gate(context)
-        require_production_selection(context.config)
         if task_map is None:
             raise SubmissionError("force submission requires an explicit --task-map")
-        if isinstance(max_in_flight, bool) or max_in_flight < 1:
-            raise SubmissionError("--max-in-flight must be a positive integer")
-        hard_cap_value = required(context.config, "displacements.hard_cap")
-        if isinstance(hard_cap_value, bool) or not isinstance(hard_cap_value, int):
-            raise SubmissionError("displacements.hard_cap must be an integer")
-        resolved_task_map, task_count, task_map_sha = validate_task_map(
-            task_map, context.run_dir, hard_cap_value
+        (
+            resolved_task_map,
+            task_count,
+            task_map_sha,
+            force_manifest_path,
+            force_manifest,
+            budget_receipt_path,
+            budget_receipt,
+        ) = validate_force_bundle(context, task_map)
+        force_manifest_sha = sha256_path(force_manifest_path)
+        budget_receipt_sha = sha256_path(budget_receipt_path)
+        force_mode = str(force_manifest["mode"])
+        concurrency = int(budget_receipt["maximum_concurrency"])
+        if max_in_flight is not None and (
+            isinstance(max_in_flight, bool)
+            or not isinstance(max_in_flight, int)
+            or max_in_flight != concurrency
+        ):
+            raise SubmissionError(
+                "--max-in-flight, when supplied, must equal the immutable budget receipt"
+            )
+        ranks = int(budget_receipt["mpi_ranks"])
+        walltime = format_slurm_time(budget_receipt["walltime_hours"])
+        scheduler_options = (f"--ntasks={ranks}", f"--time={walltime}")
+        exports["FORCE_MANIFEST"] = safe_export_value(
+            "FORCE_MANIFEST", force_manifest_path
+        )
+        exports["FORCE_BUDGET_RECEIPT"] = safe_export_value(
+            "FORCE_BUDGET_RECEIPT", budget_receipt_path
         )
         exports["TASK_MAP"] = safe_export_value("TASK_MAP", resolved_task_map)
-        array = f"0-{task_count - 1}%{min(max_in_flight, task_count)}"
+        array = f"0-{task_count - 1}%{min(concurrency, task_count)}"
     elif stage == "postprocess":
         require_production_selection(context.config)
         require_force_gate(context)
@@ -319,11 +597,30 @@ def stage_plan(
         task_count=task_count,
         task_map=resolved_task_map,
         task_map_sha256=task_map_sha,
+        force_manifest=force_manifest_path,
+        force_manifest_sha256=force_manifest_sha,
+        budget_receipt=budget_receipt_path,
+        budget_receipt_sha256=budget_receipt_sha,
+        force_mode=force_mode,
+        scheduler_options=scheduler_options,
     )
 
 
 def export_argument(exports: Mapping[str, str]) -> str:
-    ordered = ("CAMPAIGN_CONFIG", "RUN_DIR", "ATTEMPT_ID", "P3_SLURM_DIR", "TASK_MAP")
+    ordered = (
+        "CAMPAIGN_CONFIG",
+        "RUN_DIR",
+        "ATTEMPT_ID",
+        "P3_SLURM_DIR",
+        "PRIMARY_STAGE",
+        "PRIMARY_ATTEMPT_ID",
+        "PRIMARY_JOB_ID",
+        "PRIMARY_TASK_MAP_SHA256",
+        "PRIMARY_FORCE_MANIFEST_SHA256",
+        "TASK_MAP",
+        "FORCE_MANIFEST",
+        "FORCE_BUDGET_RECEIPT",
+    )
     missing = [name for name in ordered[:4] if name not in exports]
     if missing:
         raise SubmissionError("missing mandatory Slurm exports: " + ", ".join(missing))
@@ -338,8 +635,9 @@ def sbatch_command(plan: StagePlan, *, dependency: str | None = None) -> list[st
         "sbatch",
         "--parsable",
         f"--account={plan.account}",
-        export_argument(plan.exports),
     ]
+    command.extend(plan.scheduler_options)
+    command.append(export_argument(plan.exports))
     if plan.array is not None:
         command.append(f"--array={plan.array}")
     if dependency is not None:
@@ -511,7 +809,7 @@ def plan_report(
     stage: str,
     *,
     task_map: Path | None,
-    max_in_flight: int,
+    max_in_flight: int | None,
 ) -> dict[str, Any]:
     preview = stage_plan(
         context,
@@ -533,6 +831,12 @@ def plan_report(
         "task_map_sha256": preview.task_map_sha256,
         "task_count": preview.task_count,
         "array": preview.array,
+        "force_mode": preview.force_mode,
+        "force_manifest": str(preview.force_manifest) if preview.force_manifest else None,
+        "force_manifest_sha256": preview.force_manifest_sha256,
+        "budget_receipt": str(preview.budget_receipt) if preview.budget_receipt else None,
+        "budget_receipt_sha256": preview.budget_receipt_sha256,
+        "scheduler_options": list(preview.scheduler_options),
         "primary_command_template": preview_command,
         "collector": stage in COLLECTED_STAGES,
         "execute_requirement": (
@@ -561,6 +865,12 @@ def _request_record(
         "task_map_sha256": plan.task_map_sha256,
         "task_count": plan.task_count,
         "array": plan.array,
+        "force_mode": plan.force_mode,
+        "force_manifest": str(plan.force_manifest) if plan.force_manifest else None,
+        "force_manifest_sha256": plan.force_manifest_sha256,
+        "budget_receipt": str(plan.budget_receipt) if plan.budget_receipt else None,
+        "budget_receipt_sha256": plan.budget_receipt_sha256,
+        "scheduler_options": list(plan.scheduler_options),
         "command": list(command),
     }
 
@@ -571,7 +881,7 @@ def execute_submission(
     *,
     expected_config_sha: str,
     task_map: Path | None,
-    max_in_flight: int,
+    max_in_flight: int | None,
 ) -> dict[str, Any]:
     require_nibi_login()
     expected = expected_config_sha
@@ -598,7 +908,7 @@ def _execute_locked(
     stage: str,
     *,
     task_map: Path | None,
-    max_in_flight: int,
+    max_in_flight: int | None,
 ) -> dict[str, Any]:
     ensure_no_active_duplicate(context.run_dir, stage)
 
@@ -662,6 +972,26 @@ def _execute_locked(
         collector_attempt = new_attempt_id("collect")
         collector_exports = dict(plan.exports)
         collector_exports["ATTEMPT_ID"] = collector_attempt
+        collector_exports["PRIMARY_STAGE"] = safe_export_value(
+            "PRIMARY_STAGE", stage
+        )
+        collector_exports["PRIMARY_ATTEMPT_ID"] = safe_export_value(
+            "PRIMARY_ATTEMPT_ID", attempt_id
+        )
+        collector_exports["PRIMARY_JOB_ID"] = safe_export_value(
+            "PRIMARY_JOB_ID", primary_job_id
+        )
+        if stage == "force":
+            if plan.task_map_sha256 is None or plan.force_manifest_sha256 is None:
+                raise SubmissionError(
+                    "force collector cannot be submitted without primary plan hashes"
+                )
+            collector_exports["PRIMARY_TASK_MAP_SHA256"] = safe_export_value(
+                "PRIMARY_TASK_MAP_SHA256", plan.task_map_sha256
+            )
+            collector_exports["PRIMARY_FORCE_MANIFEST_SHA256"] = safe_export_value(
+                "PRIMARY_FORCE_MANIFEST_SHA256", plan.force_manifest_sha256
+            )
         collector_plan = StagePlan(
             stage="collect",
             script=SLURM_DIR / "collect.sbatch",
@@ -680,6 +1010,9 @@ def _execute_locked(
             {
                 "created_utc": utc_now(),
                 "attempt_id": collector_attempt,
+                "primary_stage": stage,
+                "primary_attempt_id": attempt_id,
+                "primary_job_id": primary_job_id,
                 "dependency": f"afterany:{primary_job_id}",
                 "command": collector_command,
             },
@@ -707,6 +1040,9 @@ def _execute_locked(
         collector = {
             "attempt_id": collector_attempt,
             "job_id": collector_job_id,
+            "primary_stage": stage,
+            "primary_attempt_id": attempt_id,
+            "primary_job_id": primary_job_id,
             "dependency": f"afterany:{primary_job_id}",
             "command": collector_command,
         }
@@ -725,6 +1061,10 @@ def _execute_locked(
         "task_map_sha256": plan.task_map_sha256,
         "task_count": plan.task_count,
         "array": plan.array,
+        "force_mode": plan.force_mode,
+        "force_manifest_sha256": plan.force_manifest_sha256,
+        "budget_receipt_sha256": plan.budget_receipt_sha256,
+        "scheduler_options": list(plan.scheduler_options),
         "record_dir": str(record_dir),
     }
     write_json_exclusive(record_dir / "submission.json", summary)
@@ -740,7 +1080,14 @@ def build_parser() -> argparse.ArgumentParser:
         subparser.add_argument("--config", type=Path, required=True)
         subparser.add_argument("--run-dir", type=Path, required=True)
         subparser.add_argument("--task-map", type=Path)
-        subparser.add_argument("--max-in-flight", type=int, default=32)
+        subparser.add_argument(
+            "--max-in-flight",
+            type=int,
+            help=(
+                "force only: optional cross-check that must equal the immutable "
+                "budget receipt; the receipt always controls concurrency"
+            ),
+        )
         if mode == "execute":
             subparser.add_argument("--expect-config-sha", required=True)
     return parser

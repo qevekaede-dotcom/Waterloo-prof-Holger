@@ -54,7 +54,8 @@ The campaign history, with every failure, is `WORKLOG.md` here.
 SrCu2SnS4 kappa_L [calculated, first pass]: **0.36 W m^-1 K^-1 at 300 K**
 (in-plane 0.40, c-axis 0.30), falling ~1/T to 0.12 W m^-1 K^-1 at 900 K.
 Very low — encouraging for a thermoelectric. Method: phono3py RTA, 2x2x1
-supercell, cutoff-pair 4.0 A, q-mesh 13x13x6, measured residual forces
+supercell, historical cutoff-pair 4.0 bohr (2.1167 A; onsite pair groups
+only), q-mesh 13x13x6, measured residual forces
 subtracted (--cfz), PBE, no SOC, no NAC. No significant imaginary phonon
 frequencies occur on the sampled mesh; this is not a global stability proof.
 The corrected 11x11x5 -> 13x13x6 step changes the average by -2.9559%,

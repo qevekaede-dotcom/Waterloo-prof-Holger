@@ -5,7 +5,9 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
+import campaign as campaign_module
 from campaign import (
     CampaignError,
     analyze_displacement_yaml,
@@ -15,6 +17,7 @@ from campaign import (
     safe_run_dir,
     validate_config,
     verify_manifest,
+    verify_upstream_manifest,
 )
 
 
@@ -24,7 +27,7 @@ RB_CONFIG = REPO_ROOT / "thermo_candidates/Rb2Cu2SnS4/phono3py/campaign.json"
 
 
 class CampaignConfigTests(unittest.TestCase):
-    def test_grouped_displacement_ids_are_sorted_only_for_file_comparison(self) -> None:
+    def test_numeric_displacement_order_preserves_excluded_gaps_and_grouped_traversal(self) -> None:
         dataset = {
             "displacement_pairs": [
                 {
@@ -33,21 +36,46 @@ class CampaignConfigTests(unittest.TestCase):
                     "paired_with": [
                         {
                             "included": True,
+                            "pair_distance": 2.5,
                             "displacements": [[0.1, 0.0, 0.0], [0.0, 0.1, 0.0]],
                             "displacement_ids": [3, 4],
-                        }
+                        },
+                        {
+                            "included": False,
+                            "pair_distance": 6.0,
+                            "displacements": [[-0.1, 0.0, 0.0]],
+                            "displacement_ids": [5],
+                        },
                     ],
                 },
                 {
                     "displacement_id": 2,
                     "displacement": [0.0, 0.0, 0.1],
-                    "paired_with": [],
+                    "paired_with": [
+                        {
+                            "included": True,
+                            "pair_distance": 3.0,
+                            "displacements": [[0.0, -0.1, 0.0]],
+                            "displacement_ids": [6],
+                        },
+                        {
+                            "included": False,
+                            "pair_distance": 7.0,
+                            "displacements": [[0.0, 0.0, -0.1]],
+                            "displacement_ids": [7],
+                        },
+                    ],
                 },
             ]
         }
         inventory = analyze_displacement_yaml(dataset)
-        self.assertEqual(inventory["all_displacement_ids"], [1, 3, 4, 2])
-        self.assertEqual(inventory["included_displacement_ids"], [1, 2, 3, 4])
+        self.assertEqual(inventory["all_displacement_ids"], [1, 2, 3, 4, 5, 6, 7])
+        self.assertEqual(inventory["grouped_traversal_displacement_ids"], [1, 3, 4, 5, 2, 6, 7])
+        self.assertEqual(inventory["included_displacement_ids"], [1, 2, 3, 4, 6])
+        self.assertEqual(inventory["single_displacements"], 2)
+        self.assertEqual(inventory["included_pair_distances"], [2.5, 3.0])
+        self.assertEqual(inventory["excluded_pair_distances"], [6.0, 7.0])
+        self.assertEqual(inventory["nonzero_included_pair_groups"], 2)
 
     def test_material_configs_validate_and_remain_selection_gated(self) -> None:
         for config_path in (SR_CONFIG, RB_CONFIG):
@@ -65,6 +93,35 @@ class CampaignConfigTests(unittest.TestCase):
             path.write_text(json.dumps(bad))
             with self.assertRaisesRegex(CampaignError, "amplitude Å/bohr mismatch"):
                 validate_config(path)
+
+    def test_rejects_resource_or_scientific_gate_drift(self) -> None:
+        cases = []
+        wrong_budget = copy.deepcopy(load_json(SR_CONFIG))
+        wrong_budget["resource_budget"]["approved_total_core_hours_per_material"] = 100
+        cases.append((wrong_budget, "approved core hours must be null"))
+
+        wrong_retry = copy.deepcopy(load_json(SR_CONFIG))
+        wrong_retry["resource_budget"]["maximum_technical_retries_per_task"] = 2
+        cases.append((wrong_retry, "exactly one technical retry"))
+
+        wrong_nac = copy.deepcopy(load_json(SR_CONFIG))
+        wrong_nac["nac"]["no_nac_branch_requires_explicit_cli_flag"] = ""
+        cases.append((wrong_nac, "must use --nonac"))
+
+        missing_mixed_signs = copy.deepcopy(load_json(SR_CONFIG))
+        missing_mixed_signs["force_and_amplitude_validation"]["amplitude_pilot"][
+            "double_displacement_four_sign_combinations_required"
+        ] = False
+        cases.append((missing_mixed_signs, "all four double-displacement signs"))
+
+        with tempfile.TemporaryDirectory() as temporary:
+            for index, (bad, message) in enumerate(cases):
+                path = Path(temporary) / f"bad-{index}.json"
+                path.write_text(json.dumps(bad))
+                with self.subTest(message=message), self.assertRaisesRegex(
+                    CampaignError, message
+                ):
+                    validate_config(path)
 
     def test_prepare_is_immutable_and_resumable(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -117,11 +174,169 @@ class CampaignConfigTests(unittest.TestCase):
             with self.assertRaisesRegex(CampaignError, "structure_policy_sha256"):
                 verify_manifest(changed, changed_path, run_dir, stage="structure")
 
+    def test_downstream_accepts_archived_code_hash_but_not_policy_drift(self) -> None:
+        config = load_json(SR_CONFIG)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            config_path = root / "config.json"
+            config_path.write_text(json.dumps(config))
+            run_dir = root / "run"
+            command_prepare_relax(config_path, run_dir)
+            manifest_path = run_dir / "run_manifest.json"
+            manifest = load_json(manifest_path)
+            manifest["workflow_files"] = {"old/campaign.py": "a" * 64}
+            manifest_path.write_text(json.dumps(manifest))
+
+            with self.assertRaisesRegex(CampaignError, "workflow_files"):
+                verify_manifest(config, config_path, run_dir, stage="preflight")
+            self.assertEqual(
+                verify_upstream_manifest(
+                    config, config_path, run_dir, stage="preflight"
+                )["workflow_files"],
+                {"old/campaign.py": "a" * 64},
+            )
+
+            changed = copy.deepcopy(config)
+            changed["displacements"]["hard_cap"] += 1
+            changed_path = root / "changed.json"
+            changed_path.write_text(json.dumps(changed))
+            with self.assertRaisesRegex(CampaignError, "preflight_policy_sha256"):
+                verify_upstream_manifest(
+                    changed, changed_path, run_dir, stage="preflight"
+                )
+
     def test_rejects_frozen_or_broad_run_directory(self) -> None:
         with self.assertRaises(CampaignError):
             safe_run_dir(Path.home())
         with self.assertRaises(CampaignError):
             safe_run_dir(Path("/tmp/example/READY_TO_ATTACH/run"))
+
+    def test_prepare_force_cli_passes_only_explicit_evidence_paths(self) -> None:
+        arguments = [
+            "prepare-force",
+            "--config", str(SR_CONFIG),
+            "--run-dir", "/tmp/p3-cli-run",
+            "--preflight-inventory", "/tmp/p3-cli-run/preflight.json",
+            "--dataset-dir", "/tmp/p3-cli-run/dataset",
+            "--output-dir", "/tmp/p3-cli-run/force-bundle",
+            "--pseudo-dir", "/tmp/pseudos",
+            "--mode", "pilot",
+            "--pilot-spec", "/tmp/p3-cli-run/pilot.json",
+            "--expect-pilot-manifest-sha", "c" * 64,
+            "--resource-request", "/tmp/p3-cli-run/resources.json",
+        ]
+        with patch.object(
+            campaign_module,
+            "command_prepare_force",
+            return_value={"healthy": True},
+        ) as command, patch.object(campaign_module, "print_json"):
+            self.assertEqual(campaign_module.main(arguments), 0)
+        keywords = command.call_args.kwargs
+        self.assertEqual(keywords["mode"], "pilot")
+        self.assertEqual(
+            keywords["pilot_spec_path"], Path("/tmp/p3-cli-run/pilot.json")
+        )
+        self.assertEqual(keywords["pilot_dataset_manifest_sha256"], "c" * 64)
+        self.assertIsNone(keywords["selection_evidence"])
+        self.assertEqual(keywords["resource_request_path"], Path(arguments[-1]))
+
+    def test_prepare_force_requires_pilot_anchor_and_rejects_it_for_production(self) -> None:
+        common = {
+            "preflight_inventory": Path("/tmp/p3-cli-run/preflight.json"),
+            "dataset_dir": Path("/tmp/p3-cli-run/dataset"),
+            "output_dir": Path("/tmp/p3-cli-run/force-bundle"),
+            "pseudo_dir": Path("/tmp/pseudos"),
+            "pilot_spec_path": Path("/tmp/p3-cli-run/pilot.json"),
+            "selection_evidence": None,
+            "resource_request_path": Path("/tmp/p3-cli-run/resources.json"),
+        }
+        with self.assertRaisesRegex(CampaignError, "expect-pilot-manifest-sha"):
+            campaign_module.command_prepare_force(
+                SR_CONFIG,
+                Path("/tmp/p3-cli-run"),
+                mode="pilot",
+                pilot_dataset_manifest_sha256=None,
+                **common,
+            )
+        with self.assertRaisesRegex(CampaignError, "64 lowercase hex"):
+            campaign_module.command_prepare_force(
+                SR_CONFIG,
+                Path("/tmp/p3-cli-run"),
+                mode="pilot",
+                pilot_dataset_manifest_sha256="not-a-sha",
+                **common,
+            )
+        with self.assertRaisesRegex(CampaignError, "production.*must not"):
+            campaign_module.command_prepare_force(
+                SR_CONFIG,
+                Path("/tmp/p3-cli-run"),
+                mode="production",
+                pilot_dataset_manifest_sha256="c" * 64,
+                **common,
+            )
+
+    def test_prepare_force_forwards_trusted_pilot_manifest_sha(self) -> None:
+        with patch.object(
+            campaign_module,
+            "load_json",
+            side_effect=[{"pilot": True}, {"phase": "initial"}],
+        ), patch(
+            "force_backend.prepare_force", return_value={"healthy": True}
+        ) as prepare:
+            result = campaign_module.command_prepare_force(
+                SR_CONFIG,
+                Path("/tmp/p3-cli-run"),
+                preflight_inventory=Path("/tmp/p3-cli-run/preflight.json"),
+                dataset_dir=Path("/tmp/p3-cli-run/dataset"),
+                output_dir=Path("/tmp/p3-cli-run/force-bundle"),
+                pseudo_dir=Path("/tmp/pseudos"),
+                mode="pilot",
+                pilot_spec_path=Path("/tmp/p3-cli-run/pilot.json"),
+                pilot_dataset_manifest_sha256="d" * 64,
+                selection_evidence=None,
+                resource_request_path=Path("/tmp/p3-cli-run/resources.json"),
+            )
+
+        self.assertEqual(result, {"healthy": True})
+        self.assertEqual(
+            prepare.call_args.kwargs["pilot_dataset_manifest_sha256"], "d" * 64
+        )
+
+    def test_pilot_dataset_cli_requires_explicit_probe_plan(self) -> None:
+        arguments = [
+            "prepare-pilot-dataset",
+            "--config", str(RB_CONFIG),
+            "--run-dir", "/tmp/p3-pilot-run",
+            "--candidate-dir", "/tmp/p3-pilot-run/preflight/candidate",
+            "--preflight-inventory", "/tmp/p3-pilot-run/preflight/inventory.json",
+            "--output-dir", "/tmp/p3-pilot-run/pilot",
+            "--probe-spec", "/tmp/p3-pilot-run/probe.json",
+        ]
+        with patch.object(
+            campaign_module,
+            "command_prepare_pilot_dataset",
+            return_value={"healthy": True},
+        ) as command, patch.object(campaign_module, "print_json"):
+            self.assertEqual(campaign_module.main(arguments), 0)
+        self.assertEqual(command.call_args.kwargs["probe_spec_path"], Path(arguments[-1]))
+
+    def test_force_task_cli_forwards_optional_retry_evidence(self) -> None:
+        arguments = [
+            "run-force-task",
+            "--config", str(SR_CONFIG),
+            "--run-dir", "/tmp/p3-force-run",
+            "--task-map", "/tmp/p3-force-run/bundle/task_map.tsv",
+            "--task-id", "3",
+            "--retry-evidence", "/tmp/p3-force-run/retry.json",
+        ]
+        with patch.object(
+            campaign_module,
+            "command_run_force_task",
+            return_value={"healthy": True},
+        ) as command, patch.object(campaign_module, "print_json"):
+            self.assertEqual(campaign_module.main(arguments), 0)
+        self.assertEqual(command.call_args.kwargs["task_id"], 3)
+        self.assertEqual(command.call_args.kwargs["retry_evidence"], Path(arguments[-1]))
 
 
 if __name__ == "__main__":

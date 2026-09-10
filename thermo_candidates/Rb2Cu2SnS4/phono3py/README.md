@@ -91,14 +91,17 @@ and [QE workflow](https://phonopy.github.io/phono3py/qe.html).
    stop.
 3. On a compute node, generate count-only phono3py datasets for every declared
    matrix/cutoff candidate with explicit `--pa P`. Record the command, YAML,
-   units, generated vectors, atom count, and displacement count. More than
-   1000 displacement supercells is a hard stop.
+   units, generated vectors, atom count, and displacement count. A candidate
+   above 1000 displacement supercells is ineligible for force submission, but
+   its count-only audit does not invalidate cheaper candidates.
 4. Run positive/negative amplitude probes at 0.02, 0.03, and 0.04 angstrom,
    probes spanning Rb/Cu/Sn/S and the Rb-S, Cu-S, Sn-S, and S-S pair shells,
-   duplicate-noise checks, cutoff tests, `conv_thr` tests, and 2x2x2 versus
-   3x3x3 force-k-mesh tests with a small 4x4x4 confirmation subset. Compare
-   induced forces only after subtracting a pristine force calculated with the
-   identical setting.
+   including symmetry-inequivalent sites. Test both single-displacement
+   central slopes and the four-sign double-displacement mixed difference that
+   resolves FC3 signal. Include duplicate-noise, cutoff, `conv_thr`, and
+   2x2x2 versus 3x3x3 force-k-mesh tests with a small 4x4x4 confirmation
+   subset. Compare only after subtracting a pristine force calculated with
+   the identical setting.
 5. Make and record a scientific selection. Until then,
    `production.selection_required` stays `true`, and both the selected
    supercell and selected cutoff stay `null`.
@@ -146,11 +149,22 @@ The reference displaced-force setting is 100/800 Ry, 3x3x3, and
 passes only if all declared limits hold: maximum component difference at most
 `5e-5 Ry/bohr`, RMS component difference at most `1e-5 Ry/bohr`, relative
 RMS difference at most 2%, and duplicate noise at most `5e-6 Ry/bohr`.
+Before broader pilots, a six-SCF timing/noise batch limits concurrency to two
+force tasks for this material. Later pilot batches are capped at 32 new SCFs;
+production starts in batches of at most 32, then 64, and remains blocked until
+a measured core-hour budget is explicitly recorded. A displacement-count cap
+alone is not a resource authorization.
 
 Raw phono3py Cartesian xx/yy/zz are not the conventional Ibam a/b/c
 components for this tilted primitive cell. For accepted primitive row lattice
-`A`, the config defines a right-handed conventional transform `T`. The audit
-forms `C=T*A`, obtains the closest orthonormal row frame
+`A`, the config defines the spglib Hall-338 standard conventional transform
+`T = [[0,1,1],[1,0,1],[1,1,0]]`. For the reference standardized primitive,
+`T*A` agrees with spglib 2.7.0 `std_lattice` at `symprec=1e-6 angstrom` and
+has conventional edge lengths approximately 5.493, 11.804, and 13.897
+angstrom in a, b, c order. The audit must repeat this setting check on the
+accepted tight-relax structure; a merely right-handed orthogonal transform is
+not enough to assign crystallographic labels. It then forms `C=T*A`, obtains
+the closest orthonormal row frame
 `R=(C*C^T)^(-1/2)*C`, and reports
 
 ```text
@@ -171,6 +185,8 @@ conventional component larger than 5% of trace/3 triggers investigation.
 The first-pass solver is phono3py RTA with PBE, no explicit SOC, no isotope
 scattering, no boundary scattering, and no NAC. Born effective charges and a
 dielectric tensor have not been calculated. A result may therefore be called
-only a calculated, no-NAC first pass; an NAC sensitivity test is required
+only a calculated, no-NAC first pass. The no-NAC command must explicitly use
+`--nonac` and reject an accidental `BORN` file or YAML `nac_params`; an NAC
+sensitivity test is required
 before a final physical-convergence claim. This kappa_L would still not by
 itself make the earlier electronic-only `zT_e` a final thermoelectric zT.

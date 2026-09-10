@@ -144,7 +144,8 @@ def main():
     with open(summary, "w") as f:
         f.write("# SrCu2SnS4 lattice thermal conductivity — first pass "
                 "[calculated]\n\n")
-        f.write("phono3py RTA (--br), 2x2x1 supercell, cutoff-pair 4.0 A, "
+        f.write("phono3py RTA (--br), 2x2x1 supercell, historical "
+                "cutoff-pair 4.0 bohr (2.1167 A; onsite pair groups only), "
                 f"q-mesh {chosen}, PBE, no SOC, no NAC.\n\n")
         solver = "symfc" if fc_flags else "traditional"
         if freq_min > -0.1:

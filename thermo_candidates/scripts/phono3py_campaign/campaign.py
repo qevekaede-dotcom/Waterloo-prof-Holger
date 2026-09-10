@@ -10,6 +10,7 @@ borrowing settings from SrCu2SnS4.
 from __future__ import annotations
 
 import argparse
+import csv
 import fcntl
 import hashlib
 import json
@@ -35,6 +36,12 @@ from qe_input import (
     replace_qe_geometry,
 )
 from qe_output import QEOutputError, inspect_output
+
+
+# When this file is executed as a script, downstream backends import it by the
+# stable module name ``campaign``.  Reuse this already-running module so its
+# exception classes and immutable-write helpers are not loaded a second time.
+sys.modules.setdefault("campaign", sys.modules[__name__])
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -248,6 +255,163 @@ def validate_config(config_path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
 
         hard_cap = required(config, "displacements.hard_cap")
         check(isinstance(hard_cap, int) and not isinstance(hard_cap, bool) and hard_cap > 0, "hard_cap must be positive integer")
+
+        force_policy = required(config, "force_and_amplitude_validation")
+        check(isinstance(force_policy, Mapping), "force_and_amplitude_validation must be an object")
+        force_selection_required = required(
+            config, "force_and_amplitude_validation.selection_required"
+        )
+        check(
+            isinstance(force_selection_required, bool),
+            "force_and_amplitude_validation.selection_required must be boolean",
+        )
+        symmetry_flags = required(
+            config, "force_and_amplitude_validation.production_symmetry_flags"
+        )
+        check(
+            isinstance(symmetry_flags, Mapping)
+            and symmetry_flags.get("nosym") is True
+            and symmetry_flags.get("noinv") is True
+            and symmetry_flags.get(
+                "use_identically_for_pristine_pilots_and_all_displacements"
+            )
+            is True,
+            "force calculations and matched pristine must use nosym/noinv identically",
+        )
+        amplitude_policy = required(
+            config, "force_and_amplitude_validation.amplitude_pilot"
+        )
+        candidates = required(
+            config,
+            "force_and_amplitude_validation.amplitude_pilot.displacement_distance_candidates",
+        )
+        check(
+            isinstance(candidates, list) and len(candidates) >= 3,
+            "amplitude pilot must contain at least three displacement candidates",
+        )
+        seen_amplitudes: set[float] = set()
+        for index, candidate in enumerate(candidates):
+            candidate_a = positive_number(
+                required(candidate, "displacement_distance_angstrom"),
+                f"amplitude candidate[{index}] angstrom",
+            )
+            candidate_b = positive_number(
+                required(candidate, "displacement_distance_cli_bohr"),
+                f"amplitude candidate[{index}] bohr",
+            )
+            check(
+                math.isclose(candidate_a / factor, candidate_b, rel_tol=FLOAT_REL_TOL),
+                f"amplitude candidate conversion mismatch: {candidate_a}",
+            )
+            check(candidate_a not in seen_amplitudes, "duplicate amplitude candidate")
+            seen_amplitudes.add(candidate_a)
+        check(
+            amplitude_policy.get("positive_and_negative_displacements_required") is True,
+            "amplitude pilot must require positive and negative displacements",
+        )
+        check(
+            amplitude_policy.get("double_displacement_four_sign_combinations_required")
+            is True,
+            "amplitude pilot must require all four double-displacement signs",
+        )
+        check(
+            amplitude_policy.get("symmetry_inequivalent_site_coverage_required") is True,
+            "amplitude pilot must require symmetry-inequivalent site coverage",
+        )
+        representative_species = amplitude_policy.get("representative_species")
+        representative_pairs = amplitude_policy.get("representative_pair_shells")
+        check(
+            isinstance(representative_species, list)
+            and representative_species
+            and all(isinstance(item, str) and item for item in representative_species),
+            "amplitude pilot representative_species must be a nonempty string list",
+        )
+        check(
+            isinstance(representative_pairs, list)
+            and representative_pairs
+            and all(isinstance(item, str) and item for item in representative_pairs),
+            "amplitude pilot representative_pair_shells must be a nonempty string list",
+        )
+        amplitude_acceptance = required(
+            config, "force_and_amplitude_validation.amplitude_pilot.acceptance"
+        )
+        for key in (
+            "minimum_induced_force_signal_to_duplicate_noise",
+            "maximum_relative_change_of_central_force_slope",
+            "maximum_relative_change_of_mixed_second_force_derivative",
+            "minimum_mixed_difference_numerator_signal_to_propagated_duplicate_noise",
+            "maximum_duplicate_RMS_force_difference_Ry_per_bohr",
+        ):
+            positive_number(required(amplitude_acceptance, key), key)
+        check(
+            amplitude_acceptance.get("below_resolution_action")
+            == "choose_a_nonzero_signal_probe_or_require_scientific_review; do_not_pass_or_fail_by_relative_error",
+            "below-resolution amplitude policy must fail closed",
+        )
+
+        budget = required(config, "resource_budget")
+        check(isinstance(budget, Mapping), "resource_budget must be an object")
+        budget_selection_required = required(
+            config, "resource_budget.selection_required_before_force_submission"
+        )
+        check(
+            isinstance(budget_selection_required, bool),
+            "resource budget selection flag must be boolean",
+        )
+        approved_core_hours = required(
+            config, "resource_budget.approved_total_core_hours_per_material"
+        )
+        if budget_selection_required:
+            check(
+                approved_core_hours is None,
+                "approved core hours must be null while budget selection is required",
+            )
+        else:
+            positive_number(approved_core_hours, "approved total core hours")
+        initial_batch = required(config, "resource_budget.initial_timing_and_noise_batch")
+        for mapping, key, label in (
+            (initial_batch, "maximum_new_scf_tasks", "initial timing task limit"),
+            (
+                initial_batch,
+                "maximum_concurrent_force_tasks_per_material",
+                "initial timing concurrency limit",
+            ),
+            (budget, "pilot_batch_maximum_new_scf_tasks", "pilot task limit"),
+            (budget, "production_first_batch_maximum_tasks", "first production batch limit"),
+            (budget, "production_later_batch_maximum_tasks", "later production batch limit"),
+        ):
+            value = required(mapping, key)
+            check(
+                isinstance(value, int) and not isinstance(value, bool) and value > 0,
+                f"{label} must be a positive integer",
+            )
+        retry_limit = required(config, "resource_budget.maximum_technical_retries_per_task")
+        check(
+            isinstance(retry_limit, int)
+            and not isinstance(retry_limit, bool)
+            and retry_limit == 1,
+            "campaign permits exactly one technical retry per force task",
+        )
+        required_measured = required(config, "resource_budget.required_measured_fields")
+        expected_measured = {
+            "elapsed_seconds",
+            "max_rss",
+            "scf_iterations",
+            "mpi_ranks",
+            "raw_max_force",
+            "total_scf_correction",
+        }
+        check(
+            isinstance(required_measured, list)
+            and set(required_measured) == expected_measured,
+            "resource budget measured-field contract is incomplete",
+        )
+        check(
+            budget.get("budget_exceedance_action")
+            == "stop_and_require_explicit_budget_review",
+            "budget exceedance must stop for explicit review",
+        )
+
         integer_triplet(required(config, "tight_relax.kmesh"), "tight_relax.kmesh", positive=True)
         integer_triplet(required(config, "tight_relax.kmesh_shift"), "tight_relax.kmesh_shift")
         force_target = positive_number(required(config, "tight_relax.accept_max_force_ry_bohr"), "accept force")
@@ -261,9 +425,72 @@ def validate_config(config_path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
         if selection_required:
             check(selected_supercell is None, "selected_supercell must be null while selection is required")
             check(selected_cutoff is None, "selected_cutoff must be null while selection is required")
+            check(
+                required(config, "production.automatic_submission_allowed") is False,
+                "automatic production submission must be false while selection is required",
+            )
         else:
             check(selected_supercell in supercells, "selected_supercell is not a configured candidate")
             check(selected_cutoff in cutoff_ids, "selected_cutoff is not a configured candidate")
+            check(
+                required(config, "production.automatic_submission_allowed") is True,
+                "automatic production submission must be explicitly true after selection",
+            )
+        selected_force_fields = (
+            "selected_displacement_distance_angstrom",
+            "selected_displacement_distance_cli_bohr",
+            "selected_ecutwfc_Ry",
+            "selected_ecutrho_Ry",
+            "selected_conv_thr_Ry",
+            "selected_k_points",
+        )
+        if force_selection_required:
+            check(
+                all(force_policy.get(key) is None for key in selected_force_fields),
+                "selected force settings must be null while force selection is required",
+            )
+        else:
+            selected_a = positive_number(
+                force_policy.get("selected_displacement_distance_angstrom"),
+                "selected force amplitude angstrom",
+            )
+            selected_b = positive_number(
+                force_policy.get("selected_displacement_distance_cli_bohr"),
+                "selected force amplitude bohr",
+            )
+            check(
+                math.isclose(selected_a / factor, selected_b, rel_tol=FLOAT_REL_TOL),
+                "selected force amplitude conversion mismatch",
+            )
+            positive_number(force_policy.get("selected_ecutwfc_Ry"), "selected ecutwfc")
+            selected_ecutrho = positive_number(
+                force_policy.get("selected_ecutrho_Ry"), "selected ecutrho"
+            )
+            check(
+                selected_ecutrho >= float(force_policy["selected_ecutwfc_Ry"]),
+                "selected ecutrho must be at least selected ecutwfc",
+            )
+            positive_number(force_policy.get("selected_conv_thr_Ry"), "selected conv_thr")
+            integer_triplet(
+                force_policy.get("selected_k_points"),
+                "selected force k points",
+                positive=True,
+            )
+        check(
+            force_selection_required == selection_required,
+            "production and force selections must remain gated together",
+        )
+        if required(config, "nac.enabled_for_first_pass") is False:
+            check(
+                required(config, "nac.no_nac_branch_requires_explicit_cli_flag")
+                == "--nonac",
+                "phono3py v4 no-NAC branch must use --nonac",
+            )
+            check(
+                required(config, "nac.reject_BORN_or_yaml_nac_params_in_no_nac_branch")
+                is True,
+                "no-NAC branch must reject BORN and YAML nac_params",
+            )
 
         source_input = resolve_repo_source(config, "source.qe_scf_input")
         source_relax = resolve_repo_source(config, "source.original_relax_output")
@@ -431,6 +658,57 @@ def verify_manifest(
     ):
         if saved.get(key) != current.get(key):
             raise CampaignError(f"immutable run provenance changed: {key}")
+    return saved
+
+
+def verify_upstream_manifest(
+    config: Mapping[str, Any], config_path: Path, run_dir: Path, *, stage: str
+) -> dict[str, Any]:
+    """Verify an accepted older stage without requiring its code to be current.
+
+    A run records the exact workflow hashes that created its evidence. Released
+    downstream code is allowed to evolve after that evidence is complete, so
+    it must compare the saved scientific policy and source inputs, not demand
+    that today's ``campaign.py`` still has the upstream byte hash. The later
+    stage creates and verifies its own immutable code manifest.
+    """
+
+    del config_path  # The validated config object is the policy authority.
+    run_dir = safe_run_dir(run_dir)
+    manifest_path = run_dir / RUN_MANIFEST
+    if not manifest_path.is_file():
+        raise CampaignError(f"run was not prepared: {manifest_path}")
+    saved = load_json(manifest_path)
+    if stage not in {"structure", "preflight"}:
+        raise CampaignError(f"unsupported upstream manifest stage: {stage}")
+    policy_key = f"{stage}_policy_sha256"
+    expected = {
+        "schema_version": 2,
+        "material": required(config, "material.formula"),
+        policy_key: policy_sha256(config, stage),
+        "source_qe_sha256": sha256_path(
+            resolve_repo_source(config, "source.qe_scf_input")
+        ),
+        "source_relax_sha256": sha256_path(
+            resolve_repo_source(config, "source.original_relax_output")
+        ),
+    }
+    for key, value in expected.items():
+        if saved.get(key) != value:
+            raise CampaignError(f"upstream run provenance changed: {key}")
+    workflow = saved.get("workflow_files")
+    if (
+        not isinstance(workflow, Mapping)
+        or not workflow
+        or any(
+            not isinstance(path, str)
+            or not path
+            or not isinstance(digest, str)
+            or re.fullmatch(r"[0-9a-f]{64}", digest) is None
+            for path, digest in workflow.items()
+        )
+    ):
+        raise CampaignError("upstream run has an invalid archived workflow hash set")
     return saved
 
 
@@ -737,28 +1015,12 @@ def prepare_starting_geometry(
     return standardized, audit
 
 
-def command_run_relax(config_path: Path, run_dir: Path) -> dict[str, Any]:
-    require_compute_node()
-    config, _ = validate_config(config_path)
-    run_dir = safe_run_dir(run_dir)
-    run_manifest = verify_manifest(config, config_path, run_dir, stage="structure")
-    attempt = attempt_dir(run_dir)
-    pseudo_dir_raw = os.environ.get("P3_PSEUDO_DIR")
-    if not pseudo_dir_raw:
-        raise CampaignError("P3_PSEUDO_DIR is required")
-    pseudo_dir = Path(pseudo_dir_raw).resolve()
-    pseudo_hashes = pseudopotential_hashes(config, pseudo_dir)
-    source_text = resolve_repo_source(config, "source.qe_scf_input").read_text()
-    archived_relax_text = resolve_repo_source(config, "source.original_relax_output").read_text(errors="replace")
-    starting_input, structure_audit = prepare_starting_geometry(
-        config, source_text, archived_relax_text
-    )
-    write_json_immutable(attempt / "starting_structure_audit.json", structure_audit)
-    write_immutable(attempt / "starting_unitcell.in", starting_input)
+def relax_input_for(config: Mapping[str, Any], starting_input: str, pseudo_dir: Path) -> str:
+    """Build the exact policy-matched fixed-cell input for any fresh attempt."""
 
     settings = required(config, "tight_relax")
     formula = str(required(config, "material.formula"))
-    relax_input = build_fixed_cell_relax_input(
+    return build_fixed_cell_relax_input(
         starting_input,
         outdir="./tmp-relax",
         prefix=f"{formula}_p3_relax",
@@ -777,6 +1039,53 @@ def command_run_relax(config_path: Path, run_dir: Path) -> dict[str, Any]:
         electron_maxstep=int(required(settings, "electron_maxstep")),
         mixing_beta=float(required(settings, "mixing_beta")),
     )
+
+
+def command_run_relax(config_path: Path, run_dir: Path) -> dict[str, Any]:
+    require_compute_node()
+    config, _ = validate_config(config_path)
+    run_dir = safe_run_dir(run_dir)
+    run_manifest = verify_manifest(config, config_path, run_dir, stage="structure")
+    attempt = attempt_dir(run_dir)
+    pseudo_dir_raw = os.environ.get("P3_PSEUDO_DIR")
+    if not pseudo_dir_raw:
+        raise CampaignError("P3_PSEUDO_DIR is required")
+    pseudo_dir = Path(pseudo_dir_raw).resolve()
+    pseudo_hashes = pseudopotential_hashes(config, pseudo_dir)
+    source_text = resolve_repo_source(config, "source.qe_scf_input").read_text()
+    archived_relax_text = resolve_repo_source(config, "source.original_relax_output").read_text(errors="replace")
+    starting_input, structure_audit = prepare_starting_geometry(
+        config, source_text, archived_relax_text
+    )
+    recovery = None
+    if run_manifest.get("relax_recovery") is not None:
+        from relax_recovery import load_recovery_start
+
+        reference_input = starting_input
+        starting_input, recovery = load_recovery_start(
+            config, run_dir, run_manifest, reference_input, pseudo_hashes
+        )
+        write_immutable(attempt / "reference_unitcell.in", reference_input)
+        structure_audit = {
+            **structure_audit,
+            "recovery": recovery,
+            "reference_unitcell_sha256": sha256_path(attempt / "reference_unitcell.in"),
+            "accepted_starting_geometry_sha256": hashlib.sha256(starting_input.encode()).hexdigest(),
+            "source": "hashed failed BFGS attempt final coordinates; fresh BFGS history",
+        }
+    write_json_immutable(attempt / "starting_structure_audit.json", structure_audit)
+    write_immutable(attempt / "starting_unitcell.in", starting_input)
+
+    settings = required(config, "tight_relax")
+    formula = str(required(config, "material.formula"))
+    relax_input = relax_input_for(config, starting_input, pseudo_dir)
+    if recovery is not None:
+        from qe_input import _set_namelist_values
+
+        relax_input = _set_namelist_values(relax_input, "CONTROL", {"restart_mode": "'from_scratch'"})
+        relax_input = _set_namelist_values(relax_input, "ELECTRONS", {"startingpot": "'atomic'", "startingwfc": "'atomic+random'"})
+        if (attempt / "tmp-relax").exists() or (attempt / "tmp-pristine").exists():
+            raise CampaignError("recovery requires empty, fresh QE scratch directories")
     write_immutable(attempt / "relax.in", relax_input)
     relax_command = qe_command("relax.in")
     write_json_immutable(
@@ -791,6 +1100,7 @@ def command_run_relax(config_path: Path, run_dir: Path) -> dict[str, Any]:
             ),
             "relax_input_sha256": sha256_path(attempt / "relax.in"),
             "pseudopotentials": pseudo_hashes,
+            "recovery": recovery,
         },
     )
     relax_process = run_process(
@@ -852,6 +1162,7 @@ def command_run_relax(config_path: Path, run_dir: Path) -> dict[str, Any]:
         "relax_process": relax_process,
         "pristine_process": pristine_process,
         "finished_utc": utc_now(),
+        "recovery": recovery,
     }
     write_json_immutable(attempt / "execution_manifest.json", execution)
     return execution
@@ -935,8 +1246,24 @@ def command_finalize_relax(config_path: Path, run_dir: Path) -> dict[str, Any]:
         "bfgs converged" in relax_text.lower()
         and "End of BFGS Geometry Optimization" in relax_text
     )
+    reference_path = attempt / "starting_unitcell.in"
+    if run_manifest.get("relax_recovery") is not None:
+        from relax_recovery import load_recovery_start
+
+        reference_path = attempt / "reference_unitcell.in"
+        starting_input, recovery = load_recovery_start(
+            config, run_dir, run_manifest, reference_path.read_text(),
+            execution["pseudopotentials"],
+        )
+        if starting_input != (attempt / "starting_unitcell.in").read_text():
+            raise CampaignError("recovery starting unitcell differs from its frozen seed")
+        if any(record.get("recovery") != recovery for record in (execution, relax_launch)):
+            raise CampaignError("recovery launch/execution receipt mismatch")
+        audit = load_json(attempt / "starting_structure_audit.json")
+        if audit.get("reference_unitcell_sha256") != sha256_path(reference_path):
+            raise CampaignError("recovery cumulative-position reference hash mismatch")
     shifts = _position_shifts_angstrom(
-        (attempt / "starting_unitcell.in").read_text(),
+        reference_path.read_text(),
         (attempt / "pristine.in").read_text(),
     )
     final_input = parse_qe_input((attempt / "pristine.in").read_text())
@@ -991,6 +1318,7 @@ def command_finalize_relax(config_path: Path, run_dir: Path) -> dict[str, Any]:
         ) > hard_stop_force,
         "per_atom_position_shift_angstrom": shifts,
         "max_position_shift_angstrom": max_shift,
+        "position_shift_reference": str(reference_path),
         "spacegroup_scan": scan,
         "final_unitcell_sha256": sha256_path(attempt / "pristine.in"),
         "limitations": [
@@ -1028,6 +1356,8 @@ def analyze_displacement_yaml(value: Mapping[str, Any]) -> dict[str, Any]:
     singles = 0
     included_pair_groups = 0
     excluded_pair_groups = 0
+    included_pair_distances: list[float] = []
+    excluded_pair_distances: list[float] = []
     for first_index, first in enumerate(pairs):
         if not isinstance(first, Mapping):
             raise CampaignError(f"invalid displacement_pairs[{first_index}]")
@@ -1048,6 +1378,9 @@ def analyze_displacement_yaml(value: Mapping[str, Any]) -> dict[str, Any]:
             second_vectors = required(second, "displacements")
             second_ids = required(second, "displacement_ids")
             included = required(second, "included")
+            pair_distance = float(required(second, "pair_distance"))
+            if not math.isfinite(pair_distance) or pair_distance < 0:
+                raise CampaignError("paired_with.pair_distance must be finite and non-negative")
             if not isinstance(included, bool):
                 raise CampaignError("paired_with.included must be boolean")
             if (
@@ -1067,8 +1400,10 @@ def analyze_displacement_yaml(value: Mapping[str, Any]) -> dict[str, Any]:
             if included:
                 included_ids.extend(second_ids)
                 included_pair_groups += 1
+                included_pair_distances.append(pair_distance)
             else:
                 excluded_pair_groups += 1
+                excluded_pair_distances.append(pair_distance)
     if len(set(all_ids)) != len(all_ids):
         raise CampaignError("duplicate displacement IDs in phono3py YAML")
     expected_domain = set(range(1, len(all_ids) + 1))
@@ -1076,15 +1411,22 @@ def analyze_displacement_yaml(value: Mapping[str, Any]) -> dict[str, Any]:
         raise CampaignError("phono3py displacement IDs are not the complete 1..N domain")
     # phono3py groups each first displacement with its (usually much later)
     # paired IDs, so traversal order is intentionally not global ID order.
-    # Generated QE filenames, however, are compared in numeric ID order.
+    # Generated QE filenames and FORCES blocks use numeric ID order. Preserve
+    # the grouped traversal separately for diagnostics, never force collection.
     included_ids_sorted = sorted(included_ids)
     return {
-        "all_displacement_ids": all_ids,
+        "all_displacement_ids": sorted(all_ids),
+        "grouped_traversal_displacement_ids": all_ids,
         "included_displacement_ids": included_ids_sorted,
         "vectors": vectors,
         "single_displacements": singles,
         "included_pair_groups": included_pair_groups,
         "excluded_pair_groups": excluded_pair_groups,
+        "included_pair_distances": included_pair_distances,
+        "excluded_pair_distances": excluded_pair_distances,
+        "nonzero_included_pair_groups": sum(
+            distance > 1e-10 for distance in included_pair_distances
+        ),
     }
 
 
@@ -1283,6 +1625,15 @@ def command_preflight(config_path: Path, run_dir: Path) -> dict[str, Any]:
             "single_displacements": yaml_inventory["single_displacements"],
             "included_pair_groups": yaml_inventory["included_pair_groups"],
             "excluded_pair_groups": yaml_inventory["excluded_pair_groups"],
+            "nonzero_included_pair_groups": yaml_inventory[
+                "nonzero_included_pair_groups"
+            ],
+            "included_pair_distances_bohr": yaml_inventory[
+                "included_pair_distances"
+            ],
+            "excluded_pair_distances_bohr": yaml_inventory[
+                "excluded_pair_distances"
+            ],
             "generated_displacement_ids": yaml_included_ids,
             "hard_cap": hard_cap,
             "within_hard_cap": created_count <= hard_cap,
@@ -1300,6 +1651,14 @@ def command_preflight(config_path: Path, run_dir: Path) -> dict[str, Any]:
             "process": process,
             "count_only": bool(enumeration.get("count_only")),
         }
+        result["selection_eligible"] = bool(
+            not result["count_only"]
+            and result["within_hard_cap"]
+            and result["nonzero_included_pair_groups"] > 0
+        )
+        result["requires_budget_or_scientific_review"] = not result[
+            "selection_eligible"
+        ]
         write_json_immutable(work / "preflight_result.json", result)
         results.append(result)
 
@@ -1320,7 +1679,19 @@ def command_preflight(config_path: Path, run_dir: Path) -> dict[str, Any]:
             }
         )
 
-    passed = all(item.get("within_hard_cap", False) for item in results if item.get("cutoff_id") is not None)
+    routine_results = [
+        item
+        for item in results
+        if item.get("cutoff_id") is not None and not item.get("count_only")
+    ]
+    all_routine_within_cap = all(
+        item.get("within_hard_cap", False) for item in routine_results
+    )
+    eligible_candidates = [
+        item
+        for item in routine_results
+        if item.get("selection_eligible") is True
+    ]
     inventory = {
         "stage": "preflight",
         "material": required(config, "material.formula"),
@@ -1328,7 +1699,12 @@ def command_preflight(config_path: Path, run_dir: Path) -> dict[str, Any]:
         "preflight_policy_sha256": run_manifest["preflight_policy_sha256"],
         "accepted_unitcell_sha256": sha256_path(unitcell),
         "accepted_relax_provenance_sha256": sha256_path(provenance_path),
-        "pass_hard_caps": passed,
+        "preflight_complete": True,
+        "all_routine_candidates_within_hard_cap": all_routine_within_cap,
+        "eligible_candidate_count": len(eligible_candidates),
+        "requires_budget_or_scientific_review": (
+            not all_routine_within_cap or not eligible_candidates
+        ),
         "production_selection_still_required": True,
         "results": results,
         "limitations": [
@@ -1337,8 +1713,6 @@ def command_preflight(config_path: Path, run_dir: Path) -> dict[str, Any]:
         ],
     }
     write_json_immutable(attempt / "preflight_inventory.json", inventory)
-    if not passed:
-        raise CampaignError("one or more preflight candidates exceed the configured hard cap")
     return inventory
 
 
@@ -1368,83 +1742,686 @@ def command_status(config_path: Path, run_dir: Path) -> dict[str, Any]:
     return status
 
 
-def command_collect(config_path: Path, run_dir: Path) -> dict[str, Any]:
-    """Collect immutable attempt evidence without rerunning failed science."""
+FORCE_TASK_MAP_FIELDS = (
+    "task_id",
+    "displacement_id",
+    "role",
+    "input_path",
+    "input_sha256",
+)
+SACCT_FIELDS = (
+    "JobID",
+    "JobIDRaw",
+    "State",
+    "ExitCode",
+    "ElapsedRaw",
+    "AllocCPUS",
+    "MaxRSS",
+)
 
-    require_compute_node()
-    config, _ = validate_config(config_path)
-    run_dir = safe_run_dir(run_dir)
-    verify_manifest(config, config_path, run_dir, stage="preflight")
-    current_attempt = attempt_dir(run_dir)
-    attempts_root = run_dir / "slurm_attempts"
-    entries: list[dict[str, Any]] = []
-    if attempts_root.is_dir():
-        for context_path in sorted(attempts_root.glob("**/context.tsv")):
-            parent = context_path.parent
-            if parent == current_attempt:
+
+def _strict_evidence_path(path: Path, root: Path, label: str) -> Path:
+    """Resolve one evidence path and reject broad, escaped, or frozen paths."""
+
+    resolved = path.resolve()
+    if (
+        resolved == root.resolve()
+        or not resolved.is_relative_to(root.resolve())
+        or "READY_TO_ATTACH" in resolved.parts
+    ):
+        raise CampaignError(f"{label} must be a strict descendant of RUN_DIR")
+    return resolved
+
+
+def _read_context_tsv(path: Path) -> tuple[dict[str, str], list[str]]:
+    errors: list[str] = []
+    values: dict[str, str] = {}
+    if not path.is_file():
+        return values, [f"missing context record: {path}"]
+    try:
+        for line_number, line in enumerate(path.read_text().splitlines(), 1):
+            fields = line.split("\t", 1)
+            if len(fields) != 2 or not fields[0]:
+                errors.append(f"malformed context line {line_number}")
                 continue
-            relative = parent.relative_to(attempts_root)
-            parts = relative.parts
-            entry: dict[str, Any] = {
-                "attempt_path": str(parent),
-                "stage": parts[0] if parts else None,
-                "attempt_id": parts[1] if len(parts) > 1 else None,
-                "task": parts[2] if len(parts) > 2 else None,
-                "context_sha256": sha256_path(context_path),
+            key, value = fields
+            if key in values:
+                errors.append(f"duplicate context key: {key}")
+            else:
+                values[key] = value
+    except OSError as exc:
+        errors.append(f"cannot read context record: {exc}")
+    return values, errors
+
+
+def _read_sacct_records(
+    accounting_path: Path, accounting_status_path: Path
+) -> tuple[list[dict[str, str]], list[str], dict[str, Any]]:
+    """Read the collector-created sacct record without treating absence as success."""
+
+    errors: list[str] = []
+    metadata: dict[str, Any] = {
+        "path": str(accounting_path),
+        "status_path": str(accounting_status_path),
+    }
+    records: list[dict[str, str]] = []
+    if accounting_path.is_file():
+        metadata["sha256"] = sha256_path(accounting_path)
+        metadata["bytes"] = accounting_path.stat().st_size
+        try:
+            with accounting_path.open(newline="") as handle:
+                reader = csv.DictReader(handle, delimiter="|")
+                if tuple(reader.fieldnames or ()) != SACCT_FIELDS:
+                    errors.append("scheduler accounting has an unexpected field schema")
+                else:
+                    for index, row in enumerate(reader, 1):
+                        if None in row or any(row.get(field) is None for field in SACCT_FIELDS):
+                            errors.append(f"scheduler accounting row {index} is malformed")
+                            continue
+                        records.append(
+                            {field: str(row[field]).strip() for field in SACCT_FIELDS}
+                        )
+        except (OSError, csv.Error) as exc:
+            errors.append(f"cannot parse scheduler accounting: {exc}")
+    else:
+        errors.append(f"missing scheduler accounting: {accounting_path}")
+    if accounting_status_path.is_file():
+        metadata["status_sha256"] = sha256_path(accounting_status_path)
+        try:
+            status_text = accounting_status_path.read_text().strip()
+            status = int(status_text)
+            metadata["sacct_exit_code"] = status
+            if status != 0:
+                errors.append(f"sacct exited with code {status}")
+        except (OSError, ValueError) as exc:
+            errors.append(f"invalid sacct exit-code record: {exc}")
+    else:
+        errors.append(f"missing sacct exit-code record: {accounting_status_path}")
+    return records, errors, metadata
+
+
+def _load_force_collection_contract(
+    config: Mapping[str, Any],
+    config_path: Path,
+    run_dir: Path,
+    force_manifest_path: Path,
+    task_map_path: Path,
+    expected_force_manifest_sha256: str,
+    expected_task_map_sha256: str,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Validate the exact manifest/map/input bytes even when every task failed."""
+
+    manifest_path = _strict_evidence_path(
+        force_manifest_path, run_dir, "force manifest"
+    )
+    task_map = _strict_evidence_path(task_map_path, run_dir, "force task map")
+    if (
+        manifest_path.name != "force_manifest.json"
+        or task_map.name != "task_map.tsv"
+        or manifest_path.parent != task_map.parent
+        or not manifest_path.is_file()
+        or not task_map.is_file()
+    ):
+        raise CampaignError("force collection requires one adjacent manifest/task map")
+    for label, expected, path in (
+        ("force manifest", expected_force_manifest_sha256, manifest_path),
+        ("force task map", expected_task_map_sha256, task_map),
+    ):
+        if re.fullmatch(r"[0-9a-f]{64}", expected) is None:
+            raise CampaignError(f"expected {label} SHA256 is invalid")
+        if sha256_path(path) != expected:
+            raise CampaignError(f"{label} differs from the submitted primary plan")
+    manifest = load_json(manifest_path)
+    if (
+        manifest.get("schema_version") != 1
+        or manifest.get("stage") != "force"
+        or manifest.get("mode") not in {"pilot", "production"}
+        or manifest.get("material") != required(config, "material.formula")
+        or manifest.get("config_sha256") != sha256_path(config_path.resolve())
+        or manifest.get("task_map_sha256") != sha256_path(task_map)
+    ):
+        raise CampaignError("force manifest does not match the selected run/config/task map")
+    tasks = manifest.get("tasks")
+    task_count = manifest.get("task_count")
+    if (
+        isinstance(task_count, bool)
+        or not isinstance(task_count, int)
+        or task_count < 1
+        or not isinstance(tasks, list)
+        or len(tasks) != task_count
+    ):
+        raise CampaignError("force manifest has an invalid task domain")
+    try:
+        with task_map.open(newline="") as handle:
+            reader = csv.DictReader(handle, delimiter="\t")
+            if tuple(reader.fieldnames or ()) != FORCE_TASK_MAP_FIELDS:
+                raise CampaignError("force task map has an unexpected field schema")
+            rows = list(reader)
+    except (OSError, csv.Error) as exc:
+        raise CampaignError(f"cannot parse force task map: {exc}") from exc
+    if len(rows) != task_count:
+        raise CampaignError("force task map count differs from its manifest")
+    if any(
+        None in row or any(row.get(field) is None for field in FORCE_TASK_MAP_FIELDS)
+        for row in rows
+    ):
+        raise CampaignError("force task map contains a malformed row")
+    bundle = manifest_path.parent
+    for task_id, (task, row) in enumerate(zip(tasks, rows)):
+        if (
+            not isinstance(task, Mapping)
+            or isinstance(task.get("task_id"), bool)
+            or not isinstance(task.get("task_id"), int)
+            or task.get("task_id") != task_id
+        ):
+            raise CampaignError("force manifest task IDs must be contiguous map indices")
+        if any(str(task.get(field)) != row.get(field) for field in FORCE_TASK_MAP_FIELDS):
+            raise CampaignError("force manifest task row differs from task_map.tsv")
+        displacement_id = task.get("displacement_id")
+        expected_role = "pristine" if displacement_id == 0 else "displacement"
+        if (
+            isinstance(displacement_id, bool)
+            or not isinstance(displacement_id, int)
+            or displacement_id < 0
+            or task.get("role") != expected_role
+        ):
+            raise CampaignError("force manifest contains an invalid displacement role")
+        input_path = Path(str(task.get("input_path", ""))).resolve()
+        if (
+            input_path == bundle
+            or not input_path.is_relative_to(bundle)
+            or not input_path.is_file()
+            or sha256_path(input_path) != task.get("input_sha256")
+        ):
+            raise CampaignError("force task input is missing, escaped, or altered")
+    return manifest, [dict(task) for task in tasks]
+
+
+def _hash_present_evidence(parent: Path, names: Sequence[str]) -> dict[str, Any]:
+    evidence: dict[str, Any] = {}
+    for name in names:
+        path = parent / name
+        if path.is_file():
+            evidence[name] = {
+                "sha256": sha256_path(path),
+                "bytes": path.stat().st_size,
             }
-            exit_code = parent / "exit_code.txt"
-            entry["finished"] = exit_code.is_file()
-            if exit_code.is_file():
+    return evidence
+
+
+def _read_exit_code(parent: Path) -> tuple[int | None, list[str]]:
+    path = parent / "exit_code.txt"
+    if not path.is_file():
+        return None, ["missing upstream exit_code.txt"]
+    try:
+        return int(path.read_text().strip()), []
+    except (OSError, ValueError) as exc:
+        return None, [f"invalid upstream exit_code.txt: {exc}"]
+
+
+def _accounting_for_force_task(
+    records: Sequence[Mapping[str, str]],
+    primary_job_id: str,
+    task_id: int,
+    raw_job_id: str,
+) -> tuple[list[dict[str, str]], Mapping[str, str] | None, list[str]]:
+    display_id = f"{primary_job_id}_{task_id}"
+    related = [
+        dict(row)
+        for row in records
+        if row.get("JobID") == display_id
+        or str(row.get("JobID", "")).startswith(display_id + ".")
+    ]
+    allocations = [row for row in related if row["JobID"] == display_id]
+    errors: list[str] = []
+    if len(allocations) != 1:
+        errors.append(
+            f"expected one sacct allocation row for {display_id}; found {len(allocations)}"
+        )
+    elif allocations[0].get("JobIDRaw") != raw_job_id:
+        errors.append(
+            f"sacct does not bind {display_id} to context raw job {raw_job_id}"
+        )
+    if raw_job_id and any(
+        row["JobIDRaw"] != raw_job_id
+        and not row["JobIDRaw"].startswith(raw_job_id + ".")
+        for row in related
+    ):
+        errors.append("sacct step JobIDRaw values disagree with the allocation raw job")
+    return related, allocations[0] if len(allocations) == 1 else None, errors
+
+
+def _normalized_slurm_state(value: str) -> str:
+    return value.strip().upper().split()[0].rstrip("+") if value.strip() else ""
+
+
+def _collect_force_batch(
+    *,
+    config: Mapping[str, Any],
+    config_path: Path,
+    run_dir: Path,
+    current_attempt: Path,
+    primary_attempt_id: str,
+    primary_job_id: str,
+    force_manifest_path: Path,
+    task_map_path: Path,
+    expected_force_manifest_sha256: str,
+    expected_task_map_sha256: str,
+    accounting_records: Sequence[Mapping[str, str]],
+    accounting_errors: Sequence[str],
+    accounting_metadata: Mapping[str, Any],
+) -> dict[str, Any]:
+    from postprocess_backend import PostprocessError, load_force_artifact
+
+    manifest, tasks = _load_force_collection_contract(
+        config,
+        config_path,
+        run_dir,
+        force_manifest_path,
+        task_map_path,
+        expected_force_manifest_sha256,
+        expected_task_map_sha256,
+    )
+    force_manifest_path = force_manifest_path.resolve()
+    primary_root = run_dir / "slurm_attempts" / "force" / primary_attempt_id
+    entries: list[dict[str, Any]] = []
+    expected_directories = {f"task-{task['task_id']}" for task in tasks}
+    actual_directories = (
+        {item.name for item in primary_root.iterdir() if item.is_dir()}
+        if primary_root.is_dir()
+        else set()
+    )
+    global_errors = list(accounting_errors)
+    if not primary_root.is_dir():
+        global_errors.append(f"missing primary force attempt root: {primary_root}")
+    extra = sorted(actual_directories - expected_directories)
+    if extra:
+        global_errors.append(f"unexpected task directories in primary attempt: {extra}")
+    accounting_task_ids: list[int] = []
+    allocation_pattern = re.compile(rf"^{re.escape(primary_job_id)}_(\d+)$")
+    for row in accounting_records:
+        matched = allocation_pattern.fullmatch(row.get("JobID", ""))
+        if matched:
+            accounting_task_ids.append(int(matched.group(1)))
+    unexpected_accounting = sorted(set(accounting_task_ids) - set(range(len(tasks))))
+    if unexpected_accounting:
+        global_errors.append(
+            f"sacct contains out-of-domain array task IDs: {unexpected_accounting}"
+        )
+
+    for task in tasks:
+        task_id = int(task["task_id"])
+        parent = primary_root / f"task-{task_id}"
+        errors: list[str] = []
+        context_path = parent / "context.tsv"
+        context, context_errors = _read_context_tsv(context_path)
+        errors.extend(context_errors)
+        expected_context = {
+            "stage": "force",
+            "attempt_id": primary_attempt_id,
+            "slurm_array_job_id": primary_job_id,
+            "slurm_array_task_id": str(task_id),
+            "run_dir": str(run_dir),
+            "config_sha256": manifest["config_sha256"],
+        }
+        for key, expected in expected_context.items():
+            if context.get(key) != expected:
+                errors.append(f"context mismatch for {key}")
+        exit_code, exit_errors = _read_exit_code(parent)
+        errors.extend(exit_errors)
+        raw_job_id = context.get("slurm_job_id", "")
+        if not raw_job_id.isdigit():
+            errors.append("context has an invalid raw Slurm task job ID")
+        scheduler_records, allocation, scheduler_errors = _accounting_for_force_task(
+            accounting_records, primary_job_id, task_id, raw_job_id
+        )
+        errors.extend(scheduler_errors)
+        if allocation is not None:
+            try:
+                elapsed = int(allocation["ElapsedRaw"])
+                allocated_cpus = int(allocation["AllocCPUS"])
+                if elapsed < 0 or allocated_cpus < 1:
+                    raise ValueError
+            except (TypeError, ValueError):
+                errors.append("sacct allocation has invalid ElapsedRaw or AllocCPUS")
+            if exit_code is not None:
                 try:
-                    entry["exit_code"] = int(exit_code.read_text().strip())
-                except ValueError:
-                    entry["exit_code"] = None
-                    entry["exit_code_error"] = "not an integer"
-            evidence: dict[str, Any] = {}
-            for name in (
-                "starting_structure_audit.json",
-                "relax_launch.json",
-                "relax.process.json",
-                "relax.out",
-                "pristine_launch.json",
-                "pristine.process.json",
-                "pristine.out",
-                "execution_manifest.json",
-                "relax_gate.json",
-                "preflight_inventory.json",
+                    scheduler_exit_code = int(allocation["ExitCode"].split(":", 1)[0])
+                except (AttributeError, TypeError, ValueError):
+                    errors.append("sacct allocation has an invalid ExitCode")
+                else:
+                    if scheduler_exit_code != exit_code:
+                        errors.append(
+                            "upstream exit_code.txt disagrees with the sacct allocation"
+                        )
+        evidence = _hash_present_evidence(
+            parent,
+            (
+                "context.tsv",
+                "exit_code.txt",
+                "finished_utc.txt",
+                "force_claim.json",
+                "launch.json",
+                "result.json",
+                "failure.json",
+                "scf.process.json",
+                "scf.in",
+                "scf.out",
+                "scf.err",
+                "stdout.log",
+                "stderr.log",
+            ),
+        )
+        entry: dict[str, Any] = {
+            "task_id": task_id,
+            "displacement_id": task["displacement_id"],
+            "role": task["role"],
+            "attempt_path": str(parent),
+            "context": context,
+            "exit_code": exit_code,
+            "scheduler_records": scheduler_records,
+            "evidence": evidence,
+            "errors": errors,
+        }
+        failure_path = parent / "failure.json"
+        if failure_path.is_file():
+            try:
+                failure = load_json(failure_path)
+                entry["failure_receipt"] = failure
+                if failure.get("task_id") != task_id:
+                    entry["errors"].append("failure receipt has the wrong task ID")
+                if not isinstance(failure.get("error"), str) or not failure.get("error"):
+                    entry["errors"].append("failure receipt has no error message")
+                if not isinstance(failure.get("error_type"), str) or not failure.get(
+                    "error_type"
+                ):
+                    entry["errors"].append("failure receipt has no error type")
+            except CampaignError as exc:
+                entry["errors"].append(f"invalid failure receipt: {exc}")
+        elif exit_code not in (None, 0):
+            entry["errors"].append("nonzero task exit lacks failure.json")
+        if exit_code == 0:
+            try:
+                artifact = load_force_artifact(force_manifest_path, parent, task_id)
+                launch = load_json(parent / "launch.json")
+                if launch.get("job_id") != context.get("slurm_job_id"):
+                    raise CampaignError("launch job ID differs from immutable task context")
+                if allocation is None:
+                    raise CampaignError("successful task lacks its scheduler allocation row")
+                if (
+                    _normalized_slurm_state(allocation["State"]) != "COMPLETED"
+                    or allocation["ExitCode"] != "0:0"
+                ):
+                    raise CampaignError(
+                        "successful raw force receipt disagrees with scheduler completion"
+                    )
+                entry["artifact"] = {
+                    "input_path": artifact.input_path,
+                    "output_path": artifact.output_path,
+                    "stderr_path": artifact.stderr_path,
+                    "receipt": dict(artifact.manifest),
+                }
+                entry["outcome"] = "accepted_success"
+            except (CampaignError, PostprocessError, OSError, ValueError) as exc:
+                entry["errors"].append(f"successful-task evidence audit failed: {exc}")
+                entry["outcome"] = "invalid_success_evidence"
+        elif exit_code is None:
+            entry["outcome"] = "missing_or_unfinished"
+        else:
+            if allocation is not None and (
+                _normalized_slurm_state(allocation["State"]) == "COMPLETED"
+                and allocation["ExitCode"] == "0:0"
             ):
-                path = parent / name
-                if path.is_file():
-                    evidence[name] = {"sha256": sha256_path(path), "bytes": path.stat().st_size}
-            entry["evidence"] = evidence
-            if (parent / "relax.out").is_file():
-                try:
-                    entry["relax_health"] = inspect_output(
-                        parent / "relax.out",
-                        int(required(config, "material.unitcell_atoms")),
-                    )
-                except (QEOutputError, OSError, ValueError) as exc:
-                    entry["relax_health"] = {"healthy": False, "error": str(exc)}
-            if (parent / "pristine.out").is_file():
-                try:
-                    entry["pristine_health"] = inspect_output(
-                        parent / "pristine.out",
-                        int(required(config, "material.unitcell_atoms")),
-                    )
-                except (QEOutputError, OSError, ValueError) as exc:
-                    entry["pristine_health"] = {"healthy": False, "error": str(exc)}
-            entries.append(entry)
-    report = {
+                entry["errors"].append(
+                    "nonzero task exit code disagrees with scheduler success"
+                )
+            entry["outcome"] = "upstream_failed"
+        entries.append(entry)
+
+    accepted = sum(entry["outcome"] == "accepted_success" for entry in entries)
+    failed = sum(entry["outcome"] == "upstream_failed" for entry in entries)
+    unfinished_or_invalid = len(entries) - accepted - failed
+    collection_integrity_complete = not global_errors and all(
+        not entry["errors"] for entry in entries
+    )
+    batch_execution_complete = (
+        collection_integrity_complete and accepted == len(tasks)
+    )
+    mode = str(manifest["mode"])
+    return {
+        "schema_version": 1,
+        "stage": "collect",
+        "collection_kind": "force_array_batch",
         "material": required(config, "material.formula"),
         "collected_utc": utc_now(),
         "collector_attempt": str(current_attempt),
-        "upstream_attempt_count": len(entries),
-        "upstream_failures_or_unfinished": sum(
-            1 for entry in entries if entry.get("exit_code") != 0
+        "primary": {
+            "stage": "force",
+            "attempt_id": primary_attempt_id,
+            "job_id": primary_job_id,
+            "attempt_root": str(primary_root),
+            "force_manifest": str(force_manifest_path),
+            "force_manifest_sha256": sha256_path(force_manifest_path),
+            "submitted_force_manifest_sha256": expected_force_manifest_sha256,
+            "task_map": str(task_map_path.resolve()),
+            "task_map_sha256": sha256_path(task_map_path.resolve()),
+            "submitted_task_map_sha256": expected_task_map_sha256,
+            "scheduler_accounting": dict(accounting_metadata),
+        },
+        "force_mode": mode,
+        "expected_task_count": len(tasks),
+        "accepted_success_count": accepted,
+        "upstream_failure_count": failed,
+        "unfinished_or_invalid_count": unfinished_or_invalid,
+        "collection_integrity_complete": collection_integrity_complete,
+        "batch_execution_complete": batch_execution_complete,
+        "incomplete": not batch_execution_complete,
+        "status": (
+            "collected_successful_batch_no_scientific_gate"
+            if batch_execution_complete
+            else "collected_incomplete_force_batch"
         ),
+        "global_errors": global_errors,
         "entries": entries,
-        "note": "Collection is evidentiary and succeeds even when an upstream afterany dependency failed.",
+        "scientific_gate_published": False,
+        "production_dataset_complete": False,
+        "scientific_dataset_incomplete": True,
+        "eligible_for_force_constant_construction": False,
+        "limitations": [
+            "This receipt covers exactly one immutable force-array submission.",
+            "A pilot collection can support later audited selection but is never a production gate.",
+            "A successful production batch is not proof that all selected displacement IDs are complete.",
+            "No FC2/FC3 construction or thermal-conductivity postprocessing is performed here.",
+        ],
     }
+
+
+def _collect_single_attempt(
+    *,
+    config: Mapping[str, Any],
+    run_dir: Path,
+    current_attempt: Path,
+    primary_stage: str,
+    primary_attempt_id: str,
+    primary_job_id: str,
+    accounting_records: Sequence[Mapping[str, str]],
+    accounting_errors: Sequence[str],
+    accounting_metadata: Mapping[str, Any],
+) -> dict[str, Any]:
+    parent = run_dir / "slurm_attempts" / primary_stage / primary_attempt_id
+    context, errors = _read_context_tsv(parent / "context.tsv")
+    errors.extend(accounting_errors)
+    expected_context = {
+        "stage": primary_stage,
+        "attempt_id": primary_attempt_id,
+        "slurm_job_id": primary_job_id,
+        "run_dir": str(run_dir),
+    }
+    for key, expected in expected_context.items():
+        if context.get(key) != expected:
+            errors.append(f"context mismatch for {key}")
+    exit_code, exit_errors = _read_exit_code(parent)
+    errors.extend(exit_errors)
+    scheduler_records = [
+        dict(row)
+        for row in accounting_records
+        if row.get("JobIDRaw") == primary_job_id
+        or str(row.get("JobIDRaw", "")).startswith(primary_job_id + ".")
+    ]
+    allocation = [row for row in scheduler_records if row["JobIDRaw"] == primary_job_id]
+    if len(allocation) != 1:
+        errors.append(
+            f"expected one sacct allocation row for {primary_job_id}; found {len(allocation)}"
+        )
+    evidence = _hash_present_evidence(
+        parent,
+        (
+            "context.tsv",
+            "exit_code.txt",
+            "finished_utc.txt",
+            "starting_structure_audit.json",
+            "relax_launch.json",
+            "relax.process.json",
+            "relax.out",
+            "relax.err",
+            "pristine_launch.json",
+            "pristine.process.json",
+            "pristine.out",
+            "pristine.err",
+            "execution_manifest.json",
+            "relax_gate.json",
+            "stdout.log",
+            "stderr.log",
+        ),
+    )
+    entry: dict[str, Any] = {
+        "attempt_path": str(parent),
+        "stage": primary_stage,
+        "attempt_id": primary_attempt_id,
+        "context": context,
+        "exit_code": exit_code,
+        "finished": exit_code is not None,
+        "scheduler_records": scheduler_records,
+        "evidence": evidence,
+        "errors": errors,
+    }
+    nat = int(required(config, "material.unitcell_atoms"))
+    for label, filename in (("relax_health", "relax.out"), ("pristine_health", "pristine.out")):
+        path = parent / filename
+        if path.is_file():
+            try:
+                entry[label] = inspect_output(path, nat)
+            except (QEOutputError, OSError, ValueError) as exc:
+                entry[label] = {"healthy": False, "error": str(exc)}
+    return {
+        "schema_version": 1,
+        "stage": "collect",
+        "collection_kind": "single_stage_attempt",
+        "material": required(config, "material.formula"),
+        "collected_utc": utc_now(),
+        "collector_attempt": str(current_attempt),
+        "primary": {
+            "stage": primary_stage,
+            "attempt_id": primary_attempt_id,
+            "job_id": primary_job_id,
+            "scheduler_accounting": dict(accounting_metadata),
+        },
+        "upstream_attempt_count": 1,
+        "upstream_failures_or_unfinished": int(exit_code != 0),
+        "incomplete": exit_code != 0 or bool(errors),
+        "entries": [entry],
+        "note": "Collection is evidentiary and succeeds even when the explicit afterany upstream failed.",
+    }
+
+
+def command_collect(
+    config_path: Path,
+    run_dir: Path,
+    *,
+    primary_stage: str,
+    primary_attempt_id: str,
+    primary_job_id: str,
+    scheduler_accounting: Path,
+    scheduler_accounting_status: Path,
+    force_manifest: Path | None = None,
+    task_map: Path | None = None,
+    expected_force_manifest_sha256: str | None = None,
+    expected_task_map_sha256: str | None = None,
+) -> dict[str, Any]:
+    """Collect one explicitly identified upstream attempt without rerunning it."""
+
+    require_compute_node()
+    if primary_stage not in {"relax", "force"}:
+        raise CampaignError("collector primary stage must be relax or force")
+    if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}", primary_attempt_id) is None:
+        raise CampaignError("invalid primary attempt ID")
+    if not primary_job_id.isdigit():
+        raise CampaignError("primary Slurm job ID must contain only digits")
+    config_path = config_path.resolve()
+    config, _ = validate_config(config_path)
+    run_dir = safe_run_dir(run_dir)
+    verify_upstream_manifest(
+        config,
+        config_path,
+        run_dir,
+        stage="preflight" if primary_stage == "force" else "structure",
+    )
+    current_attempt = attempt_dir(run_dir)
+    accounting_path = _strict_evidence_path(
+        scheduler_accounting, run_dir, "scheduler accounting"
+    )
+    accounting_status_path = _strict_evidence_path(
+        scheduler_accounting_status, run_dir, "scheduler accounting status"
+    )
+    if accounting_path.parent != current_attempt or accounting_status_path.parent != current_attempt:
+        raise CampaignError("scheduler accounting must be created inside this collector attempt")
+    accounting_records, accounting_errors, accounting_metadata = _read_sacct_records(
+        accounting_path, accounting_status_path
+    )
+    if primary_stage == "force":
+        if (
+            force_manifest is None
+            or task_map is None
+            or expected_force_manifest_sha256 is None
+            or expected_task_map_sha256 is None
+        ):
+            raise CampaignError(
+                "force collection requires the exact submitted manifest/task map hashes"
+            )
+        report = _collect_force_batch(
+            config=config,
+            config_path=config_path,
+            run_dir=run_dir,
+            current_attempt=current_attempt,
+            primary_attempt_id=primary_attempt_id,
+            primary_job_id=primary_job_id,
+            force_manifest_path=force_manifest,
+            task_map_path=task_map,
+            expected_force_manifest_sha256=expected_force_manifest_sha256,
+            expected_task_map_sha256=expected_task_map_sha256,
+            accounting_records=accounting_records,
+            accounting_errors=accounting_errors,
+            accounting_metadata=accounting_metadata,
+        )
+    else:
+        if (
+            force_manifest is not None
+            or task_map is not None
+            or expected_force_manifest_sha256 is not None
+            or expected_task_map_sha256 is not None
+        ):
+            raise CampaignError("relax collection must not receive force-bundle paths")
+        report = _collect_single_attempt(
+            config=config,
+            run_dir=run_dir,
+            current_attempt=current_attempt,
+            primary_stage=primary_stage,
+            primary_attempt_id=primary_attempt_id,
+            primary_job_id=primary_job_id,
+            accounting_records=accounting_records,
+            accounting_errors=accounting_errors,
+            accounting_metadata=accounting_metadata,
+        )
     write_json_immutable(current_attempt / "collection.json", report)
     return report
 
@@ -1456,6 +2433,169 @@ def command_not_ready(name: str, config: Mapping[str, Any]) -> None:
             "preflight, and force/amplitude pilots pass"
         )
     raise CampaignError(f"{name} implementation is not yet released for production use")
+
+
+def command_prepare_pilot_dataset(
+    config_path: Path,
+    run_dir: Path,
+    *,
+    candidate_dir: Path,
+    preflight_inventory: Path,
+    output_dir: Path,
+    probe_spec_path: Path,
+) -> dict[str, Any]:
+    """Prepare and immediately re-audit one immutable signed pilot dataset."""
+
+    from pilot_dataset import prepare_pilot_dataset
+
+    probe_spec = load_json(probe_spec_path.resolve())
+    return prepare_pilot_dataset(
+        config_path,
+        run_dir,
+        candidate_dir=candidate_dir,
+        preflight_inventory=preflight_inventory,
+        output_dir=output_dir,
+        probe_spec=probe_spec,
+    )
+
+
+def command_audit_pilot_dataset(
+    dataset_dir: Path, *, expected_manifest_sha256: str
+) -> dict[str, Any]:
+    """Re-audit a pilot bundle against a caller-supplied trusted digest."""
+
+    if re.fullmatch(r"[0-9a-f]{64}", expected_manifest_sha256) is None:
+        raise CampaignError("--expect-manifest-sha must be 64 lowercase hex characters")
+    from pilot_dataset import audit_pilot_dataset
+
+    return audit_pilot_dataset(
+        dataset_dir, expected_manifest_sha256=expected_manifest_sha256
+    )
+
+
+def command_prepare_force(
+    config_path: Path,
+    run_dir: Path,
+    *,
+    preflight_inventory: Path,
+    dataset_dir: Path,
+    output_dir: Path,
+    pseudo_dir: Path,
+    mode: str,
+    pilot_spec_path: Path | None,
+    pilot_dataset_manifest_sha256: str | None,
+    selection_evidence: Path | None,
+    resource_request_path: Path,
+) -> dict[str, Any]:
+    """Prepare one budgeted immutable force bundle; never launch a calculation."""
+
+    if mode == "pilot":
+        if (
+            pilot_dataset_manifest_sha256 is None
+            or re.fullmatch(r"[0-9a-f]{64}", pilot_dataset_manifest_sha256) is None
+        ):
+            raise CampaignError(
+                "pilot prepare-force requires --expect-pilot-manifest-sha as 64 lowercase hex characters"
+            )
+    elif pilot_dataset_manifest_sha256 is not None:
+        raise CampaignError(
+            "production prepare-force must not receive --expect-pilot-manifest-sha"
+        )
+    from force_backend import prepare_force
+
+    pilot_spec = load_json(pilot_spec_path.resolve()) if pilot_spec_path else None
+    resource_request = load_json(resource_request_path.resolve())
+    return prepare_force(
+        config_path,
+        run_dir,
+        preflight_inventory=preflight_inventory,
+        dataset_dir=dataset_dir,
+        output_dir=output_dir,
+        pseudo_dir=pseudo_dir,
+        mode=mode,
+        pilot_spec=pilot_spec,
+        pilot_dataset_manifest_sha256=pilot_dataset_manifest_sha256,
+        selection_evidence=selection_evidence,
+        resource_request=resource_request,
+    )
+
+
+def command_run_force_task(
+    config_path: Path,
+    run_dir: Path,
+    *,
+    task_map: Path,
+    task_id: int,
+    retry_evidence: Path | None,
+) -> dict[str, Any]:
+    """Execute one force-map row in the current immutable Slurm attempt."""
+
+    from force_backend import run_force_task
+
+    return run_force_task(
+        config_path,
+        run_dir,
+        task_map=task_map,
+        task_id=task_id,
+        attempt_path=attempt_dir(run_dir),
+        retry_evidence=retry_evidence,
+    )
+
+
+def command_audit_pilot_evidence(
+    config_path: Path, run_dir: Path, *, study_path: Path
+) -> dict[str, Any]:
+    """Reparse a study's original pilot files without evaluating a pass claim."""
+
+    from pilot_evidence import audit_pilot_samples
+
+    study = load_json(study_path.resolve())
+    return audit_pilot_samples(
+        config_path,
+        run_dir,
+        dataset_manifests=required(study, "dataset_manifests"),
+        sample_references=required(study, "samples"),
+        target_preflight=study.get("target_preflight"),
+        selected_settings=study.get("selected_settings"),
+    )
+
+
+def command_analyze_pilot(
+    config_path: Path, run_dir: Path, *, study_path: Path, output_path: Path
+) -> dict[str, Any]:
+    """Replay raw evidence, evaluate explicit gates, and write one receipt."""
+
+    from pilot_evidence import write_selection_receipt
+
+    return write_selection_receipt(
+        config_path,
+        run_dir,
+        study=load_json(study_path.resolve()),
+        output_path=output_path,
+    )
+
+
+def command_replay_pilot_selection(
+    config_path: Path,
+    run_dir: Path,
+    *,
+    receipt_path: Path,
+    expected_receipt_sha256: str | None,
+) -> dict[str, Any]:
+    """Recompute a saved pilot receipt from its immutable original evidence."""
+
+    if expected_receipt_sha256 is not None and re.fullmatch(
+        r"[0-9a-f]{64}", expected_receipt_sha256
+    ) is None:
+        raise CampaignError("--expect-receipt-sha must be 64 lowercase hex characters")
+    from pilot_evidence import replay_selection_receipt
+
+    return replay_selection_receipt(
+        config_path,
+        run_dir,
+        receipt_path,
+        expected_receipt_sha256=expected_receipt_sha256,
+    )
 
 
 def print_json(value: object) -> None:
@@ -1471,7 +2611,6 @@ def build_parser() -> argparse.ArgumentParser:
         "run-relax",
         "finalize-relax",
         "preflight",
-        "prepare-force",
         "collect",
         "postprocess",
         "audit",
@@ -1480,13 +2619,72 @@ def build_parser() -> argparse.ArgumentParser:
         subparser = subparsers.add_parser(name)
         subparser.add_argument("--config", type=Path, required=True)
         subparser.add_argument("--run-dir", type=Path, required=name != "validate-config")
-        if name == "run-relax":
-            pass
+        if name == "collect":
+            subparser.add_argument(
+                "--primary-stage", choices=("relax", "force"), required=True
+            )
+            subparser.add_argument("--primary-attempt-id", required=True)
+            subparser.add_argument("--primary-job-id", required=True)
+            subparser.add_argument(
+                "--scheduler-accounting", type=Path, required=True
+            )
+            subparser.add_argument(
+                "--scheduler-accounting-status", type=Path, required=True
+            )
+            subparser.add_argument("--force-manifest", type=Path)
+            subparser.add_argument("--task-map", type=Path)
+            subparser.add_argument("--expect-force-manifest-sha")
+            subparser.add_argument("--expect-task-map-sha")
+    pilot_dataset = subparsers.add_parser("prepare-pilot-dataset")
+    pilot_dataset.add_argument("--config", type=Path, required=True)
+    pilot_dataset.add_argument("--run-dir", type=Path, required=True)
+    pilot_dataset.add_argument("--candidate-dir", type=Path, required=True)
+    pilot_dataset.add_argument("--preflight-inventory", type=Path, required=True)
+    pilot_dataset.add_argument("--output-dir", type=Path, required=True)
+    pilot_dataset.add_argument("--probe-spec", type=Path, required=True)
+
+    pilot_audit = subparsers.add_parser("audit-pilot-dataset")
+    pilot_audit.add_argument("--config", type=Path, required=True)
+    pilot_audit.add_argument("--run-dir", type=Path, required=True)
+    pilot_audit.add_argument("--dataset-dir", type=Path, required=True)
+    pilot_audit.add_argument("--expect-manifest-sha", required=True)
+
+    prepare_force = subparsers.add_parser("prepare-force")
+    prepare_force.add_argument("--config", type=Path, required=True)
+    prepare_force.add_argument("--run-dir", type=Path, required=True)
+    prepare_force.add_argument("--preflight-inventory", type=Path, required=True)
+    prepare_force.add_argument("--dataset-dir", type=Path, required=True)
+    prepare_force.add_argument("--output-dir", type=Path, required=True)
+    prepare_force.add_argument("--pseudo-dir", type=Path, required=True)
+    prepare_force.add_argument("--mode", choices=("pilot", "production"), required=True)
+    prepare_force.add_argument("--pilot-spec", type=Path)
+    prepare_force.add_argument("--expect-pilot-manifest-sha")
+    prepare_force.add_argument("--selection-evidence", type=Path)
+    prepare_force.add_argument("--resource-request", type=Path, required=True)
+
+    pilot_evidence = subparsers.add_parser("audit-pilot-evidence")
+    pilot_evidence.add_argument("--config", type=Path, required=True)
+    pilot_evidence.add_argument("--run-dir", type=Path, required=True)
+    pilot_evidence.add_argument("--study", type=Path, required=True)
+
+    analyze_pilot = subparsers.add_parser("analyze-pilot")
+    analyze_pilot.add_argument("--config", type=Path, required=True)
+    analyze_pilot.add_argument("--run-dir", type=Path, required=True)
+    analyze_pilot.add_argument("--study", type=Path, required=True)
+    analyze_pilot.add_argument("--output", type=Path, required=True)
+
+    replay_pilot = subparsers.add_parser("replay-pilot-selection")
+    replay_pilot.add_argument("--config", type=Path, required=True)
+    replay_pilot.add_argument("--run-dir", type=Path, required=True)
+    replay_pilot.add_argument("--receipt", type=Path, required=True)
+    replay_pilot.add_argument("--expect-receipt-sha")
+
     force_task = subparsers.add_parser("run-force-task")
     force_task.add_argument("--config", type=Path, required=True)
     force_task.add_argument("--run-dir", type=Path, required=True)
     force_task.add_argument("--task-map", type=Path, required=True)
     force_task.add_argument("--task-id", type=int, required=True)
+    force_task.add_argument("--retry-evidence", type=Path)
     return parser
 
 
@@ -1505,11 +2703,80 @@ def main(argv: Iterable[str] | None = None) -> int:
         elif args.command == "status":
             result = command_status(args.config, run_dir)
         elif args.command == "collect":
-            result = command_collect(args.config, run_dir)
+            result = command_collect(
+                args.config,
+                run_dir,
+                primary_stage=args.primary_stage,
+                primary_attempt_id=args.primary_attempt_id,
+                primary_job_id=args.primary_job_id,
+                scheduler_accounting=args.scheduler_accounting,
+                scheduler_accounting_status=args.scheduler_accounting_status,
+                force_manifest=args.force_manifest,
+                task_map=args.task_map,
+                expected_force_manifest_sha256=args.expect_force_manifest_sha,
+                expected_task_map_sha256=args.expect_task_map_sha,
+            )
         elif args.command == "run-relax":
             result = command_run_relax(args.config, run_dir)
         elif args.command == "finalize-relax":
             result = command_finalize_relax(args.config, run_dir)
+        elif args.command == "prepare-pilot-dataset":
+            result = command_prepare_pilot_dataset(
+                args.config,
+                run_dir,
+                candidate_dir=args.candidate_dir,
+                preflight_inventory=args.preflight_inventory,
+                output_dir=args.output_dir,
+                probe_spec_path=args.probe_spec,
+            )
+        elif args.command == "audit-pilot-dataset":
+            # Validate the material config too; the pilot manifest then provides
+            # the exact snapshot and source hashes used by the geometry audit.
+            validate_config(args.config)
+            result = command_audit_pilot_dataset(
+                args.dataset_dir,
+                expected_manifest_sha256=args.expect_manifest_sha,
+            )
+        elif args.command == "prepare-force":
+            result = command_prepare_force(
+                args.config,
+                run_dir,
+                preflight_inventory=args.preflight_inventory,
+                dataset_dir=args.dataset_dir,
+                output_dir=args.output_dir,
+                pseudo_dir=args.pseudo_dir,
+                mode=args.mode,
+                pilot_spec_path=args.pilot_spec,
+                pilot_dataset_manifest_sha256=args.expect_pilot_manifest_sha,
+                selection_evidence=args.selection_evidence,
+                resource_request_path=args.resource_request,
+            )
+        elif args.command == "run-force-task":
+            result = command_run_force_task(
+                args.config,
+                run_dir,
+                task_map=args.task_map,
+                task_id=args.task_id,
+                retry_evidence=args.retry_evidence,
+            )
+        elif args.command == "audit-pilot-evidence":
+            result = command_audit_pilot_evidence(
+                args.config, run_dir, study_path=args.study
+            )
+        elif args.command == "analyze-pilot":
+            result = command_analyze_pilot(
+                args.config,
+                run_dir,
+                study_path=args.study,
+                output_path=args.output,
+            )
+        elif args.command == "replay-pilot-selection":
+            result = command_replay_pilot_selection(
+                args.config,
+                run_dir,
+                receipt_path=args.receipt,
+                expected_receipt_sha256=args.expect_receipt_sha,
+            )
         else:
             config, _ = validate_config(args.config)
             command_not_ready(args.command, config)

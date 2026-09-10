@@ -190,6 +190,7 @@ Raw outputs stay immutable once home, per the workspace rules.
 ## Approximations unchanged
 
 The cluster port changes *where* the campaign runs, not *what* it computes:
-same 2x2x1 supercell, cutoff-pair 4.0 A, displacement set, health checks,
+same 2x2x1 supercell, historical cutoff-pair 4.0 bohr (2.1167 A, not 4 A),
+displacement set, health checks,
 q-mesh ladder, and RTA settings documented in the WORKLOG. kappa_L from this
 campaign is still the first-pass value under those documented approximations.

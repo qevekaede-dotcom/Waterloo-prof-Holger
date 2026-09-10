@@ -63,10 +63,12 @@ thousands of supercell calculations. Our campaign was tamed in three steps
 1. **Symmetry.** With the correct space group P3_121 recognized
    (`--tolerance 1e-3`; the default misread our 6-decimal coordinates as P1),
    13,848 displacements collapse to symmetry-distinct ones.
-2. **Pair-distance cutoff.** fc3 between atoms farther apart than 4.0 A is
-   set to zero (`--cutoff-pair 4.0`). Cu-S and Sn-S bonds are ~2.3-2.4 A,
-   so the cutoff keeps the bonding shells that dominate anharmonicity.
-   Result: **168 supercell force calculations** — a laptop-sized campaign.
+2. **Historical pair-distance cutoff.** The QE interface interpreted
+   `--cutoff-pair 4.0` as 4.0 bohr = 2.1167 A, not 4.0 A. The resulting
+   included pair groups were onsite; the shortest nonzero pair was excluded.
+   Result: **168 supercell force calculations**, but not a demonstrated
+   physically adequate interaction range. Future designs must convert explicit
+   Angstrom values to bohr and test pair-cutoff convergence.
 3. **Force-convergence checks.** Before the campaign, one displaced cell is
    recomputed with a coarser k-mesh and lower cutoffs; a candidate setting
    is accepted only if every force component matches the converged

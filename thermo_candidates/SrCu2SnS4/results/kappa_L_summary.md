@@ -1,6 +1,6 @@
 # SrCu2SnS4 lattice thermal conductivity — first pass [calculated]
 
-phono3py RTA (--br), 2x2x1 supercell, cutoff-pair 4.0 A, q-mesh (13, 13, 6), PBE, no SOC, no NAC.
+phono3py RTA (--br), 2x2x1 supercell, historical cutoff-pair 4.0 bohr (2.1167 A; onsite pair groups only), q-mesh (13, 13, 6), PBE, no SOC, no NAC. Pair-cutoff convergence is not established.
 
 - solver for fc3: traditional
 - minimum phonon frequency on mesh: -0.0000 THz (OK)

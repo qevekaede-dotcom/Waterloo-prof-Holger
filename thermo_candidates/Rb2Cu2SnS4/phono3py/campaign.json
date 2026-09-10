@@ -308,9 +308,17 @@
       "positive_and_negative_displacements_required": true,
       "representative_species": ["Rb", "Cu", "Sn", "S"],
       "representative_pair_shells": ["Rb-S", "Cu-S", "Sn-S", "S-S"],
+      "symmetry_inequivalent_site_coverage_required": true,
+      "single_displacement_central_slope_formula": "D1(h) = [F(+h)-F(-h)]/(2h)",
+      "double_displacement_mixed_difference_formula": "D2_pair(h) = [F(+h,+h)-F(+h,-h)-F(-h,+h)+F(-h,-h)]/(4h^2)",
+      "double_displacement_four_sign_combinations_required": true,
+      "full_dataset_amplitude_sensitivity_required_before_strong_convergence_claim": true,
       "acceptance": {
         "minimum_induced_force_signal_to_duplicate_noise": 10.0,
         "maximum_relative_change_of_central_force_slope": 0.05,
+        "maximum_relative_change_of_mixed_second_force_derivative": 0.1,
+        "minimum_mixed_difference_numerator_signal_to_propagated_duplicate_noise": 10.0,
+        "below_resolution_action": "choose_a_nonzero_signal_probe_or_require_scientific_review; do_not_pass_or_fail_by_relative_error",
         "maximum_duplicate_RMS_force_difference_Ry_per_bohr": 5e-06
       }
     },
@@ -342,6 +350,22 @@
     "selected_conv_thr_Ry": null,
     "selected_k_points": null
   },
+  "resource_budget": {
+    "selection_required_before_force_submission": true,
+    "approved_total_core_hours_per_material": null,
+    "initial_timing_and_noise_batch": {
+      "tasks": "two matched pristine, two single-displacement, two double-displacement SCFs",
+      "maximum_new_scf_tasks": 6,
+      "maximum_concurrent_force_tasks_per_material": 2
+    },
+    "pilot_batch_maximum_new_scf_tasks": 32,
+    "production_first_batch_maximum_tasks": 32,
+    "production_later_batch_maximum_tasks": 64,
+    "maximum_technical_retries_per_task": 1,
+    "estimate_formula": "remaining_tasks * max(1.5 * measured_P90_walltime_hours, maximum_normal_walltime_hours) * MPI_ranks",
+    "required_measured_fields": ["elapsed_seconds", "max_rss", "scf_iterations", "mpi_ranks", "raw_max_force", "total_scf_correction"],
+    "budget_exceedance_action": "stop_and_require_explicit_budget_review"
+  },
   "production": {
     "selection_required": true,
     "selected_supercell": null,
@@ -363,15 +387,16 @@
   },
   "tensor_frame": {
     "raw_phono3py_frame": "Cartesian frame of the tilted QE primitive cell",
-    "reporting_frame": "orthonormalized right-handed Ibam conventional a,b,c axes",
-    "primitive_to_conventional_direct_lattice_integer_matrix": [[1, 1, 0], [1, 0, 1], [0, -1, -1]],
-    "reference_conventional_edge_lengths_angstrom": [13.896992442745, 11.80396728961, 5.493313466035],
+    "reporting_frame": "spglib Hall-338 standard right-handed Ibam conventional a,b,c axes, re-derived from the accepted primitive cell",
+    "standard_setting_evidence": "spglib 2.7.0 get_symmetry_dataset at symprec=1e-6 angstrom: Ibam no.72, Hall 338 (-I 2 2c); std_lattice equals T*A within 2e-8 angstrom for the reference standardized primitive",
+    "primitive_to_conventional_direct_lattice_integer_matrix": [[0, 1, 1], [1, 0, 1], [1, 1, 0]],
+    "reference_conventional_edge_lengths_angstrom": [5.493313466035, 11.80396728961, 13.896992442745],
     "orthonormalization": "For the accepted tight-relax lattice A (rows), form C=T*A and R=(C*C^T)^(-1/2)*C. R has the conventional unit axes as rows.",
     "tensor_rotation_formula": "kappa_conventional = R * kappa_cartesian * R^T",
     "reference_rotation_matrix_for_standardized_cell_only": [
-      [0.0, 0.0, 1.0],
+      [1.0, 0.0, 0.0],
       [0.0, 1.0, 0.0],
-      [-1.0, 0.0, 0.0]
+      [0.0, 0.0, 1.0]
     ],
     "recompute_rotation_from_accepted_geometry": true,
     "require_full_symmetric_tensor_input": true,
@@ -423,6 +448,8 @@
   },
   "nac": {
     "enabled_for_first_pass": false,
+    "no_nac_branch_requires_explicit_cli_flag": "--nonac",
+    "reject_BORN_or_yaml_nac_params_in_no_nac_branch": true,
     "born_effective_charges_available": false,
     "dielectric_tensor_available": false,
     "first_pass_required_label": "no_NAC",

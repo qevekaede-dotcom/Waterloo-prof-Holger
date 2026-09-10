@@ -79,8 +79,10 @@ missing denominator of every zT_e upper bound reported so far.
 uwaterloo mailbox).** phono3py runs end to end (168 force calculations on
 Nibi/DRAC). First-pass kappa_L [calculated, residual-corrected]: 0.36
 W m^-1 K^-1 at 300 K (in-plane 0.40, c-axis 0.30), falling ~1/T to 0.12 at
-900 K — very low, encouraging. RTA, 2x2x1 supercell, cutoff-pair 4.0 A,
-q-mesh 13x13x6, PBE, no SOC, no NAC; no significant imaginary modes on the
+900 K — very low, encouraging. RTA, 2x2x1 supercell, historical cutoff-pair
+4.0 bohr = 2.1167 A, q-mesh 13x13x6, PBE, no SOC, no NAC. The cutoff
+included only onsite pair groups, so pair-range convergence is not
+established; no significant imaginary modes on the
 sampled mesh; pristine residual
 forces (5.5e-4 Ry/bohr) measured and subtracted via --cfz; the email quotes
 "roughly 0.35-0.40 W/(m K)" with the documented caveats. The interim email

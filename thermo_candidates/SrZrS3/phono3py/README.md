@@ -72,13 +72,18 @@ and [QE workflow](https://phonopy.github.io/phono3py/qe.html).
    maximum-position-shift, and Pnma checks all pass.
 3. On a compute node, generate count-only phono3py datasets for every declared
    supercell/cutoff candidate. Record the exact command, YAML, units, number
-   of displacements, atom count, and cell metrics. More than 800 displacement
-   supercells is a hard stop.
+   of displacements, atom count, and cell metrics. A candidate with more than
+   800 displacement supercells is ineligible for force submission, but its
+   audited count remains a valid preflight result and does not erase cheaper
+   candidates.
 4. Run positive/negative amplitude probes at 0.02, 0.03, and 0.04 angstrom,
-   representative Sr/Zr/S probes, duplicate-noise checks, cutoff tests,
-   `conv_thr` tests, and 2x2x2 versus 3x3x3 force-k-mesh tests. Compare induced
-   forces only after subtracting a pristine force calculated with exactly the
-   same setting.
+   covering symmetry-inequivalent Sr/Zr/S sites and Sr-S, Zr-S, and S-S pair
+   shells. Test both the single-displacement central slope `D1` and the
+   double-displacement four-sign mixed difference `D2_pair`; the latter is
+   required because an FC2-like slope alone does not resolve FC3 signal.
+   Include duplicate-noise, cutoff, `conv_thr`, and 2x2x2 versus 3x3x3
+   force-k-mesh tests. Compare only after subtracting a pristine force
+   calculated with exactly the same setting.
 5. Make and record a scientific selection. Until then,
    `production.selection_required` stays `true`, and both the selected
    supercell and selected cutoff stay `null`.
@@ -114,6 +119,11 @@ pilot (80/640 Ry, 3x3x3, and `conv_thr=1e-10 Ry`). A cheaper setting passes
 only if all declared limits hold: maximum component difference at most
 `5e-5 Ry/bohr`, RMS component difference at most `1e-5 Ry/bohr`, relative
 RMS difference at most 2%, and duplicate noise at most `5e-6 Ry/bohr`.
+Before broader pilots, a six-SCF timing/noise batch limits concurrency to two
+force tasks for this material. Later pilot batches are capped at 32 new SCFs;
+production starts in batches of at most 32, then 64, and remains blocked until
+a measured core-hour budget is explicitly recorded. A displacement-count cap
+alone is not a resource authorization.
 
 The q-mesh ladder is 12x5x3, 16x7x4, 20x9x5, 23x10x6, and 27x12x8 in the
 primitive reciprocal basis. A largest tested mesh that fails the two-step
@@ -122,6 +132,8 @@ criterion may be reported only as `first_pass_unconverged`.
 The first-pass solver is phono3py RTA with PBE, no explicit SOC, no isotope
 scattering, no boundary scattering, and no NAC. Born effective charges and a
 dielectric tensor have not been calculated. A result may therefore be called
-only a calculated, no-NAC first pass; an NAC sensitivity test is required
+only a calculated, no-NAC first pass. The no-NAC command must explicitly use
+`--nonac` and reject an accidental `BORN` file or YAML `nac_params`; an NAC
+sensitivity test is required
 before a final physical-convergence claim. This kappa_L would still not by
 itself make the earlier electronic-only `zT_e` a final thermoelectric zT.

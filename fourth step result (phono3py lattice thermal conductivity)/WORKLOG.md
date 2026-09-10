@@ -742,3 +742,117 @@ primary requests one node, 32 tasks, 2000 MiB per CPU, and 12 hours. This is
 not yet a completed structure, phonon, or thermal-conductivity result. The
 next automatic action is evidence inspection; preflight is permitted only
 after `finalize-relax` publishes a passing immutable gate.
+
+## 2026-09-10 — Session 10: first live outcome and pilot safety integration
+
+A read-only Nibi check at 08:38 UTC found Rb2Cu2SnS4 job `21638193` still
+running normally on `c277`. Through BFGS step 4 its total force decreased from
+8.92e-4 to 2.49e-4 Ry/bohr; the latest largest force component was 9.636e-5
+Ry/bohr. The output was still growing, pw.x remained active, and no fatal QE,
+MPI, OOM, or time-limit signature was present. Collector `21638194` remained
+pending on the correct unfulfilled `afterany:21638193` dependency. These are
+intermediate diagnostics, not an accepted structure.
+
+SrZrS3 job `21638199` reached a terminal FAILED state and collector `21638200`
+completed normally. All reported electronic SCFs converged and the pw.x step
+itself ended with `JOB DONE`, but QE explicitly reported
+`bfgs failed ... convergence not achieved` after 20 SCF / 19 BFGS steps. Its
+last total force was 3.6e-5 Ry/bohr and largest force component approximately
+1.097e-5 Ry/bohr. The workflow correctly treated the missing BFGS convergence
+marker as a scientific failure even though the force was below the configured
+5e-5 component ceiling: it published no pristine input/output, execution
+manifest, or accepted structure gate. The failed attempt and its collection
+record remain immutable. Any continuation must be a new attempt that starts
+from explicitly hashed final coordinates and must still pass normal BFGS,
+matched-pristine, atom-order, cell, symmetry, and force gates; the threshold
+will not be loosened.
+
+Local workflow development continued without running heavy science. The force
+submission frontend now binds every task-map row to the matching manifest row,
+real QE input path and SHA256, derives MPI ranks, walltime and material
+concurrency from the immutable budget receipt, and distinguishes declared
+pilot duplicates from unique production displacements. The campaign CLI now
+has explicit preparation/audit entry points for signed pilot datasets and
+budgeted force bundles, plus a compute-node-only one-task force runner. No
+force array was submitted: production remains blocked on accepted structures,
+real preflight counts, raw pilot evidence, recorded scientific selection and
+an approved measured resource budget.
+
+## 2026-09-10 — Session 11: both initial tight relaxations fail closed
+
+At the 10:02 UTC read-only Nibi check, Rb2Cu2SnS4 primary job `21638193`
+was terminal FAILED with exit `2:0`, and its afterany collector `21638194`
+had completed. QE explicitly reported `bfgs failed ... convergence not
+achieved` after 13 SCF / 12 BFGS steps. The last total force was
+8.2e-5 Ry/bohr and the largest component reported by the strict parser was
+2.331e-5 Ry/bohr. `relax.err` was empty; final coordinates preceded
+`JOB DONE`; no separate QE, MPI, OOM, or time-limit fatal marker was found.
+The output and run-manifest SHA256 anchors were
+`e960376989bf0f11a7ca8c8b4e6cd3a4a328134d881e96752662b645780bd6a4`
+and `e0fb981daee631ca2d8a3d4c07bc2e696d61bfad80672b7e7d3bab06e986d5d5`.
+The collector recorded one finished upstream attempt with wrapper exit 2.
+No pristine SCF, execution manifest, or accepted structure gate was created.
+
+This leaves both new materials at the same strict boundary: their individual
+SCFs and pw.x processes ended cleanly enough to expose complete final
+coordinates, but neither ionic optimizer recorded normal BFGS convergence.
+Low final forces alone are not accepted as convergence. Their original
+attempts and collectors remain immutable. Any continuation must use a new
+run directory, hash the source manifest/output, copy only small evidence and
+coordinates, start from fresh QE scratch and atomic wavefunctions, and pass
+the unchanged normal-BFGS, independent-pristine, cumulative-displacement,
+cell, atom-order, force, and symmetry gates.
+
+Local development did not run QE, phono3py force calculations, FC2/FC3, or
+thermal-conductivity postprocessing. The signed initial-pilot path now requires
+an exact six-SCF composition (two pristine, a single displacement plus an
+independent duplicate, and a double displacement plus an independent
+duplicate), replays raw selection evidence, binds task and scheduler identity,
+and collects immutable Slurm accounting. The latest synthetic unit suite had
+197 passing tests and one environment-only spglib skip. Automatic subset retry
+and production calculations remain disabled; real Nibi spglib/phono3py and
+Slurm-accounting smoke tests are still required before even the exploratory
+pilot can be submitted.
+
+## 2026-09-10 — Session 12: recovery path verified locally; Nibi MFA blocks live continuation
+
+The next fail-closed step was implemented and tested without modifying either
+original failed Nibi attempt. `relax_recovery.py` accepts only a separately
+hashed, terminal BFGS-nonconvergence attempt whose QE process, force block,
+final coordinates, atom order, fixed cell, pseudopotentials, Slurm identity,
+wrapper failure, and source manifest all replay consistently. It creates one
+new run directory, copies only immutable small evidence, starts QE from fresh
+scratch with atomic potentials/wavefunctions, preserves the original accepted
+geometry as the cumulative-displacement reference, and keeps the normal BFGS,
+independent-pristine, force, symmetry, cell, atom-order, and displacement gates
+unchanged. A second automatic reset is rejected and a failed recovery cannot
+start the pristine calculation.
+
+The full local suite passed **197/197 tests** in the project scientific Python
+environment (Python 3.11.15, spglib 2.7.0, phonopy 4.3.1, phono3py 4.3.3),
+including the real spglib synthetic-structure check. Both material configs
+validated, Python compilation passed, every Slurm shell file passed `bash -n`,
+and `git diff --check` found no whitespace errors. Two operator mistakes were
+kept visible during validation: running unittest discovery from the repository
+root omitted the campaign module from the import path, and the first config
+check used the nonexistent subcommand `validate` plus then an incorrect
+relative path. Re-running from the campaign directory with `validate-config`
+and the correct paths passed; these were invocation errors, not workflow-code
+failures.
+
+A fresh read-only SSH query at approximately 14:18 UTC could not authenticate:
+the local eight-hour ControlMaster socket was absent and Nibi required
+interactive keyboard MFA. Consequently no current `squeue`, `sacct`, log, or
+run-directory evidence was obtained, no recovery directory was prepared, and
+no job was submitted. The last verified scheduler snapshot therefore remains
+10:02 UTC: both original tight-relax primaries failed their BFGS gate and both
+afterany collectors completed. The safe next action is to establish one
+interactive authenticated Nibi session, deploy this reviewed code in a new
+clean checkout, re-query Slurm and the source hashes, then prepare and submit
+the two recovery runs separately.
+
+**Scientific-rigor review.** No new calculated material property or stability
+claim was made. The low forces in the failed relaxations are still not treated
+as BFGS convergence; no pristine SCF, displacement, FC2/FC3, q-mesh, kappa_L,
+NAC, SOC, PF/tau, or full-zT conclusion was produced. Frozen
+`READY_TO_ATTACH/` records were untouched.

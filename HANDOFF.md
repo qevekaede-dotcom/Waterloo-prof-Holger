@@ -118,12 +118,26 @@ the submission-time code is commit `92d973a`. Nibi uses the clean clone
 `/scratch/yuhansun/Waterloo-prof-Holger-phonons-20260910` and separate run
 directories under `/scratch/yuhansun/phono3py-runs/20260910/`.
 
-Live scheduler state last checked 2026-09-10 07:49 UTC:
+Live scheduler state last checked 2026-09-10 10:02 UTC:
 
-- Rb2Cu2SnS4 tight relax/pristine job `21638193`: PENDING (Priority);
-  afterany evidence collector `21638194`: PENDING (Dependency).
-- SrZrS3 tight relax/pristine job `21638199`: PENDING (Priority);
-  afterany evidence collector `21638200`: PENDING (Dependency).
+- Rb2Cu2SnS4 tight-relax job `21638193`: FAILED the strict scientific gate
+  after QE stopped with `bfgs failed ... convergence not achieved`; its
+  afterany evidence collector `21638194` COMPLETED and archived the attempt.
+- SrZrS3 tight-relax job `21638199`: FAILED the strict scientific gate after
+  QE stopped with `bfgs failed ... convergence not achieved`; its afterany
+  collector `21638200` COMPLETED and archived the failed attempt.
+
+Rb2Cu2SnS4 stopped after 13 SCF / 12 BFGS steps. Its total force decreased
+from `8.92e-4` to `8.2e-5 Ry/bohr` and its last largest force component was
+`2.331e-5 Ry/bohr`. The QE output has final coordinates and `JOB DONE`, empty
+stderr, and no separate QE, MPI, OOM, or time-limit fatal marker, but the small
+force does not override the explicit BFGS nonconvergence. SrZrS3 likewise had
+normally completed individual SCFs and pw.x, but no BFGS convergence marker
+after 20 SCF / 19 ionic steps; its last total force was `3.6e-5 Ry/bohr` and
+largest component about `1.097e-5 Ry/bohr`. Neither material produced a
+pristine calculation, execution manifest, or accepted structure gate.
+Preserve both failures and use separately audited new runs for any
+continuation; never relabel either failed relaxation as successful.
 
 Both primary jobs request account `def-kleinke_cpu`, 32 tasks, 62.5 GiB, and
 12 hours. They run fixed-cell BFGS followed by an independent setting-matched
@@ -134,12 +148,17 @@ arrays, FC2/FC3 construction, kappa postprocessing, and final claims remain
 blocked pending real pilot evidence and an explicit production selection.
 The active hourly Codex heartbeat reports live scheduler/evidence changes and
 must not treat these recorded job IDs as future live state without querying.
+Both original job chains are now terminal. Keep their submission-time clone
+and scripts frozen for provenance; deploy reviewed recovery/downstream code in
+a separate clean checkout that consumes the original hashed evidence.
 
 ## Next research work, when requested
 
-1. Monitor and validate jobs `21638193` and `21638199`; after each passing
-   structure gate, run only its declared no-force preflight and review the
-   actual displacement counts before any force submission.
+1. Audit both failed relaxations and use their exact manifest/output hashes to
+   prepare separate immutable continuation runs. Restart fixed-cell BFGS with
+   fresh scratch and unchanged scientific settings and acceptance gates. Run
+   no preflight until a recovery emits normal BFGS convergence, an independent
+   pristine SCF, and a passing structure gate.
 2. For each material independently, run amplitude, basis/cutoff, force-k-mesh,
    supercell, q-mesh, and NAC-sensitivity decisions. Do not copy SrCu2SnS4
    numerical settings or infer a production choice from cost alone.

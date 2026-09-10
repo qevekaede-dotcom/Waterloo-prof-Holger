@@ -15,7 +15,9 @@ Material: SrCu2SnS4, relaxed P3_121 structure from our earlier first pass.
 1. **Displacement generation (any machine).** phono3py 4.x, QE interface:
    `phono3py-init --qe -c unitcell.in --dim 2 2 1 --cutoff-pair 4.0
    --tolerance 1e-3` -> 168 displaced 96-atom supercells (out of 13,848
-   without the pair cutoff).
+   without the pair cutoff). Important correction: in the QE interface this
+   value was 4.0 bohr (2.1167 A), not 4.0 A. All included pair groups were
+   onsite; this historical run does not establish a physical 4-A cutoff.
 2. **Force campaign (cluster, three chained SLURM jobs).**
    - stage 0: on-machine force-convergence checks against a 90/720 Ry,
      3x3x3 benchmark (accept a cheaper setting only if every force

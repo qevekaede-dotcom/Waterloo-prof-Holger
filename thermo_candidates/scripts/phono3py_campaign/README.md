@@ -11,21 +11,32 @@ Slurm submission.
 The currently released path is:
 
 1. `validate-config` and `prepare-relax` on a login/preparation node;
-2. fixed-cell tight `relax` plus a setting-matched independent pristine SCF
+2. after an explicitly audited terminal BFGS failure, `relax_recovery.py`
+   may create one separate immutable continuation run from the failed output's
+   hashed final coordinates; it copies no QE scratch, keeps the original
+   geometry as the cumulative-displacement reference, and does not loosen any
+   setting or acceptance gate;
+3. fixed-cell tight `relax` plus a setting-matched independent pristine SCF
    inside a Nibi Slurm allocation;
-3. `finalize-relax`, which publishes a structure only if completion, BFGS,
+4. `finalize-relax`, which publishes a structure only if completion, BFGS,
    force, cell, atom-order, position-shift, and symmetry checks all pass;
-4. compute-node-only `preflight`, which enumerates configured phono3py
+5. compute-node-only `preflight`, which enumerates configured phono3py
    displacement candidates and audits units, IDs, matrices, cells, counts,
    and hard caps without running displaced-force calculations;
-5. evidence-only `collect`, normally submitted with `afterany` so a failed
+6. explicit signed pilot-dataset, resource-receipt, force-task, raw-evidence,
+   and pilot-analysis paths. These paths remain bounded by the six-SCF initial
+   timing/noise composition and the configured concurrency and cumulative
+   pilot limits; none may bypass the accepted-structure or selection gates;
+7. evidence-only `collect`, normally submitted with `afterany` so a failed
    primary job still leaves a machine-readable record.
 
-`prepare-force`, `run-force-task`, `postprocess`, and `audit` remain
-deliberately blocked in `campaign.py`. Their Slurm templates and submission
-front-end are scaffolding, not authorization to run them. They are released
-only after real preflight and force/amplitude pilot evidence supports an
-explicit production selection in the material config.
+Production force submission, `postprocess`, and final `audit` remain
+deliberately blocked while the material configs retain null scientific
+selections. Implemented pilot commands and Slurm templates are safety-bounded
+machinery, not evidence that a pilot or production campaign is authorized or
+has run. Production is released only after real preflight and force/amplitude
+evidence supports an explicit material-specific selection and measured
+resource budget.
 
 ## Submission contract
 
