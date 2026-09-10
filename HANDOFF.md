@@ -122,7 +122,7 @@ recovery uses commit `20e079f` in a separate clean clone
 run directories under
 `/scratch/yuhansun/phono3py-runs/20260910-recovery-20e079f/`.
 
-Live scheduler state last checked 2026-09-10 14:34 UTC:
+Live scheduler state last checked 2026-09-10 14:38 UTC:
 
 - Rb2Cu2SnS4 recovery tight-relax job `21656285`: RUNNING on `c508`;
   afterany evidence collector `21656286`: PENDING on the correct dependency.
@@ -132,9 +132,12 @@ Live scheduler state last checked 2026-09-10 14:34 UTC:
 Both recovery inputs record `restart_mode='from_scratch'`, atomic starting
 potentials/wavefunctions, unchanged material-specific cutoffs and k meshes,
 and no reuse of the old QE scratch. The early QE banners report 32 processor
-cores; both stderr files were empty. At the 14:34 UTC check Rb2Cu2SnS4 had
-reached SCF iteration 4 and SrZrS3 iteration 17 of their first ionic step.
-These are healthy launch diagnostics, not accepted structures.
+cores; both stderr files were empty. At the 14:38 UTC check Rb2Cu2SnS4 was
+still in the first recovery SCF. SrZrS3 had recorded normal BFGS convergence
+in two SCF cycles / one ionic step, wrote final coordinates and `JOB DONE`,
+and had entered the independent pristine SCF; its overall job and structure
+gate were still unfinished. These are healthy intermediate diagnostics, not
+accepted structures.
 
 Original chains and failure evidence:
 

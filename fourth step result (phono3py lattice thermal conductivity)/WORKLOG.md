@@ -918,3 +918,12 @@ BFGS requirements. No threshold or material-specific basis/k mesh was copied
 between materials or relaxed. No new phonon, stability, kappa_L, NAC/SOC,
 PF/tau, or zT claim was made, and every frozen `READY_TO_ATTACH/` record
 remained untouched.
+
+**14:38 UTC addendum.** SrZrS3 recovery `21656287` recorded normal BFGS
+convergence in two SCF cycles / one BFGS step, followed by final coordinates
+and `JOB DONE`; the wrapper then started its independent pristine SCF. The
+pristine output was still growing, stderr remained empty, and neither the
+execution manifest nor structure gate existed yet. Rb2Cu2SnS4 `21656285`
+remained inside its first recovery SCF. Both Slurm primaries were still
+RUNNING and both collectors remained correctly dependency-held, so no
+preflight action was taken.
