@@ -707,3 +707,38 @@ material config validations, and shell syntax checks.  Final read-only review
 released only relax and passing-gate preflight; force production, FC2/FC3,
 transport postprocessing, and final audit remain intentionally blocked pending
 real remote preflight and force/amplitude convergence evidence.
+
+## 2026-09-10 — Session 9: Nibi clean deployment and tight-relax submissions
+
+The tested workflow was committed and pushed on branch
+`codex/two-material-phonons` (`06a1326`, followed by submission-host fixes
+`fcdbc33` and `92d973a`). A new clean Nibi clone was created at
+`/scratch/yuhansun/Waterloo-prof-Holger-phonons-20260910`; the historical dirty
+cluster clone was not modified. Nibi reproduced all 36 initial unit tests,
+both material config validations, and the installed phono3py/phonopy 4.4.0 and
+spglib 2.7.0 environment. After the login-host regression test was added, the
+suite contained 37 passing tests.
+
+Two submission attempts were safely stopped before `sbatch` because Nibi
+reported login hostnames `ic-l5.nibi.sharcnet` and, in another multiplexed
+session, `l5`, while the initial guard accepted neither. No local submission
+record or Slurm job resulted from those stops. The guard was narrowed to the
+observed Nibi FQDN/short-name patterns, with tests that reject a suffixed fake
+domain and any environment containing `SLURM_JOB_ID`.
+
+The following immutable tight-relax chains were then submitted under explicit
+account `def-kleinke_cpu`:
+
+- Rb2Cu2SnS4: primary `21638193`, attempt
+  `20260910T074723Z-relax-efb1dbed`; afterany collector `21638194`, attempt
+  `20260910T074723Z-collect-a2405103`.
+- SrZrS3: primary `21638199`, attempt
+  `20260910T074839Z-relax-49cd2cc4`; afterany collector `21638200`, attempt
+  `20260910T074840Z-collect-46e972d8`.
+
+At the 2026-09-10 07:49 UTC check both primaries were PENDING for Priority and
+both collectors were PENDING on their correct `afterany` dependencies. Each
+primary requests one node, 32 tasks, 2000 MiB per CPU, and 12 hours. This is
+not yet a completed structure, phonon, or thermal-conductivity result. The
+next automatic action is evidence inspection; preflight is permitted only
+after `finalize-relax` publishes a passing immutable gate.

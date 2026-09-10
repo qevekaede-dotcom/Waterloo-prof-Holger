@@ -1,6 +1,6 @@
 # Research handoff — current state
 
-Last repository/evidence audit: 2026-09-06. Research state reconciled from
+Last repository/evidence audit: 2026-09-10. Research state reconciled from
 GitHub commit `0024114291043468c69f1d3a382cee51b64428d3` (2026-08-30),
 on `claude/canada-computing-center-task-d165w2`. That branch includes
 the other two Claude branches and was 13 commits ahead of `main`.
@@ -19,8 +19,8 @@ for continuity. This file records state, not authorization to launch work.
 | Material | Electronic first pass | Sampled PBE gap [calculated] | Lattice thermal conductivity |
 | --- | --- | --- | --- |
 | SrCu2SnS4 | QE + BoltzTraP2 complete | 0.3445 eV | First pass complete |
-| SrZrS3 | QE + BoltzTraP2 complete | 0.6096 eV | No campaign records yet |
-| Rb2Cu2SnS4 | QE + BoltzTraP2 complete | 0.7811 eV | No campaign records yet |
+| SrZrS3 | QE + BoltzTraP2 complete | 0.6096 eV | Tight-relax gate running; no kappa result |
+| Rb2Cu2SnS4 | QE + BoltzTraP2 complete | 0.7811 eV | Tight-relax gate running; no kappa result |
 
 Each electronic pass includes independent convergence tests, vc-relax,
 final SCF, dense NSCF, and 300–900 K transport tables. Evidence:
@@ -111,11 +111,38 @@ subtracted using `--cfz`.
 - Never edit any of the four packages' `READY_TO_ATTACH/` folders.
   Presentation/reproducibility copies are intentional, not cleanup waste.
 
+## Active two-material phonon campaign
+
+The fail-closed workflow is on GitHub branch `codex/two-material-phonons`;
+the submission-time code is commit `92d973a`. Nibi uses the clean clone
+`/scratch/yuhansun/Waterloo-prof-Holger-phonons-20260910` and separate run
+directories under `/scratch/yuhansun/phono3py-runs/20260910/`.
+
+Live scheduler state last checked 2026-09-10 07:49 UTC:
+
+- Rb2Cu2SnS4 tight relax/pristine job `21638193`: PENDING (Priority);
+  afterany evidence collector `21638194`: PENDING (Dependency).
+- SrZrS3 tight relax/pristine job `21638199`: PENDING (Priority);
+  afterany evidence collector `21638200`: PENDING (Dependency).
+
+Both primary jobs request account `def-kleinke_cpu`, 32 tasks, 62.5 GiB, and
+12 hours. They run fixed-cell BFGS followed by an independent setting-matched
+pristine SCF and publish no structure unless the strict force, completion,
+position, atom-order, cell, and symmetry gate passes. Only a no-force
+phono3py count/geometry/unit preflight is released after that gate. Force
+arrays, FC2/FC3 construction, kappa postprocessing, and final claims remain
+blocked pending real pilot evidence and an explicit production selection.
+The active hourly Codex heartbeat reports live scheduler/evidence changes and
+must not treat these recorded job IDs as future live state without querying.
+
 ## Next research work, when requested
 
-1. Resolve the residual-force reporting issue and review cluster traps.
-2. SrZrS3 phonons with independent convergence decisions and pristine-force
-   checks; then Rb2Cu2SnS4. Do not copy SrCu2SnS4 numerical settings.
+1. Monitor and validate jobs `21638193` and `21638199`; after each passing
+   structure gate, run only its declared no-force preflight and review the
+   actual displacement counts before any force submission.
+2. For each material independently, run amplitude, basis/cutoff, force-k-mesh,
+   supercell, q-mesh, and NAC-sensitivity decisions. Do not copy SrCu2SnS4
+   numerical settings or infer a production choice from cost alone.
 3. Re-preflight SrCu2SnS4 using explicitly converted Angstrom-to-bohr cutoffs
    before estimating cost; the historical "5.0 A / 600 supercells" proposal
    was based on the same unit misunderstanding and is not a valid 5-A budget.
@@ -126,8 +153,8 @@ subtracted using `--cfz`.
 Use [DRAC_SETUP.md](DRAC_SETUP.md) and the campaign
 [README](thermo_candidates/SrCu2SnS4/phono3py/README.md).
 Heavy calculations **and phonon postprocessing run on DRAC**, not local
-machines. Do not infer live cluster status from archived jobs.
-No cluster connection or calculation was made during this cleanup.
+machines. Do not infer live cluster status from the snapshot above or from
+archived jobs; query Slurm and immutable attempt evidence.
 
 Detailed failed attempts, job IDs, and communications remain in the
 fourth-step `WORKLOG.md`. The previous full handoff is preserved verbatim
