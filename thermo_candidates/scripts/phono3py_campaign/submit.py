@@ -357,6 +357,7 @@ def require_nibi_login() -> None:
     hostname = socket.getfqdn().lower()
     hostname_is_nibi = bool(
         re.fullmatch(r"ic-l[0-9]+\.nibi\.sharcnet", hostname)
+        or re.fullmatch(r"l[0-9]+", hostname)
         or re.match(r"^nibi(?:login)?[0-9]*(?:\.|$)", hostname)
     )
     if cluster != "nibi" and not hostname_is_nibi:

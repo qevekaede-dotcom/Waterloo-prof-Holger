@@ -31,6 +31,10 @@ class SubmissionTests(unittest.TestCase):
         ):
             require_nibi_login()
         with patch.dict("submit.os.environ", {}, clear=True), patch(
+            "submit.socket.getfqdn", return_value="l5"
+        ):
+            require_nibi_login()
+        with patch.dict("submit.os.environ", {}, clear=True), patch(
             "submit.socket.getfqdn", return_value="ic-l5.nibi.sharcnet.example.org"
         ):
             with self.assertRaisesRegex(SubmissionError, "restricted to a Nibi login"):
