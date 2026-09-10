@@ -14,6 +14,7 @@ from submit import (
     SubmissionError,
     ensure_no_active_duplicate,
     execute_submission,
+    require_nibi_login,
     sbatch_command,
     stage_plan,
     validate_task_map,
@@ -24,6 +25,20 @@ CONFIG_SHA = "a" * 64
 
 
 class SubmissionTests(unittest.TestCase):
+    def test_accepts_real_nibi_login_hostname_but_not_other_hosts(self) -> None:
+        with patch.dict("submit.os.environ", {}, clear=True), patch(
+            "submit.socket.getfqdn", return_value="ic-l5.nibi.sharcnet"
+        ):
+            require_nibi_login()
+        with patch.dict("submit.os.environ", {}, clear=True), patch(
+            "submit.socket.getfqdn", return_value="ic-l5.nibi.sharcnet.example.org"
+        ):
+            with self.assertRaisesRegex(SubmissionError, "restricted to a Nibi login"):
+                require_nibi_login()
+        with patch.dict("submit.os.environ", {"SLURM_JOB_ID": "123"}, clear=True):
+            with self.assertRaisesRegex(SubmissionError, "not inside a job"):
+                require_nibi_login()
+
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
         root = Path(self.temp_dir.name)

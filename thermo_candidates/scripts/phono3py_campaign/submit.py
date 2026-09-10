@@ -355,7 +355,10 @@ def require_nibi_login() -> None:
         raise SubmissionError("submit.py execute must run on a Nibi login node, not inside a job")
     cluster = os.environ.get("SLURM_CLUSTER_NAME", "").lower()
     hostname = socket.getfqdn().lower()
-    hostname_is_nibi = bool(re.match(r"^nibi(?:login)?[0-9]*(?:\.|$)", hostname))
+    hostname_is_nibi = bool(
+        re.fullmatch(r"ic-l[0-9]+\.nibi\.sharcnet", hostname)
+        or re.match(r"^nibi(?:login)?[0-9]*(?:\.|$)", hostname)
+    )
     if cluster != "nibi" and not hostname_is_nibi:
         raise SubmissionError(
             f"submit.py execute is restricted to a Nibi login node (detected {hostname!r})"
