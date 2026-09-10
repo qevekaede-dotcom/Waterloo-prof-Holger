@@ -46,6 +46,12 @@ sys.modules.setdefault("campaign", sys.modules[__name__])
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 BOHR_TO_ANGSTROM = 0.529177210903
+# phonopy/phono3py 4.4.0 writes QE cells using an older CODATA Bohr value
+# (0.529177207423948 A).  Compare generated and independently reconstructed
+# supercell vectors tightly enough to reject a wrong matrix, while allowing
+# that harmless ~6.6e-9 relative unit-conversion difference.
+SUPERCELL_LATTICE_REL_TOL = 1e-8
+SUPERCELL_LATTICE_ABS_TOL_BOHR = 2e-8
 FLOAT_REL_TOL = 2e-10
 RUN_MANIFEST = "run_manifest.json"
 STRUCTURE_POLICY_FIELDS = (
@@ -1462,11 +1468,33 @@ def shortest_lattice_translation(cell: Sequence[Sequence[float]]) -> float:
     return shortest
 
 
+def supercell_lattices_match(
+    generated: Sequence[Sequence[float]],
+    expected: Sequence[Sequence[float]],
+) -> bool:
+    return all(
+        math.isclose(
+            generated_value,
+            expected_value,
+            rel_tol=SUPERCELL_LATTICE_REL_TOL,
+            abs_tol=SUPERCELL_LATTICE_ABS_TOL_BOHR,
+        )
+        for generated_row, expected_row in zip(generated, expected)
+        for generated_value, expected_value in zip(generated_row, expected_row)
+    )
+
+
 def command_preflight(config_path: Path, run_dir: Path) -> dict[str, Any]:
     require_compute_node()
     config, _ = validate_config(config_path)
     run_dir = safe_run_dir(run_dir)
-    run_manifest = verify_manifest(config, config_path, run_dir, stage="preflight")
+    # The accepted structure is immutable upstream evidence.  A later
+    # preflight bug fix may change campaign.py; verify the saved scientific
+    # policy and source hashes, while the Slurm attempt records the exact
+    # current campaign.py hash that performs this preflight.
+    run_manifest = verify_upstream_manifest(
+        config, config_path, run_dir, stage="preflight"
+    )
     attempt = attempt_dir(run_dir)
     unitcell = run_dir / "relax" / "final" / "unitcell.in"
     gate_path = run_dir / "relax" / "final" / "gate.json"
@@ -1586,13 +1614,10 @@ def command_preflight(config_path: Path, run_dir: Path) -> dict[str, Any]:
             )
             for output_row in range(3)
         )
-        if any(
-            not math.isclose(generated, expected, rel_tol=0, abs_tol=2e-7)
-            for generated_row, expected_row in zip(cell, expected_cell_bohr)
-            for generated, expected in zip(generated_row, expected_row)
-        ):
+        if not supercell_lattices_match(cell, expected_cell_bohr):
             raise CampaignError(
-                f"generated lattice violates A_super=M^T A convention for {supercell_id}"
+                "generated lattice violates A_super=M^T A beyond the allowed "
+                f"unit-conversion tolerance for {supercell_id}"
             )
         generated_lengths_angstrom = [
             vector_norm(row) * BOHR_TO_ANGSTROM for row in cell
@@ -1641,6 +1666,11 @@ def command_preflight(config_path: Path, run_dir: Path) -> dict[str, Any]:
             "cell_vectors_bohr": cell,
             "cell_edge_lengths_angstrom": generated_lengths_angstrom,
             "expected_cell_vectors_bohr_from_M_transpose_A": expected_cell_bohr,
+            "lattice_comparison_tolerance": {
+                "relative": SUPERCELL_LATTICE_REL_TOL,
+                "absolute_bohr": SUPERCELL_LATTICE_ABS_TOL_BOHR,
+                "reason": "allow phonopy/phono3py versus configured CODATA Bohr rounding only",
+            },
             "reference_edge_lengths_match": reference_lengths_match,
             "shortest_lattice_translation_angstrom": shortest_lattice_translation(cell) * BOHR_TO_ANGSTROM,
             "inscribed_sphere_radius_angstrom": shortest_lattice_translation(cell) * BOHR_TO_ANGSTROM / 2,

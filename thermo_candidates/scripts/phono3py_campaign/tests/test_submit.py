@@ -18,6 +18,7 @@ from submit import (
     ensure_no_active_duplicate,
     execute_submission,
     require_nibi_login,
+    resolve_context,
     sbatch_command,
     sha256_path,
     stage_plan,
@@ -30,6 +31,27 @@ CONFIG_SHA = hashlib.sha256(b"{}\n").hexdigest()
 
 
 class SubmissionTests(unittest.TestCase):
+    def test_preflight_submission_accepts_immutable_upstream_workflow_hashes(self) -> None:
+        with patch(
+            "submit.validate_config",
+            return_value=(self.config, {"config_sha256": CONFIG_SHA}),
+        ), patch(
+            "submit.verify_manifest",
+            return_value={"material": "Example"},
+        ) as strict, patch(
+            "submit.verify_upstream_manifest",
+            return_value={"material": "Example"},
+        ) as upstream:
+            context = resolve_context(self.config_path, self.run_dir, "preflight")
+        self.assertEqual(context.manifest["material"], "Example")
+        strict.assert_not_called()
+        upstream.assert_called_once_with(
+            self.config,
+            self.config_path.resolve(),
+            self.run_dir.resolve(),
+            stage="preflight",
+        )
+
     def test_accepts_real_nibi_login_hostname_but_not_other_hosts(self) -> None:
         with patch.dict("submit.os.environ", {}, clear=True), patch(
             "submit.socket.getfqdn", return_value="ic-l5.nibi.sharcnet"

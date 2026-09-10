@@ -166,9 +166,12 @@ def resolve_context(config_path: Path, run_dir: Path, stage: str) -> SubmissionC
         raise SubmissionError(f"prepared run directory does not exist: {run_dir}")
     config, validation = validate_config(config_path)
     policy_stage = "structure" if stage == "relax" else "preflight"
-    if stage in {"relax", "preflight"}:
+    if stage == "relax":
         manifest = verify_manifest(config, config_path, run_dir, stage=policy_stage)
     else:
+        # Preflight consumes an already accepted structure.  Preserve the
+        # upstream workflow hashes as provenance, but allow reviewed downstream
+        # code fixes; each new submission/attempt records its current code hash.
         manifest = verify_upstream_manifest(
             config, config_path, run_dir, stage=policy_stage
         )

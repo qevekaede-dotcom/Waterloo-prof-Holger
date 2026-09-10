@@ -15,6 +15,7 @@ from campaign import (
     load_json,
     policy_sha256,
     safe_run_dir,
+    supercell_lattices_match,
     validate_config,
     verify_manifest,
     verify_upstream_manifest,
@@ -27,6 +28,25 @@ RB_CONFIG = REPO_ROOT / "thermo_candidates/Rb2Cu2SnS4/phono3py/campaign.json"
 
 
 class CampaignConfigTests(unittest.TestCase):
+    def test_supercell_lattice_check_allows_phono3py_bohr_constant_roundoff(self) -> None:
+        expected = (
+            (21.76087607467058, 0.0, 0.0),
+            (0.0, 32.6590246063486, 0.0),
+            (0.0, 0.0, 26.461794777792868),
+        )
+        generated_by_phono3py_440 = (
+            (21.760876217736488, 0.0, 0.0),
+            (0.0, 32.6590248210639, 0.0),
+            (0.0, 0.0, 26.461794951764755),
+        )
+        self.assertTrue(
+            supercell_lattices_match(generated_by_phono3py_440, expected)
+        )
+
+        wrong_matrix = [list(row) for row in generated_by_phono3py_440]
+        wrong_matrix[0][1] = 1e-5
+        self.assertFalse(supercell_lattices_match(wrong_matrix, expected))
+
     def test_numeric_displacement_order_preserves_excluded_gaps_and_grouped_traversal(self) -> None:
         dataset = {
             "displacement_pairs": [
