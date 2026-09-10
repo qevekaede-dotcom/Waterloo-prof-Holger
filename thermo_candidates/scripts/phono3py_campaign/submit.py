@@ -684,7 +684,18 @@ def scheduler_job_is_active(job_id: str) -> bool:
         )
     except OSError as exc:
         raise SubmissionError(f"cannot query squeue for prior job {job_id}: {exc}") from exc
-    if queued.returncode != 0:
+    # Slurm may evict a just-finished job from squeue before sacct has been
+    # consulted.  On Nibi that ordinary absence is reported as exit 1 plus
+    # "Invalid job id specified", rather than an empty successful listing.
+    # Only that exact absence case is allowed to fall through to accounting;
+    # every other scheduler-query error remains fail closed.
+    queue_reports_absent_job = (
+        queued.returncode != 0
+        and not queued.stdout.strip()
+        and re.search(r"\bInvalid job id specified\b", queued.stderr, re.IGNORECASE)
+        is not None
+    )
+    if queued.returncode != 0 and not queue_reports_absent_job:
         raise SubmissionError(
             f"squeue failed while checking prior job {job_id}: {queued.stderr.strip()}"
         )

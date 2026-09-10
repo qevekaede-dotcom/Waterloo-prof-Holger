@@ -20,6 +20,7 @@ from submit import (
     require_nibi_login,
     resolve_context,
     sbatch_command,
+    scheduler_job_is_active,
     sha256_path,
     stage_plan,
     validate_force_bundle,
@@ -31,6 +32,33 @@ CONFIG_SHA = hashlib.sha256(b"{}\n").hexdigest()
 
 
 class SubmissionTests(unittest.TestCase):
+    def test_terminal_job_missing_from_squeue_falls_back_to_sacct(self) -> None:
+        missing_from_queue = subprocess.CompletedProcess(
+            [],
+            1,
+            stdout="",
+            stderr="slurm_load_jobs error: Invalid job id specified\n",
+        )
+        terminal_in_accounting = subprocess.CompletedProcess(
+            [], 0, stdout="FAILED|\n", stderr=""
+        )
+        with patch(
+            "submit.subprocess.run",
+            side_effect=[missing_from_queue, terminal_in_accounting],
+        ) as run:
+            self.assertFalse(scheduler_job_is_active("21657046"))
+        self.assertEqual(run.call_count, 2)
+        self.assertEqual(run.call_args_list[1].args[0][0], "sacct")
+
+    def test_unrelated_squeue_error_still_blocks_duplicate_check(self) -> None:
+        scheduler_error = subprocess.CompletedProcess(
+            [], 1, stdout="", stderr="Unable to contact slurm controller\n"
+        )
+        with patch("submit.subprocess.run", return_value=scheduler_error) as run:
+            with self.assertRaisesRegex(SubmissionError, "squeue failed"):
+                scheduler_job_is_active("21657046")
+        self.assertEqual(run.call_count, 1)
+
     def test_preflight_submission_accepts_immutable_upstream_workflow_hashes(self) -> None:
         with patch(
             "submit.validate_config",
