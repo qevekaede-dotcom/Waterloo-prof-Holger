@@ -113,12 +113,30 @@ subtracted using `--cfz`.
 
 ## Active two-material phonon campaign
 
-The fail-closed workflow is on GitHub branch `codex/two-material-phonons`;
-the submission-time code is commit `92d973a`. Nibi uses the clean clone
-`/scratch/yuhansun/Waterloo-prof-Holger-phonons-20260910` and separate run
-directories under `/scratch/yuhansun/phono3py-runs/20260910/`.
+The fail-closed workflow is on GitHub branch `codex/two-material-phonons`.
+The original failed chains used commit `92d973a` in the frozen clean clone
+`/scratch/yuhansun/Waterloo-prof-Holger-phonons-20260910` and run directories
+under `/scratch/yuhansun/phono3py-runs/20260910/`. The reviewed one-reset
+recovery uses commit `20e079f` in a separate clean clone
+`/scratch/yuhansun/Waterloo-prof-Holger-phonons-recovery-20e079f` and separate
+run directories under
+`/scratch/yuhansun/phono3py-runs/20260910-recovery-20e079f/`.
 
-Live scheduler state last checked 2026-09-10 10:02 UTC:
+Live scheduler state last checked 2026-09-10 14:34 UTC:
+
+- Rb2Cu2SnS4 recovery tight-relax job `21656285`: RUNNING on `c508`;
+  afterany evidence collector `21656286`: PENDING on the correct dependency.
+- SrZrS3 recovery tight-relax job `21656287`: RUNNING on `c508`;
+  afterany evidence collector `21656288`: PENDING on the correct dependency.
+
+Both recovery inputs record `restart_mode='from_scratch'`, atomic starting
+potentials/wavefunctions, unchanged material-specific cutoffs and k meshes,
+and no reuse of the old QE scratch. The early QE banners report 32 processor
+cores; both stderr files were empty. At the 14:34 UTC check Rb2Cu2SnS4 had
+reached SCF iteration 4 and SrZrS3 iteration 17 of their first ionic step.
+These are healthy launch diagnostics, not accepted structures.
+
+Original chains and failure evidence:
 
 - Rb2Cu2SnS4 tight-relax job `21638193`: FAILED the strict scientific gate
   after QE stopped with `bfgs failed ... convergence not achieved`; its
@@ -139,7 +157,8 @@ pristine calculation, execution manifest, or accepted structure gate.
 Preserve both failures and use separately audited new runs for any
 continuation; never relabel either failed relaxation as successful.
 
-Both primary jobs request account `def-kleinke_cpu`, 32 tasks, 62.5 GiB, and
+The recovery primary jobs request account `def-kleinke_cpu`, 32 tasks,
+62.5 GiB, and
 12 hours. They run fixed-cell BFGS followed by an independent setting-matched
 pristine SCF and publish no structure unless the strict force, completion,
 position, atom-order, cell, and symmetry gate passes. Only a no-force
@@ -154,11 +173,11 @@ a separate clean checkout that consumes the original hashed evidence.
 
 ## Next research work, when requested
 
-1. Audit both failed relaxations and use their exact manifest/output hashes to
-   prepare separate immutable continuation runs. Restart fixed-cell BFGS with
-   fresh scratch and unchanged scientific settings and acceptance gates. Run
-   no preflight until a recovery emits normal BFGS convergence, an independent
-   pristine SCF, and a passing structure gate.
+1. Monitor jobs `21656285` and `21656287` and their collectors. Run no
+   preflight until a recovery emits normal BFGS convergence, an independent
+   pristine SCF, and a passing structure gate. If a structure passes, submit
+   only its declared count/geometry/unit preflight and inspect the real counts
+   before any force pilot.
 2. For each material independently, run amplitude, basis/cutoff, force-k-mesh,
    supercell, q-mesh, and NAC-sensitivity decisions. Do not copy SrCu2SnS4
    numerical settings or infer a production choice from cost alone.

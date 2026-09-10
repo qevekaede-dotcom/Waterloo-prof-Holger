@@ -856,3 +856,65 @@ claim was made. The low forces in the failed relaxations are still not treated
 as BFGS convergence; no pristine SCF, displacement, FC2/FC3, q-mesh, kappa_L,
 NAC, SOC, PF/tau, or full-zT conclusion was produced. Frozen
 `READY_TO_ATTACH/` records were untouched.
+
+## 2026-09-10 — Session 13: authenticated Nibi recovery deployment and live launch
+
+The user established an interactive Duo-authenticated Nibi SSH session; its
+ControlMaster socket allowed subsequent noninteractive evidence checks. At
+14:28 UTC `squeue` was empty. Explicit job-ID `sacct` queries reconfirmed the
+original terminal states: relax jobs `21638193` and `21638199` FAILED with
+exit `2:0`, while collectors `21638194` and `21638200` COMPLETED. The two
+original `relax.out` hashes and run-manifest hashes matched the archived
+handoff values for Rb2Cu2SnS4 and the collector evidence for SrZrS3. No old
+job or run directory was reused.
+
+A new clean checkout was created at
+`/scratch/yuhansun/Waterloo-prof-Holger-phonons-recovery-20e079f`, fixed at
+Git commit `20e079f`. Nibi's Python 3.11.5 environment with spglib 2.7.0,
+phonopy 4.4.0, and phono3py 4.4.0 passed all **197/197** unit tests, both
+material config validations, Python compilation, and Slurm shell syntax.
+
+The recovery backend then replayed each raw failed attempt and created two new
+immutable run directories below
+`/scratch/yuhansun/phono3py-runs/20260910-recovery-20e079f/`. Rb2Cu2SnS4 was
+bound to source job `21638193`, manifest SHA256
+`e0fb981daee631ca2d8a3d4c07bc2e696d61bfad80672b7e7d3bab06e986d5d5`,
+output SHA256
+`e960376989bf0f11a7ca8c8b4e6cd3a4a328134d881e96752662b645780bd6a4`,
+and recovery-receipt SHA256
+`3f320714efd75a11b462e12da0c3af9f032df9d6f28e8e29d425ae26b753a074`.
+SrZrS3 was bound to source job `21638199`, manifest SHA256
+`0eb7c96aceb46c4232199afcebcabb708d21ee003c9e9bc954ac4f96688a1e4e`,
+output SHA256
+`babf637f09371ced6838dd41e13baaff1e7002614243a5de2ac60c615e69f6f7`,
+and receipt SHA256
+`34fbf5e8294e06f6776903b9fb355b5071f3ef0d4641d77f498a4351f45c20f1`.
+Only small evidence and coordinates were copied; old QE scratch was not
+copied or read as restart state.
+
+Fresh plan/execute handshakes submitted two recovery chains under explicit
+account `def-kleinke_cpu`:
+
+- Rb2Cu2SnS4 primary `21656285`, attempt
+  `20260910T143146Z-relax-1ecddf1b`; afterany collector `21656286`, attempt
+  `20260910T143146Z-collect-d11e8ac9`.
+- SrZrS3 primary `21656287`, attempt
+  `20260910T143146Z-relax-519dab1c`; afterany collector `21656288`, attempt
+  `20260910T143147Z-collect-be4bf4f7`.
+
+At 14:34 UTC both primaries were RUNNING on compute node `c508`, each with 32
+tasks, 62.5 GiB and a 12-hour limit; both collectors were PENDING on their
+correct unfulfilled `afterany` dependencies. The inputs explicitly contain
+`restart_mode='from_scratch'`, `startingpot='atomic'`, and
+`startingwfc='atomic+random'`. QE reported 32 processor cores, both stderr
+files were empty, Rb2Cu2SnS4 had reached SCF iteration 4, and SrZrS3 iteration
+17 of the first ionic step. No fatal QE/MPI marker was present. These are only
+launch-health observations; neither BFGS, pristine, nor the structure gate has
+passed yet, and no preflight or force task was submitted.
+
+**Scientific-rigor review.** The recovery retains the original cumulative
+position-shift reference and all force, cell, atom-order, symmetry, and normal
+BFGS requirements. No threshold or material-specific basis/k mesh was copied
+between materials or relaxed. No new phonon, stability, kappa_L, NAC/SOC,
+PF/tau, or zT claim was made, and every frozen `READY_TO_ATTACH/` record
+remained untouched.
