@@ -37,7 +37,9 @@ completed SCF/force records. Residual-corrected `kappa-m13136.hdf5` matches
 **0.1213 at 900 K**, in W m^-1 K^-1 [calculated].
 
 Conditions: PBE, no explicit SOC, RTA, no NAC, 2x2x1 supercell (96 atoms),
-4.0 A pair cutoff, 3x3x3 force k mesh, final phonon q mesh 13x13x6.
+historical phono3py `cutoff_pair_distance=4.0` in QE units, i.e. **4.0 bohr
+(about 2.1167 A), not 4.0 A**, 3x3x3 force k mesh, and final phonon q mesh
+13x13x6.
 167 displacements used 60/480 Ry; benchmark disp-00001 retained 90/720 Ry
 after a force-difference test (5.2e-6 Ry/bohr versus a 5e-5 threshold).
 Pristine residual maximum component 5.4513e-4 Ry/bohr was measured and
@@ -63,6 +65,21 @@ subtracted using `--cfz`.
   were run. Raw forces and archived `--cfz` evidence support existing results.
 - Dense electronic k-mesh/transport-property convergence is not established
   merely by having completed the first-pass pipeline.
+- A 2026-09-10 audit of the authoritative `phono3py_disp.yaml` found that all
+  included two-displacement pairs at the 4-bohr cutoff have zero pair distance;
+  the shortest nonzero pair is about 4.33833 bohr and was excluded.  Therefore
+  the preserved SrCu2SnS4 kappa values are a computational record from a very
+  short-range/onsite-pair fc3 dataset, not evidence of a 4-A cutoff or
+  pair-cutoff convergence.  Frozen sent attachments remain unchanged.
+- The residual-force `--cfz` source was also re-audited.  Stage 2 did use the
+  archived `checks/pristine/scf.out`: its SCF and complete 96-atom force block
+  precede a `seqopn(90)` restart-file error, MPI abort is present in stderr,
+  and there is no archived evidence of a separate clean rerun.  The final
+  `FORCES_FC3` numerically matches subtraction of that force block, so the
+  provenance of the correction is known, but the pristine QE job itself must
+  not be described as a healthy completion.  This is an additional limitation
+  on the historical first pass, not proof that the written force block is
+  numerically wrong.
 
 ## Communications and immutable records
 
@@ -99,8 +116,10 @@ subtracted using `--cfz`.
 1. Resolve the residual-force reporting issue and review cluster traps.
 2. SrZrS3 phonons with independent convergence decisions and pristine-force
    checks; then Rb2Cu2SnS4. Do not copy SrCu2SnS4 numerical settings.
-3. Optionally tighten SrCu2SnS4 pair cutoff (5.0 A / 600 supercells was
-   proposed) and supercell/q-mesh convergence; not yet performed.
+3. Re-preflight SrCu2SnS4 using explicitly converted Angstrom-to-bohr cutoffs
+   before estimating cost; the historical "5.0 A / 600 supercells" proposal
+   was based on the same unit misunderstanding and is not a valid 5-A budget.
+   Pair-cutoff, supercell, and tensor q-mesh convergence remain unperformed.
 4. Assemble the full three-material phonon writeup/package when supported
    by results; keep interim attachments frozen.
 

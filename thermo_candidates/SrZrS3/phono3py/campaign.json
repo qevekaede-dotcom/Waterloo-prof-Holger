@@ -1,0 +1,372 @@
+{
+  "document_type": "phono3py_qe_campaign",
+  "schema_version": 1,
+  "schema_description": {
+    "purpose": "Material-specific, fail-closed plan for a finite-displacement phono3py lattice-thermal-conductivity campaign on DRAC.",
+    "null_selection": "A selected_* value of null is an intentional scientific gate, not a default. Production must not be submitted while selection_required is true.",
+    "distance_contract": "Every distance passed to phono3py is recorded as a human design value in angstrom and as the corresponding QE-interface CLI value in bohr.",
+    "evidence_contract": "Values under provenance are measured from archived records. Values elsewhere are planned calculation settings or acceptance criteria, not calculated results."
+  },
+  "material": {
+    "formula": "SrZrS3",
+    "database_id": "mp-558760",
+    "materials_project_id": "mp-558760",
+    "polymorph_constraint": "Use mp-558760 only; mp-5193 is a different Pnma polymorph.",
+    "expected_space_group_symbol": "Pnma",
+    "expected_space_group_number": 62,
+    "expected_spacegroup_symbol": "Pnma",
+    "expected_spacegroup_number": 62,
+    "unitcell_atoms": 20,
+    "calculation_status": "configuration_only_no_phonon_result"
+  },
+  "source": {
+    "qe_scf_input": "thermo_candidates/SrZrS3/qe/01_scf/SrZrS3.scf.in",
+    "original_relax_output": "thermo_candidates/SrZrS3/logs/SrZrS3.relax.out",
+    "qe_relax_output": "thermo_candidates/SrZrS3/logs/SrZrS3.relax.out",
+    "structure_section": "Begin final coordinates through End final coordinates",
+    "require_high_precision_output_geometry": true
+  },
+  "provenance": {
+    "primary_structure_output": "thermo_candidates/SrZrS3/logs/SrZrS3.relax.out",
+    "primary_structure_section": "Begin final coordinates through End final coordinates",
+    "archived_scf_input_cross_check": "thermo_candidates/SrZrS3/qe/01_scf/SrZrS3.scf.in",
+    "electronic_convergence_evidence": [
+      "thermo_candidates/SrZrS3/qe/convergence/cutoff_results.csv",
+      "thermo_candidates/SrZrS3/qe/convergence/kpoint_results.csv"
+    ],
+    "pseudopotential_manifest": "thermo_candidates/SrZrS3/qe/pseudo/manifest.md",
+    "reference_cell_vectors_angstrom": [
+      [3.838453236, 0.0, 0.0],
+      [0.0, 8.641205776, 0.0],
+      [0.0, 0.0, 14.002978756]
+    ],
+    "reference_volume_angstrom3": 464.4629,
+    "archived_vc_relax_forc_conv_thr_Ry_per_bohr": 0.001,
+    "measured_final_total_force_Ry_per_bohr": 0.001307,
+    "measured_final_max_abs_force_component_Ry_per_bohr": 0.00050303,
+    "reference_force_note": "Measured from the final SCF force block in the archived vc-relax output; this is too large for the displacement campaign gate.",
+    "runtime_hashes_required": [
+      "campaign.json",
+      "primary_structure_output",
+      "generated_unitcell_input",
+      "all_pseudopotential_files",
+      "phono3py_disp.yaml",
+      "every_QE_force_input"
+    ]
+  },
+  "units": {
+    "bohr_to_angstrom": 0.529177210903,
+    "angstrom_to_cli_bohr_formula": "distance_cli_bohr = distance_angstrom / 0.529177210903",
+    "phono3py_calculator": "qe",
+    "phono3py_qe_length_unit": "bohr",
+    "required_generated_yaml_check": {
+      "yaml_file": "phono3py_disp.yaml",
+      "key_path": "physical_unit.length",
+      "required_value": "au",
+      "failure_action": "stop_before_any_force_submission"
+    },
+    "forbidden_ambiguous_distance_fields": [
+      "amplitude",
+      "cutoff",
+      "cutoff_pair"
+    ]
+  },
+  "scheduler": {
+    "cluster": "nibi",
+    "slurm_account": "def-kleinke_cpu"
+  },
+  "software": {
+    "quantum_espresso_version": "7.3.1",
+    "phono3py_version": "4.4.0",
+    "phonopy_version": "4.4.0",
+    "calculator_interface": "qe",
+    "primitive_axes": "P",
+    "symmetry_tolerance_angstrom": 1e-05,
+    "symmetry_tolerance_cli_bohr": 1.88972612462577e-05,
+    "execution_location_for_heavy_steps": "DRAC_Nibi_compute_node"
+  },
+  "electronic_model": {
+    "exchange_correlation": "PBE",
+    "explicit_spin_orbit_coupling": false,
+    "occupations": "fixed",
+    "smearing": null,
+    "charge_state": 0,
+    "magnetic_order": "nonmagnetic"
+  },
+  "pseudopotentials": {
+    "family": "SSSP_1.3.0_PBE_precision",
+    "files": {
+      "S": "s_pbe_v1.4.uspp.F.UPF",
+      "Sr": "Sr_pbe_v1.uspp.F.UPF",
+      "Zr": "Zr_pbe_v1.uspp.F.UPF"
+    },
+    "require_exact_sha256_match_with_manifested_run": true
+  },
+  "tight_relax": {
+    "required_before_preflight": true,
+    "setting_status": "planned_conservative_not_yet_force_converged",
+    "setting_note": "80/640 Ry and 10x5x3 are deliberately stricter than the completed electronic pass (50/400 Ry and 8x4x2), but the later supercell-force pilot remains an independent requirement.",
+    "symmetrize_start": false,
+    "source_geometry": "high_precision_final_coordinates_from_primary_structure_output",
+    "calculation": "relax",
+    "cell_fixed": true,
+    "ion_dynamics": "bfgs",
+    "ecutwfc_ry": 80,
+    "ecutrho_ry": 640,
+    "kmesh": [10, 5, 3],
+    "kmesh_shift": [0, 0, 0],
+    "conv_thr_ry": 1e-10,
+    "etot_conv_thr_ry": 1e-08,
+    "forc_conv_thr_ry_bohr": 1e-05,
+    "accept_max_force_ry_bohr": 5e-05,
+    "preferred_max_force_ry_bohr": 1e-05,
+    "hard_stop_max_force_ry_bohr": 0.0001,
+    "max_position_shift_angstrom": 0.02,
+    "electron_maxstep": 300,
+    "mixing_beta": 0.3,
+    "tprnfor": true,
+    "tstress": true,
+    "nosym": false,
+    "noinv": false,
+    "acceptance": {
+      "job_done_required": true,
+      "scf_convergence_required": true,
+      "bfgs_convergence_required": true,
+      "expected_atom_count": 20,
+      "large_shift_action": "flag_electronic_phonon_geometry_mismatch_and_require_review"
+    }
+  },
+  "start_structure_standardization": {
+    "symmetrize_start": false,
+    "reason": "The high-precision final vc-relax geometry is already identified as Pnma at 1e-6 angstrom; do not idealize it silently.",
+    "preserve_input_output_mapping_audit": true
+  },
+  "symmetry_validation": {
+    "scan_symprec_pairs": [
+      {"symprec_angstrom": 1e-06, "symprec_cli_bohr": 1.88972612462577e-06},
+      {"symprec_angstrom": 1e-05, "symprec_cli_bohr": 1.88972612462577e-05},
+      {"symprec_angstrom": 0.0001, "symprec_cli_bohr": 0.000188972612462577},
+      {"symprec_angstrom": 0.001, "symprec_cli_bohr": 0.00188972612462577}
+    ],
+    "required_space_group_symbol": "Pnma",
+    "required_space_group_number": 62,
+    "minimum_consecutive_expected_results": 2,
+    "strictest_required_matching_symprec_angstrom": 1e-06,
+    "strictest_required_matching_symprec_cli_bohr": 1.88972612462577e-06,
+    "failure_action": "stop_and_preserve_attempt"
+  },
+  "displacements": {
+    "compute_node_only": true,
+    "generate_counts_only": true,
+    "amplitude_angstrom": 0.03,
+    "amplitude_bohr": 0.0566917837388,
+    "primitive_axes": "P",
+    "phono3py_cli_requirements": [
+      "phono3py-init",
+      "--qe",
+      "--pa P",
+      "--tolerance <symmetry_tolerance_cli_bohr>",
+      "--amplitude <amplitude_bohr>",
+      "--cutoff-pair <cutoff_pair_distance_cli_bohr>"
+    ],
+    "supercell_candidates": [
+      {
+        "id": "sr_fc3_3x2x1",
+        "matrix": [[3, 0, 0], [0, 2, 0], [0, 0, 1]],
+        "phono3py_cli_dim": "3 2 1",
+        "atoms": 120,
+        "reference_edge_lengths_angstrom": [11.515359708, 17.282411552, 14.002978756],
+        "role": "economic_candidate"
+      },
+      {
+        "id": "sr_fc3_4x2x1",
+        "matrix": [[4, 0, 0], [0, 2, 0], [0, 0, 1]],
+        "phono3py_cli_dim": "4 2 1",
+        "atoms": 160,
+        "reference_edge_lengths_angstrom": [15.353812944, 17.282411552, 14.002978756],
+        "role": "preferred_size_candidate"
+      }
+    ],
+    "fc2_only_escalation_candidates": [
+      {
+        "id": "sr_fc2_5x2x1",
+        "matrix": [[5, 0, 0], [0, 2, 0], [0, 0, 1]],
+        "phono3py_cli_dim": "5 2 1",
+        "atoms": 200,
+        "role": "harmonic_range_check"
+      },
+      {
+        "id": "sr_fc2_4x2x2",
+        "matrix": [[4, 0, 0], [0, 2, 0], [0, 0, 2]],
+        "phono3py_cli_dim": "4 2 2",
+        "atoms": 320,
+        "role": "harmonic_escalation_only_if_needed"
+      }
+    ],
+    "cutoff_candidates": [
+      {
+        "id": "sr_cutoff_4A",
+        "cutoff_pair_distance_angstrom": 4.0,
+        "cutoff_pair_distance_cli_bohr": 7.558904498503
+      },
+      {
+        "id": "sr_cutoff_5A",
+        "cutoff_pair_distance_angstrom": 5.0,
+        "cutoff_pair_distance_cli_bohr": 9.448630623129
+      },
+      {
+        "id": "sr_cutoff_6A",
+        "cutoff_pair_distance_angstrom": 6.0,
+        "cutoff_pair_distance_cli_bohr": 11.338356747755
+      }
+    ],
+    "enumerate": [
+      {"fc3_supercell_id": "sr_fc3_3x2x1", "cutoff_pair_id": "sr_cutoff_4A"},
+      {"fc3_supercell_id": "sr_fc3_3x2x1", "cutoff_pair_id": "sr_cutoff_5A"},
+      {"fc3_supercell_id": "sr_fc3_4x2x1", "cutoff_pair_id": "sr_cutoff_4A"},
+      {"fc3_supercell_id": "sr_fc3_4x2x1", "cutoff_pair_id": "sr_cutoff_5A"},
+      {"fc3_supercell_id": "sr_fc3_4x2x1", "cutoff_pair_id": "sr_cutoff_6A"},
+      {"fc3_supercell_id": "sr_fc3_3x2x1", "cutoff_pair_id": null, "count_only_no_cutoff": true},
+      {"fc3_supercell_id": "sr_fc3_4x2x1", "cutoff_pair_id": null, "count_only_no_cutoff": true}
+    ],
+    "hard_cap": 800,
+    "hard_limits": {
+      "maximum_displacement_supercells": 800,
+      "maximum_atoms_per_fc3_supercell": 160,
+      "over_limit_action": "stop_report_and_require_explicit_new_selection"
+    },
+    "required_outputs": [
+      "exact_phono3py_command",
+      "stdout_and_stderr",
+      "phono3py_disp.yaml",
+      "physical_unit.length_equals_au_check",
+      "displacement_count",
+      "generated_supercell_atom_count",
+      "cell_edge_and_inscribed_sphere_metrics",
+      "config_and_structure_sha256"
+    ]
+  },
+  "force_and_amplitude_validation": {
+    "selection_required": true,
+    "subtract_setting_matched_pristine_force_before_comparison": true,
+    "production_symmetry_flags": {
+      "nosym": true,
+      "noinv": true,
+      "use_identically_for_pristine_pilots_and_all_displacements": true
+    },
+    "amplitude_pilot": {
+      "displacement_distance_candidates": [
+        {"displacement_distance_angstrom": 0.02, "displacement_distance_cli_bohr": 0.0377945224925},
+        {"displacement_distance_angstrom": 0.03, "displacement_distance_cli_bohr": 0.0566917837388, "primary_candidate": true},
+        {"displacement_distance_angstrom": 0.04, "displacement_distance_cli_bohr": 0.075589044985}
+      ],
+      "positive_and_negative_displacements_required": true,
+      "representative_species": ["Sr", "Zr", "S"],
+      "acceptance": {
+        "minimum_induced_force_signal_to_duplicate_noise": 10.0,
+        "maximum_relative_change_of_central_force_slope": 0.05,
+        "maximum_duplicate_RMS_force_difference_Ry_per_bohr": 5e-06
+      }
+    },
+    "basis_and_scf_pilot": {
+      "ecut_candidates_Ry": [
+        {"ecutwfc_Ry": 50, "ecutrho_Ry": 400},
+        {"ecutwfc_Ry": 60, "ecutrho_Ry": 480},
+        {"ecutwfc_Ry": 70, "ecutrho_Ry": 560},
+        {"ecutwfc_Ry": 80, "ecutrho_Ry": 640, "reference": true}
+      ],
+      "conv_thr_candidates_Ry": [1e-09, 1e-10],
+      "k_point_candidates": [
+        {"mesh": [2, 2, 2], "role": "candidate"},
+        {"mesh": [3, 3, 3], "role": "reference"}
+      ]
+    },
+    "force_difference_acceptance": {
+      "maximum_component_difference_Ry_per_bohr": 5e-05,
+      "RMS_component_difference_Ry_per_bohr": 1e-05,
+      "relative_RMS_difference": 0.02,
+      "maximum_duplicate_RMS_force_difference_Ry_per_bohr": 5e-06,
+      "all_criteria_required": true
+    },
+    "selected_displacement_distance_angstrom": null,
+    "selected_displacement_distance_cli_bohr": null,
+    "selected_ecutwfc_Ry": null,
+    "selected_ecutrho_Ry": null,
+    "selected_conv_thr_Ry": null,
+    "selected_k_points": null
+  },
+  "production": {
+    "selection_required": true,
+    "selected_supercell": null,
+    "selected_cutoff": null,
+    "selected_fc3_supercell_matrix": null,
+    "selected_fc2_supercell_matrix": null,
+    "selected_cutoff_pair_distance_angstrom": null,
+    "selected_cutoff_pair_distance_cli_bohr": null,
+    "automatic_submission_allowed": false,
+    "pristine_force_required": true,
+    "pristine_force_collection_flag": "--cfz",
+    "immutable_attempt_directories": true,
+    "dynamic_task_map_required": true,
+    "array_bounds_must_equal_task_map": true,
+    "retry_must_not_overwrite_failed_evidence": true,
+    "collector_dependency": "afterany",
+    "reuse_policy": "Reuse forces only when structure, displacement, QE input, pseudopotential, phono3py dataset, calculator units, atom order and all content hashes match exactly."
+  },
+  "postprocess": {
+    "compute_node_only": true,
+    "temperatures_K": [300, 600, 900],
+    "solver": "phono3py_BTE_RTA",
+    "isotope_scattering": false,
+    "boundary_scattering": false,
+    "explicit_SOC": false,
+    "q_mesh_ladder": [
+      [12, 5, 3],
+      [16, 7, 4],
+      [20, 9, 5],
+      [23, 10, 6],
+      [27, 12, 8]
+    ],
+    "q_mesh_basis": "primitive_reciprocal_axes",
+    "q_mesh_acceptance": {
+      "temperatures_must_all_pass": true,
+      "maximum_relative_change_trace_over_3": 0.03,
+      "maximum_relative_change_each_diagonal_component": 0.05,
+      "consecutive_passing_mesh_steps_required": 2,
+      "off_diagonal_components_must_be_reported": true,
+      "largest_unpassed_label": "first_pass_unconverged"
+    },
+    "harmonic_stability_gate": {
+      "sample_full_mesh": true,
+      "imaginary_frequency_tolerance_THz": -0.1,
+      "acoustic_Gamma_exception_requires_manual_review": true,
+      "failure_action": "do_not_report_kappa_as_valid"
+    },
+    "required_hdf5_checks": [
+      "temperatures",
+      "kappa_shape_and_units",
+      "finite_values",
+      "mesh",
+      "solver_settings",
+      "frequency_minimum",
+      "tensor_components",
+      "config_and_force_constant_hashes"
+    ]
+  },
+  "nac": {
+    "enabled_for_first_pass": false,
+    "born_effective_charges_available": false,
+    "dielectric_tensor_available": false,
+    "first_pass_required_label": "no_NAC",
+    "sensitivity_test_required_before_final_physical_convergence_claim": true
+  },
+  "claim_policy": {
+    "allowed_before_all_gates_pass": "workflow/preflight status only",
+    "allowed_after_first_pass": "calculated PBE RTA kappa_L, explicitly labeled no SOC and no NAC",
+    "forbidden_claims": [
+      "fully converged lattice thermal conductivity without supercell and cutoff tests",
+      "final thermoelectric zT",
+      "experimental agreement without experimental evidence"
+    ]
+  }
+}

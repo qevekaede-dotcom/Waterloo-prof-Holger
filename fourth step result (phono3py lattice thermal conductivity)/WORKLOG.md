@@ -640,3 +640,70 @@ written, per append-only rules). Reconciliation decisions:
 - Both sessions' HANDOFF / Roy_task_status edits were merged into single
   reconciled versions (interim SENT; full package pending SrZrS3 +
   Rb2Cu2SnS4).
+
+## 2026-09-10 — Session 7: two-material campaign audit and QE-unit correction
+
+The user authorized an automated DRAC workflow for the pending SrZrS3 and
+Rb2Cu2SnS4 phono3py calculations.  Before submitting new force campaigns, the
+shared driver and old SrCu2SnS4 evidence were audited.  Heavy calculations and
+phonon postprocessing remain restricted to DRAC compute nodes; no new science
+was run locally.
+
+The audit found that the phono3py QE interface records lengths in atomic units.
+The authoritative SrCu2SnS4 `phono3py_disp.yaml` says `length: "au"`; its
+`cutoff_pair_distance: 4.0` is therefore 4 bohr (about 2.1167 A), not 4 A as
+previously documented.  All 24 included two-displacement pair groups have
+zero pair distance, while the shortest nonzero pair is about 4.33833022 bohr
+and was excluded.  The 168-supercell result is retained as a calculated,
+residual-corrected historical first pass, but its interpretation is downgraded:
+it does not establish a physically adequate 4-A fc3 range or pair-cutoff
+convergence.  The frozen interim email attachments were not edited.  The old
+"5 A / 600 supercells" notebook estimate is affected by the same unit issue
+and must not be used as a true 5-A cost estimate.
+
+A new strict QE force parser was started under
+`thermo_candidates/scripts/phono3py_campaign/`.  It selects the main total
+force block rather than the repeated high-verbosity force decompositions,
+requires the last pw.x run to converge and finish, rejects later truncated
+force blocks, and validates the expected atom count.  Five lightweight unit
+tests pass.  Direct read-only checks of the original final relax outputs give
+maximum force components of 5.0303e-4 Ry/bohr for SrZrS3 and 2.6738e-4
+Ry/bohr for Rb2Cu2SnS4.  Both exceed the new phonon-grade gate and therefore
+require fixed-cell tight ionic relaxation plus an independent pristine SCF
+before displacement preflight.
+
+The new configs and generator will store requested distances in Angstrom and
+convert explicitly with 1 bohr = 0.529177210903 A before invoking phono3py;
+generated YAML displacement norms, cutoff, atom count, supercell matrix, and
+volume ratio must be checked.  Production selection remains blocked until
+remote preflight reports the real displacement counts and resource estimates.
+
+## 2026-09-10 — Session 8: residual-force provenance correction and gated workflow
+
+A second read-only audit traced the exact SrCu2SnS4 residual-force source.
+`slurm_logs/stage2_20311271.out` and `log_cf3.txt` show that the final stage-2
+command passed `--cfz checks/pristine/scf.out`, and phono3py reported that the
+file's forces were subtracted before creating `FORCES_FC3`.  That archived QE
+output has one converged SCF and a complete 96-atom force block, followed by
+`seqopn(90): error opening ./tmp/sc.restart`; its stderr records MPI aborts.
+The repository contains no second PWSCF output supporting the older statement
+that job 20305344 was a clean rerun.  A numerical reconstruction of phono3py's
+per-file drift correction plus subtraction of this pristine force block agrees
+with the first 96 `FORCES_FC3` components to a maximum of about
+4.17e-11 Ry/bohr.  Therefore the correction's data lineage is established,
+but the pristine QE run is not a healthy completed calculation.  This corrects
+the earlier worklog claim without rewriting it or changing frozen attachments.
+
+The pending-material workflow now has separate SrZrS3 and Rb2Cu2SnS4 campaign
+configs, strict QE input/output parsers, immutable attempt and provenance
+records, fixed-cell tight-relax plus independent-pristine gates, phono3py
+count/geometry/unit preflight, evidence-only afterany collection, and a
+fail-closed Nibi submission front-end.  Scientific-policy hashes are separated
+by stage so a later recorded production choice cannot invalidate earlier
+structure evidence.  The explicit Slurm account is `def-kleinke_cpu`; every
+request records it and uncertain successful `sbatch` responses block retry.
+Local lightweight validation passed 36 unit tests, Python compilation, both
+material config validations, and shell syntax checks.  Final read-only review
+released only relax and passing-gate preflight; force production, FC2/FC3,
+transport postprocessing, and final audit remain intentionally blocked pending
+real remote preflight and force/amplitude convergence evidence.
