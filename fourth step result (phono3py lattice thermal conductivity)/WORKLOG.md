@@ -927,3 +927,80 @@ execution manifest nor structure gate existed yet. Rb2Cu2SnS4 `21656285`
 remained inside its first recovery SCF. Both Slurm primaries were still
 RUNNING and both collectors remained correctly dependency-held, so no
 preflight action was taken.
+
+## 2026-09-10 — Session 14: SrZrS3 gate/preflight and Rb recovery boundary
+
+Live Nibi evidence was re-queried rather than inferred from the previous job
+snapshot. SrZrS3 recovery `21656287` and collector `21656288` both completed.
+The recovery had normal BFGS convergence in 2 SCF cycles / 1 ionic step; the
+setting-matched pristine SCF also converged and finished. The immutable
+structure gate passed at 14:50 UTC: relax/pristine maximum force components
+were `9.87e-6` and `1.046e-5 Ry/bohr`, respectively; maximum cumulative
+position shift was `0.0018847721 A`; all 20 atoms and the fixed cell matched;
+Pnma (#62) was retained at symmetry tolerances from `1e-6` to `1e-3 A`.
+This accepts a structure for displacement preflight only, not for production
+force or kappa claims.
+
+The first SrZrS3 preflight, job `21657046`, failed closed in 34 seconds after
+phono3py had generated the first candidate. The immediate error claimed a
+violation of `A_super=M^T A`, but the matrix was correct. Direct reconstruction
+found only one threshold exceedance: the generated 32.6590248211-bohr vector
+differed from the configured-CODATA reconstruction by `2.147e-7 bohr`, just
+above the old `2e-7` absolute tolerance. phono3py 4.4.0 uses approximately
+`0.529177207424 A/bohr`, while the configuration explicitly uses
+`0.529177210903 A/bohr`; their relative difference is about `6.6e-9`.
+
+The preflight lattice gate now uses `1e-8` relative plus `2e-8 bohr` absolute
+tolerance and records that tolerance in every result. A regression test uses
+the actual failed SrZrS3 vectors and still rejects a `1e-5 bohr` wrong-matrix
+perturbation. The preflight submission path was also corrected to consume the
+accepted structure as immutable upstream evidence when downstream code changes;
+new Slurm submissions and attempts still record their exact current script and
+campaign-code hashes. A second submission attempt initially stopped before
+`sbatch` because Nibi reports a just-finished job missing from `squeue` as
+`Invalid job id specified`; the duplicate checker now treats only that exact
+absence response as a reason to query `sacct`, while unrelated scheduler
+errors remain blocking. Tests cover both cases.
+
+The corrected code was pushed as `dd13471` and `0586c6b`, fast-forwarded into
+the recovery checkout, and validated on both the Mac scientific environment
+and Nibi: **201/201 tests passed**, both campaign configs validated, Python
+compilation passed, all Slurm shell files passed `bash -n`, and `git diff
+--check` passed. Two local invocation mistakes are retained here: the first
+scientific-environment discovery command ran from the repo root without the
+campaign module on `PYTHONPATH`, and the first config command used one `..`
+too many. Correct reruns from the campaign directory passed; neither error was
+a workflow or scientific failure.
+
+Corrected SrZrS3 preflight `21657673` completed in 1m50s. Inventory SHA256 is
+`3ff44af185f185f5d95648df5e53042f7d25f361d9b7577a8f7d3b7f8161f6ab`.
+The exact generated displacement counts were:
+
+- 3x2x1 (120 atoms), 4 A: 1379; 5 A: 2047; uncut: 11625.
+- 4x2x1 (160 atoms), 4 A: 1379; 5 A: 2047; 6 A: 3747; uncut: 15225.
+
+All five routine candidates contain nonzero pair groups and passed unit,
+matrix, volume, atom-count, ID, amplitude, cutoff, and geometry checks, but
+all exceed the configured 800-displacement hard cap. The inventory therefore
+contains zero selection-eligible candidates and explicitly requires
+scientific/resource review. No pilot or force task was submitted.
+
+Rb2Cu2SnS4 recovery `21656285` failed with exit `2:0`; collector `21656286`
+completed and archived the immutable evidence. QE completed four electronic
+SCFs and pw.x returned zero with `JOB DONE`, but the optimizer printed
+`history already reset at previous step: exiting` and explicit BFGS
+nonconvergence after 4 SCF cycles / 3 BFGS steps. Total force decreased
+`8.2e-5 -> 7.9e-5 -> 7.1e-5 -> 6.7e-5 Ry/bohr`; the final strict-parser
+maximum component was `1.768e-5 Ry/bohr`. Stderr is empty and there is no
+separate QE, MPI, OOM, or time-limit error. No pristine calculation or gate
+was produced. The recovery output SHA256 is
+`7203cb32b14c4c39aa450746993b240487ad7d6c65320eaf42c6ae120e85e118`.
+Because the reviewed workflow permits only one automatic reset, a second
+continuation is not authorized without scientific review.
+
+**Scientific-rigor review.** No lattice thermal conductivity, FC2/FC3,
+stability, NAC/SOC, PF/tau, or full-zT claim was produced. A successful pw.x
+exit and low force were not substituted for normal BFGS convergence. SrZrS3
+counts are preflight cost/geometry evidence only; they do not prove force,
+cutoff, supercell, q-mesh, or kappa convergence. All `READY_TO_ATTACH/`
+records remained unchanged.

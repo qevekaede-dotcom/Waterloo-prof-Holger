@@ -10,6 +10,12 @@ the layout of the earlier step-result packages.
 - The SrCu2SnS4 campaign is COMPLETE: 168 force calculations on Nibi
   (DRAC), force constants, q-mesh ladder, kappa_L(300-900 K). All raw
   records are archived in `thermo_candidates/SrCu2SnS4/phono3py/`.
+- SrZrS3 has a passing tight-relax/pristine structure gate. Its audited
+  preflight found 1379-3747 displacement supercells for the declared 4-6 A
+  candidates, all above the configured 800-task cap; no force job was launched.
+- Rb2Cu2SnS4 failed the strict BFGS gate in both its initial attempt and its
+  reviewed one-reset recovery. The low final force does not replace normal
+  optimizer convergence; no pristine, preflight, force, or kappa stage ran.
 - The pristine residual-force check is CLOSED: max residual 5.5e-4
   Ry/bohr (above the 1e-4 guideline), measured and then SUBTRACTED from
   all displaced-cell forces via phono3py `--cfz`; the correction moved

@@ -19,8 +19,8 @@ for continuity. This file records state, not authorization to launch work.
 | Material | Electronic first pass | Sampled PBE gap [calculated] | Lattice thermal conductivity |
 | --- | --- | --- | --- |
 | SrCu2SnS4 | QE + BoltzTraP2 complete | 0.3445 eV | First pass complete |
-| SrZrS3 | QE + BoltzTraP2 complete | 0.6096 eV | Tight-relax gate running; no kappa result |
-| Rb2Cu2SnS4 | QE + BoltzTraP2 complete | 0.7811 eV | Tight-relax gate running; no kappa result |
+| SrZrS3 | QE + BoltzTraP2 complete | 0.6096 eV | Structure gate passed; preflight over cap; no kappa result |
+| Rb2Cu2SnS4 | QE + BoltzTraP2 complete | 0.7811 eV | One-reset recovery failed BFGS; no kappa result |
 
 Each electronic pass includes independent convergence tests, vc-relax,
 final SCF, dense NSCF, and 300–900 K transport tables. Evidence:
@@ -117,27 +117,45 @@ The fail-closed workflow is on GitHub branch `codex/two-material-phonons`.
 The original failed chains used commit `92d973a` in the frozen clean clone
 `/scratch/yuhansun/Waterloo-prof-Holger-phonons-20260910` and run directories
 under `/scratch/yuhansun/phono3py-runs/20260910/`. The reviewed one-reset
-recovery uses commit `20e079f` in a separate clean clone
+recovery started from commit `20e079f` in a separate clean clone
 `/scratch/yuhansun/Waterloo-prof-Holger-phonons-recovery-20e079f` and separate
 run directories under
-`/scratch/yuhansun/phono3py-runs/20260910-recovery-20e079f/`.
+`/scratch/yuhansun/phono3py-runs/20260910-recovery-20e079f/`. After the
+structure evidence was frozen, that checkout was fast-forwarded to `0586c6b`
+for two reviewed preflight/submission fixes; each attempt records its exact
+campaign-code hash and Git commit.
 
-Live scheduler state last checked 2026-09-10 14:38 UTC:
+Live scheduler/evidence state last checked 2026-09-10 15:11 UTC; the user's
+queue was empty:
 
-- Rb2Cu2SnS4 recovery tight-relax job `21656285`: RUNNING on `c508`;
-  afterany evidence collector `21656286`: PENDING on the correct dependency.
-- SrZrS3 recovery tight-relax job `21656287`: RUNNING on `c508`;
-  afterany evidence collector `21656288`: PENDING on the correct dependency.
+- Rb2Cu2SnS4 recovery tight-relax `21656285`: FAILED with exit `2:0` after
+  4 SCF cycles / 3 BFGS steps; collector `21656286`: COMPLETED. QE wrote
+  `history already reset at previous step: exiting` followed by explicit
+  BFGS nonconvergence. The last total force was `6.7e-5 Ry/bohr` and the
+  strict-parser maximum component was `1.768e-5 Ry/bohr`; pw.x itself returned
+  zero, `JOB DONE` is present, and stderr is empty. Those low forces do not
+  replace normal BFGS convergence. No pristine SCF or accepted gate exists.
+- SrZrS3 recovery tight-relax `21656287`: COMPLETED; collector `21656288`:
+  COMPLETED. The immutable gate passed after normal BFGS convergence and a
+  healthy independent pristine SCF. Relax/pristine maximum components were
+  `9.87e-6` and `1.046e-5 Ry/bohr`; the maximum cumulative position shift was
+  `0.0018848 A`, and Pnma remained present from `1e-6` through `1e-3 A`
+  symmetry tolerances.
+- SrZrS3 count/geometry/unit preflight `21657046` FAILED before selection
+  because a too-tight lattice comparison rejected the harmless difference
+  between the configured and phono3py Bohr constants. No force task ran.
+  The corrected immutable attempt `21657673` COMPLETED in 1m50s. All five
+  routine candidates exceeded the configured 800-displacement hard cap:
+  3x2x1/4 A = 1379, 3x2x1/5 A = 2047, 4x2x1/4 A = 1379,
+  4x2x1/5 A = 2047, and 4x2x1/6 A = 3747. The uncut counts are 11625 and
+  15225. The inventory therefore has zero selection-eligible candidates and
+  still requires explicit scientific/resource review.
 
-Both recovery inputs record `restart_mode='from_scratch'`, atomic starting
+Both recovery inputs recorded `restart_mode='from_scratch'`, atomic starting
 potentials/wavefunctions, unchanged material-specific cutoffs and k meshes,
-and no reuse of the old QE scratch. The early QE banners report 32 processor
-cores; both stderr files were empty. At the 14:38 UTC check Rb2Cu2SnS4 was
-still in the first recovery SCF. SrZrS3 had recorded normal BFGS convergence
-in two SCF cycles / one ionic step, wrote final coordinates and `JOB DONE`,
-and had entered the independent pristine SCF; its overall job and structure
-gate were still unfinished. These are healthy intermediate diagnostics, not
-accepted structures.
+and no reuse of the old QE scratch. Only SrZrS3 reached an accepted structure.
+No force array, FC2/FC3 construction, q-mesh calculation, or kappa
+postprocessing has been submitted for either pending material.
 
 Original chains and failure evidence:
 
@@ -176,19 +194,21 @@ a separate clean checkout that consumes the original hashed evidence.
 
 ## Next research work, when requested
 
-1. Monitor jobs `21656285` and `21656287` and their collectors. Run no
-   preflight until a recovery emits normal BFGS convergence, an independent
-   pristine SCF, and a passing structure gate. If a structure passes, submit
-   only its declared count/geometry/unit preflight and inspect the real counts
-   before any force pilot.
-2. For each material independently, run amplitude, basis/cutoff, force-k-mesh,
+1. Rb2Cu2SnS4 requires scientific review before another ionic continuation.
+   The allowed one-reset path is exhausted, and a second automatic reset is
+   deliberately rejected. Do not infer acceptance from the small final force.
+2. SrZrS3 requires an explicit new cutoff/supercell/resource selection because
+   every declared routine preflight candidate exceeds the 800-task cap. Do not
+   raise the cap or launch a pilot merely to bypass this gate; first review a
+   scientifically defensible smaller cutoff or alternative strategy and cost.
+3. For each material independently, run amplitude, basis/cutoff, force-k-mesh,
    supercell, q-mesh, and NAC-sensitivity decisions. Do not copy SrCu2SnS4
    numerical settings or infer a production choice from cost alone.
-3. Re-preflight SrCu2SnS4 using explicitly converted Angstrom-to-bohr cutoffs
+4. Re-preflight SrCu2SnS4 using explicitly converted Angstrom-to-bohr cutoffs
    before estimating cost; the historical "5.0 A / 600 supercells" proposal
    was based on the same unit misunderstanding and is not a valid 5-A budget.
    Pair-cutoff, supercell, and tensor q-mesh convergence remain unperformed.
-4. Assemble the full three-material phonon writeup/package when supported
+5. Assemble the full three-material phonon writeup/package when supported
    by results; keep interim attachments frozen.
 
 Use [DRAC_SETUP.md](DRAC_SETUP.md) and the campaign

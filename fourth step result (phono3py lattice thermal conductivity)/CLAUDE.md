@@ -5,9 +5,11 @@ get phono3py running + "how we got it working" writeup). Built from the
 authoritative records in `thermo_candidates/SrCu2SnS4/phono3py/` and
 `thermo_candidates/SrCu2SnS4/results/`.
 
-- Package status: IN PROGRESS. Only SrCu2SnS4 is done (first pass); SrZrS3
-  and Rb2Cu2SnS4 phonon campaigns have not started; the full writeup and
-  reproducibility bundle are still to be assembled here.
+- Package status: IN PROGRESS. Only SrCu2SnS4 is done (first pass). SrZrS3
+  passed its structure gate, but all declared preflight candidates exceed the
+  task cap; Rb2Cu2SnS4 failed its reviewed one-reset BFGS recovery. Neither has
+  a force campaign or kappa result. The full writeup and reproducibility bundle
+  are still to be assembled here.
 - `EMAIL_DRAFT.md` is the INTERIM progress email (SrCu2SnS4 kappa_L +
   short trap list). **The interim email WAS SENT (from the uwaterloo
   mailbox); `READY_TO_ATTACH/` is now frozen** — it records exactly the two
