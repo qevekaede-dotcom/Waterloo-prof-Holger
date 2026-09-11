@@ -1284,3 +1284,77 @@ an audited continuation plan, not a new calculated material result. Production
 choices remain unapproved, public postprocessing and final audit remain
 unreleased, no historical failure was reclassified as success, and every
 `READY_TO_ATTACH/` directory and frozen raw record remained untouched.
+
+## 2026-09-11 — Session 18: signed gate submissions and preserved Rb startup failure
+
+The user explicitly authorized Nibi submission after the local continuation
+plan. The former hourly automation was confirmed absent; this session used
+only direct, manual checks. Before submission, the implementation was expanded
+to bind exact preflight subsets, diagnostic resources, immutable
+pseudopotentials, Slurm submission/collector records, runtime scripts,
+terminal accounting, and symlink-safe paths. A fresh independent Sol review
+returned `SHIP`. Local validation passed 290 tests with one optional-spglib
+skip, both material configs, Python compilation, all Slurm shell syntax, and
+`git diff --check`. The reviewed implementation was committed and pushed as
+`4e9b64c`.
+
+The Nibi ControlMaster session was live at 12:53 UTC and the user's queue was
+empty. A clean detached clone was created at
+`/scratch/yuhansun/Waterloo-prof-Holger-remaining-phonons-4e9b64c`, and the
+exact commit passed the same 290-test suite plus both config and shell checks
+on Nibi. The first preparation invocation used the system `python3` and
+stopped before creating the run root because that interpreter lacked
+`spglib`. The corrected invocation used the fixed
+`/home/yuhansun/venvs/p3/bin/python` environment (spglib 2.7.0, phonopy 4.4.0,
+phono3py 4.4.0) and prepared fresh, self-contained SrZrS3 and Rb2Cu2SnS4 run
+directories from reverified source hashes.
+
+SrZrS3 count-only preflight job `21730034` completed with exit `0:0` in 20
+seconds. Its signed subset contained only
+`sr_fc3_2x1x1__sr_cutoff_3p70A` and
+`sr_fc3_3x1x1__sr_cutoff_3p70A`. Each candidate generated 1003 displacement
+supercells; the corresponding uncontracted counts were 4025 and 5825. Both
+exceed the 800-displacement hard cap and remain selection-ineligible. The
+inventory intentionally records `requested_scope_complete=true` while
+`preflight_complete=false` and `full_config_preflight_complete=false`, so it
+cannot release pilot or production work. No force calculation ran.
+
+The first Rb2Cu2SnS4 diagnostic job `21730035` failed with exit `1:0` after 3
+seconds, before any SCF or `diagnostic_execution.json` existed. Its preserved
+stderr is exactly the Alliance profile's nounset failure for
+`SKIP_CC_CVMFS`. Afterany collector `21730036` completed, correctly recorded
+an incomplete/no-gate result, and exposed a second technical defect: the
+deliberately cleaned PATH did not contain Nibi's `sacct`, so accounting was
+recorded with code 127. The one-shot dispatch claim consumed that run
+directory as designed. It was not reused, deleted, or relabeled as a
+scientific attempt.
+
+The minimal hotfix temporarily disables nounset only while sourcing the
+external Alliance profile, restores the caller's shell options on success and
+failure, and calls trusted `/opt/software/slurm/bin/sacct` directly. Added
+regressions reproduce both live faults. Local validation then passed 293 tests
+with one optional-spglib skip, and fresh Sol review again returned `SHIP`.
+The fix was committed and pushed as `f557d02`; a new clean detached Nibi clone
+passed all 293 tests in the phono3py environment, with both runtime and config
+checks clean.
+
+A wholly new Rb lineage was prepared under
+`/scratch/yuhansun/phono3py-runs/20260911-continuation-f557d02/Rb2Cu2SnS4`
+from the same reverified failed-recovery source hashes. Diagnostic job
+`21731206` and afterany collector `21731207` were submitted at 13:06 UTC. At
+the final submission snapshot the diagnostic was `RUNNING` on one Nibi node
+with 32 tasks, 2000 MB per task, and a two-hour ceiling; the collector was
+dependency-pending. No diagnostic finalization, BFGS polish, structure gate,
+preflight, force array, FC2/FC3 construction, q-mesh, or kappa calculation was
+released from this Rb run.
+
+**Scientific-rigor review.** Sr's new values are displacement counts and
+resource-screening evidence only. Rb's first dispatch is a documented
+technical startup failure, while the replacement diagnostic is still a
+running fixed-geometry force-consistency test at this snapshot. Neither is a
+new phonon, stability, force-constant, kappa_L, PF/tau, electronic-only zT, or
+full-zT result. A successful Slurm state alone cannot authorize a report:
+collector evidence and scientific gates must pass, followed by the full
+material-specific force/FC2/FC3/q-mesh pipeline. The historical SrCu2SnS4
+baseline also remains a first-pass, unconverged reference under the current
+stricter contract. Frozen attachments and raw records were unchanged.

@@ -2,7 +2,8 @@
 
 Last repository/evidence audit: 2026-09-11. Current continuation is in the
 separate worktree `/Users/kaede/research/Waterloo-Holger-remaining-phonons`,
-branch `codex/remaining-two-phonons`, with local implementation commit
+branch `codex/remaining-two-phonons`. The submission workflow is fixed at
+implementation commit `f557d02`; the evidence-preparation milestone began at
 `e524d6e`. It was forked from the fetched active research commit `5fdd4a1` on
 `origin/codex/two-material-phonons`; the original worktree was left clean and
 unchanged. Historical repository reconciliation and the merge through
@@ -111,6 +112,50 @@ subtracted using `--cfz`.
   Presentation/reproducibility copies are intentional, not cleanup waste.
 
 ## Active two-material phonon campaign
+
+### 2026-09-11 13:06 UTC Nibi gate-submission snapshot
+
+The user explicitly authorized Nibi submission. The reviewed code was pushed
+on `codex/remaining-two-phonons`, deployed in clean exact-commit clones, and
+used only for the two agreed gate calculations. No production force array,
+FC2/FC3 construction, q-mesh calculation, or kappa postprocessing was
+submitted.
+
+- SrZrS3 count-only preflight job `21730034` completed successfully from
+  commit `4e9b64c`. The signed subset contained only
+  `sr_fc3_2x1x1__sr_cutoff_3p70A` and
+  `sr_fc3_3x1x1__sr_cutoff_3p70A`. Both generated **1003** displacement
+  supercells and therefore exceed the 800-displacement cap. The immutable
+  inventory records `requested_scope_complete=true`, but
+  `preflight_complete=false`, `full_config_preflight_complete=false`, and
+  zero selection-eligible candidates. This is cost/geometry evidence, not a
+  force, phonon, or thermal-conductivity result.
+- The first Rb2Cu2SnS4 diagnostic dispatch, job `21730035` from commit
+  `4e9b64c`, failed after 3 seconds before any SCF because the Alliance module
+  profile read optional `SKIP_CC_CVMFS` while the stage had shell nounset
+  enabled. Its collector `21730036` completed but correctly published no
+  scientific gate; it also exposed that the cleaned PATH omitted Nibi's
+  `sacct`. The failed run directory and its incomplete accounting receipt are
+  preserved unchanged.
+- Minimal runtime fix `f557d02` temporarily disables nounset only while
+  sourcing the external Alliance profile, restores the caller's shell
+  options, and invokes the fixed trusted
+  `/opt/software/slurm/bin/sacct`. Local validation passed 293 tests with one
+  optional-spglib skip; the Nibi phono3py environment passed all 293 tests.
+  A fresh independent Sol review returned `SHIP`.
+- A separate fresh Rb2Cu2SnS4 lineage was prepared from the reverified source
+  hashes under
+  `/scratch/yuhansun/phono3py-runs/20260911-continuation-f557d02/`.
+  Diagnostic job `21731206` was `RUNNING` and its afterany collector
+  `21731207` was dependency-pending at the 13:06 UTC snapshot. This fixed-
+  geometry three-SCF diagnostic cannot accept a structure or release
+  preflight by itself. Do not run `finalize-diagnostic` until the collector
+  has terminal, complete `COMPLETED/0:0` accounting and the full immutable
+  evidence replay passes. Do not release or submit the BFGS polish without a
+  separate reviewed decision.
+
+The former hourly automation remains absent. Future status checks are manual
+and user-directed.
 
 ### 2026-09-11 local continuation milestone
 
