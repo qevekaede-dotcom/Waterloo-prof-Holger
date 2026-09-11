@@ -1358,3 +1358,78 @@ collector evidence and scientific gates must pass, followed by the full
 material-specific force/FC2/FC3/q-mesh pipeline. The historical SrCu2SnS4
 baseline also remains a first-pass, unconverged reference under the current
 stricter contract. Frozen attachments and raw records were unchanged.
+
+## 2026-09-11 — Session 19: Rb Slurm-step repair and live diagnostic launch
+
+This entry supersedes Session 18's live Rb snapshot without rewriting its
+historical evidence. Diagnostic job `21731206` from commit `f557d02` did not
+run an SCF: it stopped after 6 seconds because Nibi did not provide a usable
+`SLURM_TIMELIMIT` variable. Its collector `21731207` completed and bound the
+terminal accounting (`FAILED`, exit `2:0`, 32 CPUs, 62.50G requested memory,
+120-minute scheduler limit) into an incomplete/no-gate record. Commit
+`2a58b59` added a signed 120-minute request fallback for the missing runtime
+variable while retaining terminal `sacct TimelimitRaw` as authoritative.
+
+The resulting fresh diagnostic job `21731419` also stopped before a scientific
+SCF. The batch shell loaded Quantum ESPRESSO successfully, but all 32 tasks in
+the nested `srun pw.x` step reported `execve(): pw.x: No such file or
+directory`; the process receipt records return code 2 and empty stdout. Job
+accounting is `FAILED/2:0` after 9 seconds, and collector `21731420` completed
+with an immutable incomplete/no-gate report. The exact cause was Slurm's
+inheritance of the submission-side finite `--export` policy into job steps:
+the batch shell saw the module-added QE path, while the nested step did not.
+
+Commit `cf0b1d1` fixes only that boundary. The login-to-batch submission remains
+an explicit allow-list; inside the sanitized batch environment,
+`SLURM_EXPORT_ENV=ALL` is forced and read-only so `srun` receives the fixed
+module and virtualenv environment. New tests reproduce a restricted initial
+export, module load, virtualenv activation and `srun pw.x`; they also preserve
+failure when the module lacks QE and confirm that callers still cannot inject
+an all-environment sbatch export. The full local suite passed 298 tests with
+one optional-spglib skip; Python compilation, shell syntax and whitespace
+checks passed. Fresh independent Sol review returned `SHIP`. A clean detached
+Nibi clone at
+`/scratch/yuhansun/Waterloo-prof-Holger-remaining-phonons-cf0b1d1` passed all
+298 tests in `/home/yuhansun/venvs/p3`.
+
+Two one-core, non-scientific Slurm smoke records were retained. Job `21732162`
+failed a test-script assertion that required a literal `LD_LIBRARY_PATH`, even
+though its `srun /usr/bin/env` step completed; that variable is not required
+when the linked runtime is otherwise resolvable. The corrected smoke job
+`21732191` completed `0:0` in 7 seconds. Its job step resolved
+`/cvmfs/.../quantumespresso/7.3.1/bin/pw.x`, and `ldd` showed no missing linked
+library. No QE material calculation was run by either smoke test.
+
+The original failed-recovery source hashes were reverified unchanged before a
+new lineage was prepared:
+
+- source run manifest:
+  `888994ffd904adafcf4bf2de816edab7adffe1722eda55ce4badf94b55202021`;
+- source `relax.out`:
+  `7203cb32b14c4c39aa450746993b240487ad7d6c65320eaf42c6ae120e85e118`;
+- new lineage:
+  `c28d1f118fbbb16b54c0d341e0796441e4b1414ad30a71ba6e46e1cf503ed34d`;
+- new baseline and higher-ecutrho inputs:
+  `aea7a2819a03b2ca3785229c40a715dbde8473bc1245cdfd25b206ac12f1f7ad`
+  and
+  `156338eaf4b13f43c476445b357ee0ccd5e789f3b970f5c01042bcc177be09bd`.
+
+The run root is
+`/scratch/yuhansun/phono3py-runs/20260911-continuation-cf0b1d1/Rb2Cu2SnS4`.
+Diagnostic job `21732222` and afterany collector `21732223` were submitted at
+13:31 UTC. At the 13:32 UTC snapshot, the diagnostic was `RUNNING` with 32
+tasks, 2000 MB per task and a two-hour limit; the collector was
+dependency-pending. `baseline-a/scf.out` was about 41 KB and showed QE had
+initialized the grids, memory and electronic calculation, while `scf.err` was
+empty. This is the first current diagnostic attempt verified to have entered
+QE; it is not yet a completed or passing diagnostic.
+
+**Scientific-rigor review.** None of the three failed Rb attempts is a material
+result, and a running fourth attempt is not a result either. Even a passing
+three-SCF diagnostic can only support a separate decision on one BFGS polish;
+it cannot accept the structure. SrZrS3 remains blocked because both new
+count-only candidates require 1003 displacements and exceed the 800 cap. No
+new force dataset, FC2/FC3, phonon stability result, q-mesh convergence,
+kappa_L, PF/tau, electronic-only zT or full zT was produced. No polish,
+preflight, production or postprocessing stage was automatically released, no
+hourly automation was created, and frozen attachments remained unchanged.

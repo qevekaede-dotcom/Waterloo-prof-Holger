@@ -3,7 +3,7 @@
 Last repository/evidence audit: 2026-09-11. Current continuation is in the
 separate worktree `/Users/kaede/research/Waterloo-Holger-remaining-phonons`,
 branch `codex/remaining-two-phonons`. The submission workflow is fixed at
-implementation commit `f557d02`; the evidence-preparation milestone began at
+implementation commit `cf0b1d1`; the evidence-preparation milestone began at
 `e524d6e`. It was forked from the fetched active research commit `5fdd4a1` on
 `origin/codex/two-material-phonons`; the original worktree was left clean and
 unchanged. Historical repository reconciliation and the merge through
@@ -112,6 +112,46 @@ subtracted using `--cfz`.
   Presentation/reproducibility copies are intentional, not cleanup waste.
 
 ## Active two-material phonon campaign
+
+### 2026-09-11 13:32 UTC superseding Nibi snapshot
+
+SrZrS3 remains blocked at selection: count-only job `21730034` found exactly
+1003 generated displacement supercells for each of the two newly reviewed
+3.70-A candidates, so both exceed the hard cap of 800. No Sr force, FC2/FC3,
+q-mesh, or kappa job has been released.
+
+Two later Rb2Cu2SnS4 startup attempts also stopped before a scientific SCF and
+are preserved as failed evidence. Job `21731206` from `f557d02` failed because
+Nibi did not export `SLURM_TIMELIMIT`; collector `21731207` completed and
+recorded authoritative `FAILED/2:0`, 6-second accounting. Commit `2a58b59`
+added a signed requested-walltime fallback while retaining terminal `sacct`
+verification. Job `21731419` then reached `srun` but failed in 9 seconds because
+the step inherited the restricted `sbatch --export` policy and therefore could
+not resolve `pw.x`; collector `21731420` completed and published only an
+incomplete/no-gate record.
+
+Commit `cf0b1d1` now forces nested Slurm steps to inherit the already sanitized,
+module-loaded job environment while preserving the submission-side allow-list.
+The full local suite passed 298 tests with one optional-spglib skip, a fresh
+independent Sol review returned `SHIP`, and all 298 tests passed in a clean
+detached Nibi clone. Non-scientific smoke job `21732191` completed `0:0` and
+verified that an `srun` step resolves the fixed QE 7.3.1 `pw.x` and all linked
+libraries. Earlier smoke job `21732162` failed only an over-strict assertion
+that required a literal `LD_LIBRARY_PATH`; its `srun /usr/bin/env` step itself
+completed and the record is retained.
+
+A fourth, wholly fresh Rb lineage is under
+`/scratch/yuhansun/phono3py-runs/20260911-continuation-cf0b1d1/Rb2Cu2SnS4`.
+Diagnostic job `21732222` is `RUNNING` with 32 tasks and a two-hour ceiling;
+afterany collector `21732223` is dependency-pending. At the snapshot,
+`baseline-a/scf.out` had grown to about 41 KB, showed QE memory setup and the
+start of the electronic calculation, and `scf.err` was empty. This confirms
+real QE execution, not scientific completion. Do not run `finalize-diagnostic`,
+release a BFGS polish, accept a structure, or start preflight/production from
+this snapshot. A terminal collector plus a separate evidence review is still
+required.
+
+No hourly automation exists; future checks are manual and user-directed.
 
 ### 2026-09-11 13:06 UTC Nibi gate-submission snapshot
 
