@@ -1174,3 +1174,49 @@ the same expired-ControlMaster/Duo blocker, obtained no live Slurm or remote-fil
 evidence, ran only local validation, and submitted no job. This note preserves
 the append-only history while preventing the duplicate prose from being counted
 as repeated scientific evidence.
+
+## 2026-09-11 — Session 16: 09:12 UTC hourly check remains MFA-blocked
+
+The repository was fetched before interpreting state. The clean local
+`codex/two-material-phonons` branch and its upstream both resolved to
+`48395a2`; no tracked or untracked path under any of the four
+`READY_TO_ATTACH/` directories had changed.
+
+A new read-only Nibi connection attempt at 09:12 UTC did not reach a remote
+shell. `ssh -O check drac` reported that the configured ControlMaster socket
+did not exist, and a batch-mode connection was rejected at the mandatory
+keyboard-interactive multifactor-authentication step. Consequently no current
+`squeue`, `sacct`, job-log, or remote-product evidence was obtained. This is
+not evidence that the queue is empty or that the remote state is unchanged,
+and no historical job ID was presented as live. No relaxation, preflight,
+pilot, force, FC2/FC3, q-mesh, or kappa job was prepared, submitted, or rerun.
+
+Local lightweight validation used Python 3.11.15 with spglib 2.7.0, phonopy
+4.3.1, and phono3py 4.3.3. All **201/201 tests** passed, including the strict
+last-complete-force parser, setting-matched pristine-force checks, ordered
+residual-corrected force reconstruction, and `--cfz` gates. Both material
+configs validated healthy while retaining
+`production_blocked_pending_selection=true`; Python compilation, every Slurm
+shell syntax check, and `git diff --check` passed. Two operator invocation
+errors are retained: the first config-validation rerun used a path one level
+too high and failed before reading the JSON, and the first shell loop let zsh
+expand an absent `slurm/*.sh` glob. Corrected commands passed; neither was a
+workflow-code or scientific failure.
+
+The last verified remote boundary therefore remains 2026-09-10 15:11 UTC.
+SrZrS3 has a passing structure gate and audited counts for all five routine
+candidates, but **0/5** are selection-eligible under the 800-displacement cap
+(1379, 2047, 1379, 2047, and 3747). Rb2Cu2SnS4 still has no accepted structure
+after the original and permitted one-reset attempts both failed normal BFGS
+convergence; its low last force component does not replace that missing
+optimizer criterion. An interactive `ssh drac` login is required before the
+next live refresh. A revised SrZrS3 cutoff/supercell/resource choice and any
+second Rb ionic continuation remain separate scientific decisions and were not
+authorized by this monitoring run.
+
+**Scientific-rigor review.** This run produced no new calculated material
+property, force, phonon, stability, cutoff, supercell, q-mesh, NAC/SOC,
+kappa_L, PF/tau, electronic-only zT, or full-zT conclusion. Preflight counts
+remain geometry/cost evidence only, low forces were not promoted to BFGS
+convergence, raw records were preserved, and every frozen attachment remained
+untouched.
