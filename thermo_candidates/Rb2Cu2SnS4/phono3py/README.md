@@ -35,6 +35,49 @@ fixed-cell ionic relaxation at planned conservative settings of 100/800 Ry,
 force convergence has already been established; the supercell-force pilot is
 still mandatory.
 
+## Reviewed one-polish hypothesis after the exhausted reset
+
+The original tight relaxation and its one allowed automatic reset are now
+both terminal BFGS failures. Their low final forces do not make either run an
+accepted relaxation. The automatic `relax_recovery.py` path remains exhausted
+and is not extended.
+
+`campaign.json` therefore records one narrower, explicitly reviewed
+**hypothesis**, not a result: first compare forces at the one-reset final
+geometry using two byte-identical 100/800-Ry baseline SCFs in separate fresh
+scratch directories and one predeclared 100/1000-Ry SCF. The immutable receipt
+reports duplicate noise and the higher-`ecutrho` difference. This diagnostic
+cannot accept a structure or unlock preflight.
+
+Only a passing diagnostic may release one fresh-run BFGS polish with the
+planned QE controls `bfgs_ndim=1`, `trust_radius_ini=0.05 bohr`,
+`trust_radius_min=1e-4 bohr`, and `trust_radius_max=0.2 bohr`. QE documents
+`bfgs_ndim=1` as ordinary quasi-Newton BFGS and the three trust-radius values as
+the initial displacement, reset floor, and maximum displacement respectively.
+These numbers are reviewed planned values, not validated settings or calculated
+findings. See the official QE [`pw.x` input description](https://www.quantum-espresso.org/Doc/INPUT_PW.html).
+
+The local/compute-node workflow is deliberately split so no command submits a
+job automatically:
+
+```text
+polish_recovery.py prepare-lineage      # local, requires exact source hashes
+polish_recovery.py run-diagnostic       # inside an explicitly obtained compute allocation
+polish_recovery.py finalize-diagnostic  # writes a diagnostic-only receipt/gate
+polish_recovery.py release-polish       # creates the fresh run manifest only after a pass
+submit.py plan --stage relax            # review only; execute remains a separate explicit action
+```
+
+`prepare-lineage` archives the terminal one-reset evidence and the complete
+original recovery lineage without modifying either source run. It retains the
+original standardized geometry as the cumulative-displacement reference.
+`release-polish` creates a new manifest containing `relax_polish` only, never a
+second `relax_recovery` pointer. The submission and runtime guards consume the
+single polish slot after one attempt. Even if that polish converges, the usual
+independent pristine SCF, execution manifest, normal-BFGS marker, force/cell/
+atom-order/position/symmetry checks, and passing `relax_gate.json` are all still
+required before `relax/final/` exists or preflight can run.
+
 The high-precision archived geometry is only numerically close to Ibam. A
 spglib scan identifies P-1 through `5e-4 angstrom`, C2/c at `1e-3` to
 `2e-3 angstrom`, and Ibam at `5e-3 angstrom`. Therefore this campaign makes

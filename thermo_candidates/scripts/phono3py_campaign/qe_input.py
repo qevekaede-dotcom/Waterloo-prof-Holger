@@ -577,6 +577,53 @@ def _source_is_fixed_cell_safe(parsed: QEInput) -> None:
             )
 
 
+def validate_bfgs_parameters(
+    *,
+    bfgs_ndim: int | None = None,
+    trust_radius_ini: float | None = None,
+    trust_radius_min: float | None = None,
+    trust_radius_max: float | None = None,
+) -> dict[str, int | float]:
+    """Validate optional QE BFGS controls without materializing defaults.
+
+    QE's documented defaults are used only to validate the ordering when a
+    caller supplies a subset.  The returned mapping contains only explicitly
+    supplied values, so an ordinary generated input remains byte-for-byte
+    unchanged when every argument is ``None``.
+    """
+
+    explicit: dict[str, int | float] = {}
+    if bfgs_ndim is not None:
+        if isinstance(bfgs_ndim, bool) or not isinstance(bfgs_ndim, int) or bfgs_ndim < 1:
+            raise QEInputError("bfgs_ndim must be an integer greater than or equal to 1")
+        explicit["bfgs_ndim"] = bfgs_ndim
+
+    radii: dict[str, float] = {
+        "trust_radius_min": 1.0e-3,
+        "trust_radius_ini": 0.5,
+        "trust_radius_max": 0.8,
+    }
+    for name, value in (
+        ("trust_radius_ini", trust_radius_ini),
+        ("trust_radius_min", trust_radius_min),
+        ("trust_radius_max", trust_radius_max),
+    ):
+        if value is None:
+            continue
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise QEInputError(f"{name} must be numeric")
+        number = float(value)
+        if not math.isfinite(number) or number <= 0:
+            raise QEInputError(f"{name} must be finite and positive")
+        radii[name] = number
+        explicit[name] = number
+    if not radii["trust_radius_min"] <= radii["trust_radius_ini"] <= radii["trust_radius_max"]:
+        raise QEInputError(
+            "trust radii must satisfy trust_radius_min <= trust_radius_ini <= trust_radius_max"
+        )
+    return explicit
+
+
 def build_fixed_cell_relax_input(
     source_text: str,
     *,
@@ -597,6 +644,10 @@ def build_fixed_cell_relax_input(
     tstress: bool = True,
     electron_maxstep: int | None = None,
     mixing_beta: float | None = None,
+    bfgs_ndim: int | None = None,
+    trust_radius_ini: float | None = None,
+    trust_radius_min: float | None = None,
+    trust_radius_max: float | None = None,
 ) -> str:
     """Return a fixed-cell, phonon-grade ionic-relaxation QE input."""
 
@@ -655,11 +706,21 @@ def build_fixed_cell_relax_input(
         "ELECTRONS",
         electron_updates,
     )
-    result = _set_namelist_values(
-        result,
-        "IONS",
-        {"ion_dynamics": _fortran_string(ion_dynamics.lower(), "ion_dynamics")},
+    ions_updates = {
+        "ion_dynamics": _fortran_string(ion_dynamics.lower(), "ion_dynamics")
+    }
+    bfgs_parameters = validate_bfgs_parameters(
+        bfgs_ndim=bfgs_ndim,
+        trust_radius_ini=trust_radius_ini,
+        trust_radius_min=trust_radius_min,
+        trust_radius_max=trust_radius_max,
     )
+    if "bfgs_ndim" in bfgs_parameters:
+        ions_updates["bfgs_ndim"] = str(bfgs_parameters["bfgs_ndim"])
+    for name in ("trust_radius_ini", "trust_radius_min", "trust_radius_max"):
+        if name in bfgs_parameters:
+            ions_updates[name] = _fortran_float(bfgs_parameters[name], name)
+    result = _set_namelist_values(result, "IONS", ions_updates)
     result = _set_namelist_values(
         result,
         "SYSTEM",
@@ -988,6 +1049,7 @@ __all__ = [
     "parse_qe_input",
     "read_final_coordinates",
     "read_qe_input",
+    "validate_bfgs_parameters",
     "replace_geometry_from_final_coordinates",
     "replace_qe_geometry",
 ]

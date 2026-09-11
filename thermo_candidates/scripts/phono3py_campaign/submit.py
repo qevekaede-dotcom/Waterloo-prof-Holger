@@ -199,6 +199,61 @@ def require_relax_gate(context: SubmissionContext) -> None:
         raise SubmissionError(f"accepted tight-relax unit cell is missing: {unitcell}")
 
 
+def require_imported_acceptance(
+    context: SubmissionContext,
+) -> dict[str, Any] | None:
+    """Replay an imported accepted structure before downstream submission."""
+
+    if context.manifest.get("accepted_structure_import") is None:
+        return None
+    from accepted_structure_import import verify_imported_acceptance
+
+    try:
+        result = verify_imported_acceptance(context.config_path, context.run_dir)
+    except (CampaignError, OSError, ValueError, KeyError) as exc:
+        raise SubmissionError(
+            f"accepted-structure import replay failed: {exc}"
+        ) from exc
+    if result.get("healthy") is not True:
+        raise SubmissionError("accepted-structure import replay did not pass")
+    return result
+
+
+def require_single_polish_release(context: SubmissionContext) -> None:
+    """Enforce the one-shot diagnostic gate for a reviewed polish run."""
+
+    pointer = context.manifest.get("relax_polish")
+    if pointer is None:
+        return
+    if context.manifest.get("relax_recovery") is not None:
+        raise SubmissionError("a polish run cannot also be an automatic recovery run")
+    if (
+        not isinstance(pointer, Mapping)
+        or pointer.get("maximum_attempts") != 1
+        or pointer.get("automatic_submission_allowed") is not False
+    ):
+        raise SubmissionError("invalid single-polish release pointer")
+    relative_gate = pointer.get("diagnostic_gate")
+    if not isinstance(relative_gate, str) or not relative_gate:
+        raise SubmissionError("single-polish release lacks its diagnostic gate")
+    gate_path = (context.run_dir / relative_gate).resolve()
+    try:
+        gate_path.relative_to(context.run_dir)
+    except ValueError as exc:
+        raise SubmissionError("single-polish diagnostic gate escapes RUN_DIR") from exc
+    if sha256_path(gate_path) != pointer.get("diagnostic_gate_sha256"):
+        raise SubmissionError("single-polish diagnostic gate hash mismatch")
+    gate = require_passing_gate(gate_path, "force-consistency diagnostic gate")
+    if gate.get("structure_accepted") is not False or gate.get("preflight_unlocked") is not False:
+        raise SubmissionError("diagnostic gate must not accept a structure or unlock preflight")
+    prior_attempts = context.run_dir / "slurm_attempts" / "relax"
+    if prior_attempts.is_dir() and any(path.is_dir() for path in prior_attempts.iterdir()):
+        raise SubmissionError("the single reviewed polish attempt has already been consumed")
+    prior_submissions = context.run_dir / "submissions" / "relax"
+    if prior_submissions.is_dir() and any(path.is_dir() for path in prior_submissions.iterdir()):
+        raise SubmissionError("the single reviewed polish submission has already been consumed")
+
+
 def require_production_selection(config: Mapping[str, Any]) -> None:
     production = required(config, "production")
     if not isinstance(production, Mapping):
@@ -212,18 +267,229 @@ def require_production_selection(config: Mapping[str, Any]) -> None:
 
 
 def require_force_gate(context: SubmissionContext) -> None:
-    candidates = (
-        context.run_dir / "force" / "final" / "gate.json",
-        context.run_dir / "collection" / "final" / "gate.json",
+    """Replay the canonical finalizer gate/index/receipt and their live hashes."""
+
+    final = context.run_dir / "force" / "final"
+    gate_path = final / "gate.json"
+    index_path = final / "index.json"
+    if not gate_path.is_file() or not index_path.is_file():
+        raise SubmissionError(
+            "postprocessing requires the canonical force/final gate and index"
+        )
+    if any(
+        path.is_symlink()
+        for path in (context.run_dir / "force", final, gate_path, index_path)
+    ):
+        raise SubmissionError("canonical force-final evidence may not use symlinks")
+    gate = load_json(gate_path)
+    index = load_json(index_path)
+    if (
+        gate.get("schema_version") != 1
+        or gate.get("stage") != "force_dataset_gate"
+        or gate.get("pass") is not True
+        or gate.get("production_dataset_complete") is not True
+        or gate.get("eligible_for_force_constant_construction") is not True
+        or gate.get("scientific_results_claimed") is not False
+        or gate.get("scope") != "audited production force dataset readiness only"
+    ):
+        raise SubmissionError("canonical force gate schema or scope is invalid")
+    if (
+        index.get("schema_version") != 1
+        or index.get("stage") != "force_dataset_index"
+        or index.get("material") != context.config["material"]["formula"]
+        or index.get("config") != str(context.config_path)
+        or index.get("config_sha256") != context.config_sha256
+        or index.get("force_dataset_ready_for_fc2_fc3_construction") is not True
+    ):
+        raise SubmissionError("canonical force index schema or campaign identity is invalid")
+    if (
+        gate.get("material") != index.get("material")
+        or gate.get("config_sha256") != context.config_sha256
+        or gate.get("index_sha256") != sha256_path(index_path)
+    ):
+        raise SubmissionError("canonical force gate does not bind its index/config")
+
+    def indexed_file(raw_path: Any, digest: Any, label: str) -> Path:
+        if (
+            not isinstance(raw_path, str)
+            or not Path(raw_path).is_absolute()
+            or not isinstance(digest, str)
+            or SHA256_RE.fullmatch(digest) is None
+        ):
+            raise SubmissionError(f"invalid indexed {label} path/hash")
+        raw = Path(raw_path)
+        resolved = raw.resolve()
+        if (
+            resolved == context.run_dir
+            or not resolved.is_relative_to(context.run_dir)
+            or "READY_TO_ATTACH" in raw.parts
+            or not resolved.is_file()
+        ):
+            raise SubmissionError(f"indexed {label} is missing or outside RUN_DIR")
+        current = raw
+        while True:
+            if current.is_symlink():
+                raise SubmissionError(f"indexed {label} path may not contain a symlink")
+            if current.resolve() == context.run_dir:
+                break
+            parent = current.parent
+            if parent == current:
+                raise SubmissionError(f"indexed {label} path does not reach RUN_DIR")
+            current = parent
+        if sha256_path(resolved) != digest:
+            raise SubmissionError(f"indexed {label} hash mismatch")
+        return resolved
+
+    def indexed_reference(value: Any, label: str) -> Path:
+        if not isinstance(value, Mapping) or set(value) != {"path", "sha256"}:
+            raise SubmissionError(f"invalid indexed {label} reference")
+        return indexed_file(value["path"], value["sha256"], label)
+
+    plan_path = indexed_file(
+        index.get("plan"), index.get("plan_sha256"), "force-finalize plan"
     )
-    for candidate in candidates:
-        if candidate.is_file():
-            require_passing_gate(candidate, "collected-force gate")
-            return
-    raise SubmissionError(
-        "postprocessing requires a passing collected-force gate at "
-        + " or ".join(str(path) for path in candidates)
+    if (
+        gate.get("plan_sha256") != index.get("plan_sha256")
+        or gate.get("plan_sha256") != sha256_path(plan_path)
+    ):
+        raise SubmissionError("canonical force gate/index plan hash mismatch")
+    receipt_ref = index.get("finalize_receipt")
+    receipt_path = indexed_reference(receipt_ref, "force-finalize receipt")
+    if (
+        receipt_path.parent.parent
+        != context.run_dir / "slurm_attempts" / "force-finalize"
+        or receipt_path.name != "force_finalize_receipt.json"
+        or gate.get("finalize_receipt_sha256") != receipt_ref["sha256"]
+    ):
+        raise SubmissionError("force-finalize receipt is not canonical or gate-bound")
+    receipt = load_json(receipt_path)
+
+    backend_names = (
+        "force_finalize.py",
+        "campaign.py",
+        "force_backend.py",
+        "submit.py",
+        "postprocess_backend.py",
+        "qe_input.py",
+        "qe_output.py",
     )
+    expected_backends = {
+        str(Path(__file__).with_name(name).resolve()): sha256_path(
+            Path(__file__).with_name(name).resolve()
+        )
+        for name in backend_names
+    }
+    index_backends = index.get("audit_backend_sha256")
+    if (
+        index_backends != expected_backends
+        or gate.get("audit_backend_sha256") != expected_backends
+        or receipt.get("audit_backend_sha256") != expected_backends
+    ):
+        raise SubmissionError("force-finalize audit backend hashes are stale or forged")
+    force_finalize_sha = sha256_path(Path(__file__).with_name("force_finalize.py"))
+    if any(
+        value != force_finalize_sha
+        for value in (
+            index.get("force_finalize_backend_sha256"),
+            gate.get("force_finalize_backend_sha256"),
+            receipt.get("force_finalize_backend_sha256"),
+        )
+    ):
+        raise SubmissionError("force-finalize backend identity mismatch")
+    if (
+        receipt.get("schema_version") != 1
+        or receipt.get("stage") != "force_finalize"
+        or receipt.get("pass") is not True
+        or receipt.get("material") != index.get("material")
+        or receipt.get("plan") != str(plan_path)
+        or receipt.get("plan_sha256") != index.get("plan_sha256")
+        or receipt.get("force_dataset_ready_for_fc2_fc3_construction") is not True
+        or receipt.get("scientific_results_claimed") is not False
+    ):
+        raise SubmissionError("force-finalize receipt schema or identity is invalid")
+
+    accepted = index.get("accepted_structure")
+    if not isinstance(accepted, Mapping):
+        raise SubmissionError("force index lacks accepted structure references")
+    for name in ("gate", "provenance", "unitcell"):
+        indexed_reference(accepted.get(name), f"accepted structure {name}")
+    for name in (
+        "preflight_inventory",
+        "preflight_result",
+        "dataset",
+        "selection_receipt",
+    ):
+        indexed_reference(index.get(name), name.replace("_", " "))
+    canonical = index.get("canonical_pristine")
+    if not isinstance(canonical, Mapping):
+        raise SubmissionError("canonical pristine force identity is missing")
+    for stem in ("input", "output", "stderr"):
+        indexed_file(
+            canonical.get(f"{stem}_path"),
+            canonical.get(f"{stem}_sha256"),
+            f"canonical pristine {stem}",
+        )
+    artifacts = index.get("artifacts")
+    required_ids = index.get("required_fc3_displacement_ids")
+    if (
+        not isinstance(artifacts, list)
+        or not artifacts
+        or any(not isinstance(item, Mapping) for item in artifacts)
+        or not isinstance(required_ids, list)
+        or [item.get("displacement_id") for item in artifacts] != required_ids
+    ):
+        raise SubmissionError("force index displacement artifact domain is invalid")
+    for artifact in artifacts:
+        if not isinstance(artifact, Mapping):
+            raise SubmissionError("force index contains a malformed artifact")
+        displacement_id = artifact.get("displacement_id")
+        for stem in ("input", "output", "stderr"):
+            indexed_file(
+                artifact.get(f"{stem}_path"),
+                artifact.get(f"{stem}_sha256"),
+                f"displacement {displacement_id} {stem}",
+            )
+    batches = index.get("batches")
+    if not isinstance(batches, list) or not batches:
+        raise SubmissionError("force index has no audited production batches")
+    batch_refs = (
+        "collection",
+        "force_manifest",
+        "task_map",
+        "budget_receipt",
+        "budget_ledger_reservation",
+        "submission_request",
+        "submission_result",
+        "submission_summary",
+        "collector_request",
+        "collector_result",
+        "scheduler_accounting",
+        "scheduler_accounting_status",
+    )
+    for batch in batches:
+        if not isinstance(batch, Mapping):
+            raise SubmissionError("force index contains a malformed production batch")
+        for name in batch_refs:
+            indexed_reference(
+                batch.get(name), f"batch {batch.get('batch_id')} {name}"
+            )
+        raw_artifacts = batch.get("raw_artifacts")
+        if not isinstance(raw_artifacts, list) or not raw_artifacts:
+            raise SubmissionError("force index batch lacks raw force artifacts")
+        for raw in raw_artifacts:
+            if not isinstance(raw, Mapping) or not isinstance(
+                raw.get("files_sha256"), Mapping
+            ):
+                raise SubmissionError("force index contains malformed raw force evidence")
+            attempt_path = Path(str(raw.get("attempt_path", "")))
+            for name, digest in raw["files_sha256"].items():
+                if not isinstance(name, str) or Path(name).name != name:
+                    raise SubmissionError("force index contains an unsafe raw filename")
+                indexed_file(
+                    str(attempt_path / name),
+                    digest,
+                    f"batch raw task {raw.get('task_id')} {name}",
+                )
 
 
 def validate_task_map(path: Path, run_dir: Path, hard_cap: int) -> tuple[Path, int, str]:
@@ -482,14 +748,16 @@ def validate_force_bundle(
     ledger = context.run_dir / ".force_budget"
     if not ledger.is_dir():
         raise SubmissionError("material force-budget ledger is missing")
-    matching = []
-    for path in ledger.glob("reservation-*.json"):
-        record = load_json(path)
-        if (
-            record.get("receipt_path") == str(receipt_path)
-            and record.get("receipt_sha256") == receipt_sha
-        ):
-            matching.append(path)
+    from force_backend import replay_budget_ledger
+    try:
+        ledger_records = replay_budget_ledger(context.run_dir, context.config)
+    except CampaignError as exc:
+        raise SubmissionError(f"budget ledger replay failed: {exc}") from exc
+    matching = [
+        item["path"] for item in ledger_records
+        if item["record"]["receipt_path"] == str(receipt_path.resolve())
+        and item["record"]["receipt_sha256"] == receipt_sha
+    ]
     if len(matching) != 1:
         raise SubmissionError("budget receipt is not uniquely anchored in this material ledger")
     return (
@@ -549,9 +817,17 @@ def stage_plan(
     force_mode: str | None = None
     scheduler_options: tuple[str, ...] = ()
 
-    if stage == "preflight":
+    if stage == "relax":
+        if context.manifest.get("accepted_structure_import") is not None:
+            raise SubmissionError(
+                "an imported accepted-structure RUN_DIR cannot submit a relax stage"
+            )
+        require_single_polish_release(context)
+    elif stage == "preflight":
+        require_imported_acceptance(context)
         require_relax_gate(context)
     elif stage == "force":
+        require_imported_acceptance(context)
         require_relax_gate(context)
         if task_map is None:
             raise SubmissionError("force submission requires an explicit --task-map")
@@ -588,6 +864,7 @@ def stage_plan(
         exports["TASK_MAP"] = safe_export_value("TASK_MAP", resolved_task_map)
         array = f"0-{task_count - 1}%{min(concurrency, task_count)}"
     elif stage == "postprocess":
+        require_imported_acceptance(context)
         require_production_selection(context.config)
         require_force_gate(context)
 

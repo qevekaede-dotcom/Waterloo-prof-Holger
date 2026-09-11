@@ -28,6 +28,88 @@ RB_CONFIG = REPO_ROOT / "thermo_candidates/Rb2Cu2SnS4/phono3py/campaign.json"
 
 
 class CampaignConfigTests(unittest.TestCase):
+    def test_direct_relax_rejects_imported_run_before_attempt_side_effects(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            run_dir = Path(temporary).resolve() / "imported-run"
+            run_dir.mkdir()
+            manifest = {
+                "accepted_structure_import": {
+                    "receipt": "accepted_structure_import.json"
+                }
+            }
+            with patch.object(campaign_module, "require_compute_node"), patch.object(
+                campaign_module, "validate_config", return_value=({}, {})
+            ), patch.object(
+                campaign_module, "safe_run_dir", return_value=run_dir
+            ), patch.object(
+                campaign_module, "verify_manifest", return_value=manifest
+            ), patch.object(campaign_module, "attempt_dir") as attempt:
+                with self.assertRaisesRegex(
+                    CampaignError, "cannot execute a relax stage"
+                ):
+                    campaign_module.command_run_relax(SR_CONFIG, run_dir)
+            attempt.assert_not_called()
+            self.assertFalse((run_dir / "slurm_attempts/relax").exists())
+            self.assertFalse(any(run_dir.rglob("relax.in")))
+
+    def test_direct_finalize_rejects_imported_run_without_publication_side_effects(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            run_dir = Path(temporary).resolve() / "imported-run"
+            final = run_dir / "relax/final"
+            final.mkdir(parents=True)
+            for name, content in (
+                ("unitcell.in", b"immutable imported unitcell\n"),
+                ("gate.json", b'{"pass":true}\n'),
+                ("provenance.json", b'{"kind":"imported_accepted_structure"}\n'),
+            ):
+                (final / name).write_bytes(content)
+            before = {
+                str(path.relative_to(run_dir)): path.read_bytes()
+                for path in run_dir.rglob("*") if path.is_file()
+            }
+            manifest = {
+                "accepted_structure_import": {
+                    "receipt": "accepted_structure_import.json"
+                }
+            }
+            with patch.object(campaign_module, "require_compute_node"), patch.object(
+                campaign_module, "validate_config", return_value=({}, {})
+            ), patch.object(
+                campaign_module, "safe_run_dir", return_value=run_dir
+            ), patch.object(
+                campaign_module, "verify_manifest", return_value=manifest
+            ), patch.object(campaign_module, "attempt_dir") as attempt:
+                with self.assertRaisesRegex(
+                    CampaignError, "cannot finalize a relax stage"
+                ):
+                    campaign_module.command_finalize_relax(SR_CONFIG, run_dir)
+            attempt.assert_not_called()
+            after = {
+                str(path.relative_to(run_dir)): path.read_bytes()
+                for path in run_dir.rglob("*") if path.is_file()
+            }
+            self.assertEqual(after, before)
+            self.assertFalse((run_dir / "slurm_attempts/relax").exists())
+
+    def test_preflight_replays_import_before_creating_attempt(self) -> None:
+        run_dir = Path("/tmp/p3-imported-preflight-test")
+        manifest = {"accepted_structure_import": {"receipt": "accepted_structure_import.json"}}
+        with patch.object(campaign_module, "require_compute_node"), patch.object(
+            campaign_module, "validate_config", return_value=({}, {})
+        ), patch.object(
+            campaign_module, "safe_run_dir", return_value=run_dir
+        ), patch.object(
+            campaign_module, "verify_upstream_manifest", return_value=manifest
+        ), patch.object(
+            campaign_module,
+            "verify_imported_structure_if_present",
+            side_effect=CampaignError("receipt hash mismatch"),
+        ) as replay, patch.object(campaign_module, "attempt_dir") as attempt:
+            with self.assertRaisesRegex(CampaignError, "receipt hash mismatch"):
+                campaign_module.command_preflight(SR_CONFIG, run_dir)
+        replay.assert_called_once_with(SR_CONFIG, run_dir, manifest)
+        attempt.assert_not_called()
+
     def test_supercell_lattice_check_allows_phono3py_bohr_constant_roundoff(self) -> None:
         expected = (
             (21.76087607467058, 0.0, 0.0),

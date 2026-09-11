@@ -26,6 +26,336 @@ from qe_output import inspect_output, parse_last_force_block
 ForceError = core.CampaignError
 FIELDS = ("task_id", "displacement_id", "role", "input_path", "input_sha256")
 COST_SETTING_FIELDS = ("matrix", "atoms", "ecutwfc_Ry", "ecutrho_Ry", "conv_thr_Ry", "kmesh", "kshift")
+LEDGER_RECORD_FIELDS = frozenset((
+    "phase", "task_count", "reserved_core_hours", "receipt_path", "receipt_sha256",
+))
+SHA256_RE = re.compile(r"[0-9a-f]{64}")
+LEDGER_NAME_RE = re.compile(r"reservation-(\d{6})\.json")
+LEDGER_LOCK_RE = re.compile(r"\.reservation-\d{6}\.json\.lock")
+
+
+def safe_budget_ledger(run_dir: Path, *, create: bool = False) -> Path:
+    """Return only the canonical, non-symlink material budget ledger."""
+    root = Path(run_dir).resolve()
+    raw = Path(run_dir) / ".force_budget"
+    expected = root / ".force_budget"
+    if raw.parent.resolve() != root or raw.name != ".force_budget":
+        raise ForceError("force-budget ledger must be a direct RUN_DIR child")
+    if os.path.lexists(raw):
+        if raw.is_symlink() or not raw.is_dir() or raw.resolve() != expected:
+            raise ForceError("force-budget ledger must be a non-symlink RUN_DIR child")
+    elif create:
+        raw.mkdir()
+        if raw.is_symlink() or not raw.is_dir() or raw.resolve() != expected:
+            raise ForceError("force-budget ledger creation is unsafe")
+    else:
+        raise ForceError("material force-budget ledger is missing")
+    for child in raw.iterdir():
+        if child.name == "executions":
+            if child.is_symlink() or not child.is_dir() or child.resolve().parent != expected:
+                raise ForceError("force-budget executions directory is unsafe")
+            for claim in child.iterdir():
+                if claim.is_symlink() or not claim.is_file() or not (
+                    claim.name.endswith(".json") or claim.name.endswith(".json.lock")
+                ):
+                    raise ForceError("force-budget execution claim is unsafe")
+        elif (
+            child.name == "lock"
+            or LEDGER_NAME_RE.fullmatch(child.name) is not None
+            or LEDGER_LOCK_RE.fullmatch(child.name) is not None
+        ):
+            if child.is_symlink() or not child.is_file():
+                raise ForceError("force-budget ledger record or lock is unsafe")
+        else:
+            raise ForceError(f"budget ledger contains an invalid record name: {child.name}")
+    return expected
+
+
+def _ledger_lock_path(ledger: Path) -> Path:
+    lock = ledger / "lock"
+    if os.path.lexists(lock) and (lock.is_symlink() or not lock.is_file()):
+        raise ForceError("force-budget ledger lock is unsafe")
+    return lock
+
+
+def _ledger_number(value: Any, label: str, *, positive: bool = False) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ForceError(f"budget ledger {label} must be numeric")
+    number = float(value)
+    if not math.isfinite(number) or (number <= 0 if positive else number < 0):
+        qualifier = "positive finite" if positive else "finite and non-negative"
+        raise ForceError(f"budget ledger {label} must be {qualifier}")
+    return number
+
+
+def _bundle_file(path: Path, bundle: Path, label: str) -> Path:
+    if path.is_symlink() or not path.is_file() or path.parent != bundle:
+        raise ForceError(f"budget receipt requires adjacent non-symlink {label}")
+    return path
+
+
+def _has_symlink_below(path: Path, root: Path) -> bool:
+    current = path
+    while current != root:
+        if current.is_symlink():
+            return True
+        parent = current.parent
+        if parent == current:
+            return True
+        current = parent
+    return root.is_symlink()
+
+
+def _replay_existing_submission_anchor(
+    run_dir: Path, receipt_path: Path, receipt_sha: str, manifest: Mapping[str, Any],
+    task_map_path: Path,
+) -> None:
+    """Use already-written submission/attempt evidence as an extra local anchor.
+
+    This does not pretend to defeat an actor who can rewrite every local file.
+    It does prevent a ledger/receipt/bundle rewrite from silently replacing an
+    already submitted bundle while its request, launch, or copied task input
+    still records the original bytes.
+    """
+    requests_root = run_dir / "submissions" / "force"
+    if not requests_root.is_dir():
+        return
+    manifest_sha = core.sha256_path(task_map_path.parent / "force_manifest.json")
+    task_map_sha = core.sha256_path(task_map_path)
+    for request_path in requests_root.glob("*/request.json"):
+        if request_path.is_symlink() or not request_path.is_file():
+            raise ForceError("force submission request is missing or symlinked")
+        request = core.load_json(request_path)
+        if request.get("budget_receipt") != str(receipt_path):
+            continue
+        if (
+            request.get("budget_receipt_sha256") != receipt_sha
+            or request.get("force_manifest_sha256") != manifest_sha
+            or request.get("task_map_sha256") != task_map_sha
+            or request.get("stage") != "force"
+            or not isinstance(request.get("attempt_id"), str)
+        ):
+            raise ForceError("submitted force request no longer binds its budget bundle")
+        attempt_root = run_dir / "slurm_attempts" / "force" / request["attempt_id"]
+        if not attempt_root.exists():
+            continue  # accepted submission may not have started yet
+        if attempt_root.is_symlink() or not attempt_root.is_dir():
+            raise ForceError("submitted force attempt root is invalid")
+        for launch_path in attempt_root.rglob("launch.json"):
+            if launch_path.is_symlink():
+                raise ForceError("submitted force launch is symlinked")
+            launch = core.load_json(launch_path)
+            task = launch.get("task")
+            task_id = task.get("task_id") if isinstance(task, Mapping) else None
+            tasks = manifest.get("tasks")
+            if (
+                launch.get("force_manifest_sha256") != manifest_sha
+                or type(task_id) is not int
+                or not isinstance(tasks, list)
+                or task_id < 0 or task_id >= len(tasks)
+                or task != tasks[task_id]
+            ):
+                raise ForceError("submitted force launch no longer binds manifest task bytes")
+            copied_input = launch_path.parent / "scf.in"
+            if copied_input.is_file() and not copied_input.is_symlink() and core.sha256_path(copied_input) != task["input_sha256"]:
+                raise ForceError("submitted force copied input differs from manifest task bytes")
+
+
+def _replay_bundle(
+    receipt_path: Path, receipt_sha: str, receipt: Mapping[str, Any], run_dir: Path,
+    config: Mapping[str, Any] | None,
+) -> tuple[dict[str, Any], list[list[str]]]:
+    """Bind a receipt to the immutable local force-bundle prefix."""
+    bundle = receipt_path.parent
+    if receipt_path.name != "budget_receipt.json" or receipt_path.is_symlink():
+        raise ForceError("budget receipt is not the canonical non-symlink bundle receipt")
+    task_map_path = _bundle_file(bundle / "task_map.tsv", bundle, "task_map.tsv")
+    manifest_path = _bundle_file(bundle / "force_manifest.json", bundle, "force_manifest.json")
+    try:
+        with task_map_path.open(newline="") as handle:
+            rows = list(csv.reader(handle, delimiter="\t", strict=True))
+    except (OSError, csv.Error) as exc:
+        raise ForceError(f"cannot read budget receipt task map: {exc}") from exc
+    if not rows or tuple(rows[0]) != FIELDS or any(len(row) != len(FIELDS) for row in rows[1:]):
+        raise ForceError("budget receipt task map schema is invalid")
+    task_rows = rows[1:]
+    if not task_rows or [row[0] for row in task_rows] != [str(index) for index in range(len(task_rows))]:
+        raise ForceError("budget receipt task map IDs are not contiguous")
+    try:
+        manifest = core.load_json(manifest_path)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        raise ForceError(f"cannot read budget receipt force manifest: {exc}") from exc
+    if not isinstance(manifest, Mapping) or manifest.get("schema_version") != 1 or manifest.get("stage") != "force":
+        raise ForceError("budget receipt force manifest schema is invalid")
+    mode = manifest.get("mode")
+    if mode not in {"pilot", "production"} or (receipt.get("phase") == "production") != (mode == "production"):
+        raise ForceError("budget receipt phase and force-manifest mode disagree")
+    tasks = manifest.get("tasks")
+    if (
+        not isinstance(tasks, list)
+        or len(tasks) != len(task_rows)
+        or manifest.get("task_count") != len(task_rows)
+        or receipt.get("task_count") != len(task_rows)
+        or receipt.get("task_map_sha256") != core.sha256_path(task_map_path)
+        or manifest.get("task_map_sha256") != core.sha256_path(task_map_path)
+        or manifest.get("budget_receipt_sha256") != receipt_sha
+        or manifest.get("material") != receipt.get("material")
+    ):
+        raise ForceError("budget receipt does not bind its exact force bundle")
+    for task_id, (row, task) in enumerate(zip(task_rows, tasks)):
+        if not isinstance(task, Mapping) or task.get("task_id") != task_id:
+            raise ForceError("budget receipt force manifest task IDs are invalid")
+        if any(str(task.get(key)) != value for key, value in zip(FIELDS, row)):
+            raise ForceError("budget receipt task map differs from force manifest")
+        input_path = Path(str(task.get("input_path", "")))
+        if (
+            not input_path.is_absolute() or _has_symlink_below(input_path, bundle) or not input_path.is_file()
+            or not input_path.resolve().is_relative_to(bundle) or input_path.resolve() == bundle
+            or core.sha256_path(input_path) != task.get("input_sha256")
+        ):
+            raise ForceError("budget receipt force task input is missing, symlinked, or altered")
+    expected_production_inputs = [
+        task["input_sha256"] for task in tasks if task.get("displacement_id") != 0
+    ] if mode == "production" else []
+    receipt_inputs = receipt.get("production_input_hashes")
+    if (
+        not isinstance(receipt_inputs, list)
+        or any(not isinstance(value, str) or SHA256_RE.fullmatch(value) is None for value in receipt_inputs)
+        or receipt_inputs != expected_production_inputs
+    ):
+        raise ForceError("budget receipt production_input_hashes do not bind manifest tasks")
+    if config is not None:
+        policy = config.get("resource_budget")
+        if not isinstance(policy, Mapping) or receipt.get("material") != config.get("material", {}).get("formula"):
+            raise ForceError("budget receipt policy or material differs from current configuration")
+        if (
+            receipt.get("resource_policy_sha256") != core.canonical_sha256(policy)
+            or receipt.get("approved_total_core_hours") != policy.get("approved_total_core_hours_per_material")
+        ):
+            raise ForceError("budget receipt policy/approved-total differs from current configuration")
+    _replay_existing_submission_anchor(run_dir, receipt_path, receipt_sha, manifest, task_map_path)
+    return dict(manifest), task_rows
+
+
+def replay_budget_ledger(
+    run_dir: Path, config: Mapping[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    """Replay every reservation from its hash-bound receipt.
+
+    A ledger entry is only an index.  Its budget-bearing fields must exactly
+    mirror the immutable receipt and the receipt's reservation must still be
+    arithmetically possible from the declared task/rank/time/retry contract.
+    This is deliberately used by reservation, submission, and finalization.
+    """
+    ledger = safe_budget_ledger(run_dir)
+    named: list[tuple[int, Path]] = []
+    for path in ledger.iterdir():
+        if not path.is_file() or path.name == "lock" or re.fullmatch(r"\.reservation-\d{6}\.json\.lock", path.name):
+            continue
+        match = LEDGER_NAME_RE.fullmatch(path.name)
+        if match is None:
+            raise ForceError(f"budget ledger contains an invalid record name: {path.name}")
+        named.append((int(match.group(1)), path))
+    named.sort()
+    if [number for number, _ in named] != list(range(len(named))):
+        raise ForceError("budget ledger reservation records are non-contiguous")
+
+    replayed: list[dict[str, Any]] = []
+    receipt_paths: set[str] = set()
+    receipt_hashes: set[str] = set()
+    reserved_before = 0.0
+    production_count = 0
+    phase_counts = {"initial": 0, "validation": 0}
+    production_inputs: set[str] = set()
+    for number, path in named:
+        try:
+            record = core.load_json(path)
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            raise ForceError(f"cannot read budget ledger reservation {path.name}: {exc}") from exc
+        if not isinstance(record, Mapping) or set(record) != LEDGER_RECORD_FIELDS:
+            raise ForceError("budget ledger reservation schema is invalid")
+        phase = record.get("phase")
+        task_count = record.get("task_count")
+        if phase not in {"initial", "validation", "production"}:
+            raise ForceError("budget ledger reservation phase is invalid")
+        if type(task_count) is not int or task_count <= 0:
+            raise ForceError("budget ledger reservation task_count is invalid")
+        reserved = _ledger_number(record.get("reserved_core_hours"), "reserved_core_hours", positive=True)
+        receipt_path_text, receipt_sha = record.get("receipt_path"), record.get("receipt_sha256")
+        if not isinstance(receipt_path_text, str) or not Path(receipt_path_text).is_absolute():
+            raise ForceError("budget ledger reservation receipt_path is invalid")
+        if not isinstance(receipt_sha, str) or SHA256_RE.fullmatch(receipt_sha) is None:
+            raise ForceError("budget ledger reservation receipt_sha256 is invalid")
+        receipt_path = Path(receipt_path_text)
+        try:
+            receipt_path = _under(receipt_path, run_dir)
+        except ForceError as exc:
+            raise ForceError("budget ledger reservation receipt_path escapes RUN_DIR") from exc
+        if str(receipt_path) != receipt_path_text or not receipt_path.is_file() or core.sha256_path(receipt_path) != receipt_sha:
+            raise ForceError("budget ledger reservation hash mismatch")
+        if receipt_path_text in receipt_paths or receipt_sha in receipt_hashes:
+            raise ForceError("budget ledger has repeated reservation evidence")
+        receipt_paths.add(receipt_path_text)
+        receipt_hashes.add(receipt_sha)
+        try:
+            receipt = core.load_json(receipt_path)
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            raise ForceError(f"cannot read budget receipt: {exc}") from exc
+        if not isinstance(receipt, Mapping) or receipt.get("schema_version") != 1:
+            raise ForceError("budget receipt schema is invalid")
+        if (
+            receipt.get("phase") != phase
+            or receipt.get("task_count") != task_count
+            or receipt.get("reserved_core_hours") != record.get("reserved_core_hours")
+        ):
+            raise ForceError("budget ledger reservation does not match its receipt semantics")
+        manifest, _ = _replay_bundle(receipt_path, receipt_sha, receipt, run_dir, config)
+        ranks, retries = receipt.get("mpi_ranks"), receipt.get("maximum_technical_retries_per_task")
+        if type(ranks) is not int or ranks <= 0 or type(retries) is not int or retries != 1:
+            raise ForceError("budget receipt has invalid rank or retry semantics")
+        walltime = _ledger_number(receipt.get("walltime_hours"), "receipt walltime_hours", positive=True)
+        expected_reserved = task_count * ranks * walltime * (1 + retries)
+        if not math.isclose(reserved, expected_reserved, rel_tol=1e-12, abs_tol=1e-12):
+            raise ForceError("budget receipt reserved_core_hours is inconsistent with its task contract")
+        used = _ledger_number(receipt.get("used_core_hours"), "receipt used_core_hours")
+        if not math.isclose(_ledger_number(receipt.get("reserved_core_hours_before"), "receipt reserved_core_hours_before"), reserved_before, rel_tol=1e-12, abs_tol=1e-12):
+            raise ForceError("budget receipt reserved_core_hours_before breaks the ledger prefix chain")
+        charged_before = max(reserved_before, used)
+        if not math.isclose(_ledger_number(receipt.get("charged_core_hours_before"), "receipt charged_core_hours_before"), charged_before, rel_tol=1e-12, abs_tol=1e-12):
+            raise ForceError("budget receipt charged_core_hours_before breaks the ledger prefix chain")
+        if phase == "production":
+            production_count += 1
+            if receipt.get("production_batch_number") != production_count:
+                raise ForceError("budget receipt production_batch_number breaks the ledger prefix chain")
+            inputs = receipt.get("production_input_hashes")
+            if not isinstance(inputs, list) or any(
+                not isinstance(value, str) or SHA256_RE.fullmatch(value) is None for value in inputs
+            ):
+                raise ForceError("budget receipt production_input_hashes are invalid")
+            if len(inputs) != len(set(inputs)) or production_inputs.intersection(inputs):
+                raise ForceError("budget ledger repeats production task inputs")
+            production_inputs.update(inputs)
+        elif receipt.get("production_batch_number") is not None:
+            raise ForceError("non-production budget receipt has a production batch number")
+        phase_counts[phase] = phase_counts.get(phase, 0) + task_count
+        if config is not None:
+            policy = config["resource_budget"]
+            initial_limit = min(6, policy["initial_timing_and_noise_batch"]["maximum_new_scf_tasks"])
+            validation_limit = min(32, policy["pilot_batch_maximum_new_scf_tasks"])
+            if phase_counts["initial"] > initial_limit:
+                raise ForceError("budget ledger initial phase exceeds its cumulative task cap")
+            if policy.get("approved_total_core_hours_per_material") is None and phase_counts["validation"] > validation_limit:
+                raise ForceError("budget ledger validation phase exceeds its cumulative task cap")
+            production_limit = min(
+                32 if production_count == 1 else 64,
+                policy["production_first_batch_maximum_tasks"] if production_count == 1
+                else policy["production_later_batch_maximum_tasks"],
+            )
+            if phase == "production" and task_count > production_limit:
+                raise ForceError("budget ledger production batch exceeds its task cap")
+        reserved_before += reserved
+        replayed.append({"number": number, "path": path, "record": dict(record), "receipt": dict(receipt), "manifest": manifest})
+    return replayed
 
 
 def _sample(reference: Mapping[str, Any], run_dir: Path) -> dict[str, Any]:
@@ -233,30 +563,28 @@ def _reserve_budget(config, run_dir, destination, task_count, task_map_sha256,
             raise ForceError("requested walltime is below conservative measured P90 estimate")
     else:
         p90, estimated = None, walltime
-    ledger = run_dir / ".force_budget"
-    ledger.mkdir(exist_ok=True)
-    with (ledger / "lock").open("a") as lock:
+    ledger = safe_budget_ledger(run_dir, create=True)
+    with _ledger_lock_path(ledger).open("a") as lock:
         fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
-        previous = [core.load_json(p) for p in ledger.glob("reservation-*.json")]
-        for old in previous:
-            _match(Path(old["receipt_path"]), old["receipt_sha256"])
-            previous_receipt = core.load_json(Path(old["receipt_path"]))
+        previous = replay_budget_ledger(run_dir, config)
+        for item in previous:
+            old, previous_receipt = item["record"], item["receipt"]
             if set(production_input_hashes) & set(previous_receipt.get("production_input_hashes", [])):
                 raise ForceError("production force already reserved; technical retries must use its original task map")
-        prior_production = sum(x["phase"] == "production" for x in previous)
+        prior_production = sum(item["record"]["phase"] == "production" for item in previous)
         if phase == "initial":
             limit = min(6, policy["initial_timing_and_noise_batch"]["maximum_new_scf_tasks"])
-            if task_count + sum(x["task_count"] for x in previous if x["phase"] == "initial") > limit:
+            if task_count + sum(item["record"]["task_count"] for item in previous if item["record"]["phase"] == "initial") > limit:
                 raise ForceError("initial timing/noise campaign exceeds cumulative six SCFs")
         elif phase == "validation":
             limit = min(32, policy["pilot_batch_maximum_new_scf_tasks"])
-            if approved is None and task_count + sum(x["task_count"] for x in previous if x["phase"] == "validation") > limit:
+            if approved is None and task_count + sum(item["record"]["task_count"] for item in previous if item["record"]["phase"] == "validation") > limit:
                 raise ForceError("unbudgeted validation pilot exceeds cumulative 32 SCFs")
         else:
             limit = min(64 if prior_production else 32, policy["production_later_batch_maximum_tasks"] if prior_production else policy["production_first_batch_maximum_tasks"])
         if task_count > limit:
             raise ForceError(f"requested batch exceeds {limit} SCFs including pristine")
-        reserved = sum(x["reserved_core_hours"] for x in previous)
+        reserved = sum(item["record"]["reserved_core_hours"] for item in previous)
         used = sum(x["core_hours"] for x in usage)
         reservation = task_count * walltime * ranks * (1+max_retries)
         charged_before = max(reserved, used)
@@ -276,11 +604,14 @@ def _reserve_budget(config, run_dir, destination, task_count, task_map_sha256,
                    "evidence_sha256": {**timing_hashes, **usage_hashes},
                    "resource_policy_sha256": core.canonical_sha256(policy),
                    "created_utc": core.utc_now(), "accounting_policy": "retain all reservations; no automatic refunds; includes one retry per task"}
-        receipt_path = destination / "budget_receipt.json"
+        receipt_path = (destination / "budget_receipt.json").resolve()
         core.write_json_immutable(receipt_path, receipt)
         ledger_record = {"phase": phase, "task_count": task_count, "reserved_core_hours": reservation,
                          "receipt_path": str(receipt_path), "receipt_sha256": core.sha256_path(receipt_path)}
-        core.write_json_immutable(ledger / f"reservation-{len(previous):06d}.json", ledger_record)
+        reservation_path = ledger / f"reservation-{len(previous):06d}.json"
+        if os.path.lexists(reservation_path):
+            raise ForceError("force-budget reservation path already exists or is unsafe")
+        core.write_json_immutable(reservation_path, ledger_record)
     return receipt
 
 
@@ -430,6 +761,41 @@ def _settings(config: Mapping[str, Any], mode: str, pilot: Mapping[str, Any] | N
     return result
 
 
+def _imported_acceptance_provenance(
+    config_path: Path,
+    run_dir: Path,
+    saved: Mapping[str, Any],
+) -> dict[str, str]:
+    """Replay and enumerate destination-owned import evidence for force bundles."""
+
+    if saved.get("accepted_structure_import") is None:
+        return {}
+    from accepted_structure_import import (
+        ARCHIVE,
+        RECEIPT,
+        verify_imported_acceptance,
+    )
+
+    verified = verify_imported_acceptance(config_path, run_dir)
+    receipt_path = _under(run_dir / RECEIPT, run_dir)
+    pointer = saved["accepted_structure_import"]
+    _match(receipt_path, pointer.get("sha256", ""))
+    receipt = core.load_json(receipt_path)
+    evidence = {str(receipt_path): core.sha256_path(receipt_path)}
+    archive = run_dir / ARCHIVE
+    for field in ("source_files", "workflow_files"):
+        inventory = receipt.get(field)
+        if not isinstance(inventory, Mapping):
+            raise ForceError(f"accepted-structure import lacks {field}")
+        for relative, digest in inventory.items():
+            path = _under(archive / str(relative), run_dir)
+            _match(path, str(digest))
+            evidence[str(path)] = core.sha256_path(path)
+    if verified.get("receipt_sha256") != evidence[str(receipt_path)]:
+        raise ForceError("accepted-structure import receipt replay mismatch")
+    return evidence
+
+
 def _provenance(config: Mapping[str, Any], config_path: Path, run_dir: Path,
                 inventory_path: Path, dataset: Path) -> tuple[dict[str, str], dict[str, Any]]:
     saved = core.load_json(run_dir / core.RUN_MANIFEST)
@@ -469,9 +835,15 @@ def _provenance(config: Mapping[str, Any], config_path: Path, run_dir: Path,
     _match(dataset / "unitcell.in", gate["final_unitcell_sha256"])
     if result.get("unitcell_sha256") != gate["final_unitcell_sha256"]:
         raise ForceError("dataset unitcell provenance mismatch")
+    imported_evidence = _imported_acceptance_provenance(
+        config_path, run_dir, saved
+    )
     paths = [run_dir / core.RUN_MANIFEST, final / "gate.json", final / "provenance.json", final / "unitcell.in", inventory_path, result_path, dataset / "phono3py_disp.yaml", accepted / "execution_manifest.json", accepted / "starting_structure_audit.json"]
     paths.extend(accepted / name for name in ("relax.in", "relax.out", "pristine.in", "pristine.out"))
-    return {str(p): core.sha256_path(p) for p in paths}, execution
+    return {
+        **{str(p): core.sha256_path(p) for p in paths},
+        **imported_evidence,
+    }, execution
 
 
 def _dataset_inputs(dataset: Path, settings: Mapping[str, Any], pseudo_dir: Path,
@@ -764,11 +1136,17 @@ def verify_selection_provenance(manifest, run_dir, *, config_path=None):
 
 
 def _claim_execution(run_dir, manifest, receipt, task_id, attempt, retry_evidence):
-    ledger = run_dir / ".force_budget"
+    ledger = safe_budget_ledger(run_dir)
     claims = ledger / "executions"
-    claims.mkdir(exist_ok=True)
+    if os.path.lexists(claims):
+        if claims.is_symlink() or not claims.is_dir() or claims.resolve().parent != ledger:
+            raise ForceError("force-budget executions directory is unsafe")
+    else:
+        claims.mkdir()
+        if claims.is_symlink() or not claims.is_dir() or claims.resolve().parent != ledger:
+            raise ForceError("force-budget executions directory creation is unsafe")
     key = f"{manifest['task_map_sha256']}-{task_id}"
-    with (ledger / "lock").open("a") as lock:
+    with _ledger_lock_path(ledger).open("a") as lock:
         fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
         previous = [core.load_json(p) for p in sorted(claims.glob(key + "-*.json"))]
         if any(Path(p["attempt_path"]) == attempt for p in previous):
@@ -802,7 +1180,10 @@ def _claim_execution(run_dir, manifest, receipt, task_id, attempt, retry_evidenc
                   "technical_retry_count": len(previous), "attempt_path": str(attempt),
                   "retry_evidence_sha256": core.sha256_path(Path(retry_evidence)) if retry_evidence else None,
                   "job_id": os.environ.get("SLURM_JOB_ID"), "created_utc": core.utc_now()}
-        core.write_json_immutable(claims / f"{key}-{len(previous)}.json", record)
+        claim_path = claims / f"{key}-{len(previous)}.json"
+        if os.path.lexists(claim_path):
+            raise ForceError("force-budget execution claim path already exists or is unsafe")
+        core.write_json_immutable(claim_path, record)
     return record
 
 

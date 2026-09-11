@@ -171,6 +171,28 @@
     ],
     "supercell_candidates": [
       {
+        "id": "sr_fc3_2x1x1",
+        "matrix": [[2, 0, 0], [0, 1, 0], [0, 0, 1]],
+        "phono3py_cli_dim": "2 1 1",
+        "atoms": 40,
+        "reference_edge_lengths_angstrom": [7.676906472, 8.641205776, 14.002978756],
+        "reference_edge_lengths_status": "planned_reference_derived_from_provenance_reference_cell_not_remote_validated",
+        "reference_edge_lengths_derivation": "Diagonal [2,1,1] replication of provenance.reference_cell_vectors_angstrom.",
+        "role": "exploratory_count_only_lower_cost_hypothesis",
+        "production_fc3_eligible_without_new_review": false
+      },
+      {
+        "id": "sr_fc3_3x1x1",
+        "matrix": [[3, 0, 0], [0, 1, 0], [0, 0, 1]],
+        "phono3py_cli_dim": "3 1 1",
+        "atoms": 60,
+        "reference_edge_lengths_angstrom": [11.515359708, 8.641205776, 14.002978756],
+        "reference_edge_lengths_status": "planned_reference_derived_from_provenance_reference_cell_not_remote_validated",
+        "reference_edge_lengths_derivation": "Diagonal [3,1,1] replication of provenance.reference_cell_vectors_angstrom.",
+        "role": "exploratory_count_only_lower_cost_hypothesis",
+        "production_fc3_eligible_without_new_review": false
+      },
+      {
         "id": "sr_fc3_3x2x1",
         "matrix": [[3, 0, 0], [0, 2, 0], [0, 0, 1]],
         "phono3py_cli_dim": "3 2 1",
@@ -205,6 +227,16 @@
     ],
     "cutoff_candidates": [
       {
+        "id": "sr_cutoff_3p70A",
+        "cutoff_pair_distance_angstrom": 3.7,
+        "cutoff_pair_distance_cli_bohr": 6.99198666111535,
+        "role": "exploratory_count_only_lower_cost_hypothesis",
+        "candidate_status": "awaiting_remote_phono3py_count_unit_and_pair_group_validation",
+        "reference_pair_shell_bracket_angstrom": [3.613697991, 3.783161892],
+        "reference_pair_shell_bracket_status": "reference_only_from_versioned_primary_structure_not_remote_phono3py_validated",
+        "reference_pair_shell_bracket_derivation": "Minimum-image pair-distance scan of the final 20-atom fractional coordinates and cell in provenance.primary_structure_output."
+      },
+      {
         "id": "sr_cutoff_4A",
         "cutoff_pair_distance_angstrom": 4.0,
         "cutoff_pair_distance_cli_bohr": 7.558904498503
@@ -221,6 +253,8 @@
       }
     ],
     "enumerate": [
+      {"fc3_supercell_id": "sr_fc3_2x1x1", "cutoff_pair_id": "sr_cutoff_3p70A", "count_only": true},
+      {"fc3_supercell_id": "sr_fc3_3x1x1", "cutoff_pair_id": "sr_cutoff_3p70A", "count_only": true},
       {"fc3_supercell_id": "sr_fc3_3x2x1", "cutoff_pair_id": "sr_cutoff_4A"},
       {"fc3_supercell_id": "sr_fc3_3x2x1", "cutoff_pair_id": "sr_cutoff_5A"},
       {"fc3_supercell_id": "sr_fc3_4x2x1", "cutoff_pair_id": "sr_cutoff_4A"},

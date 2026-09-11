@@ -9,6 +9,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from campaign import CampaignError
 from submit import (
     SLURM_DIR,
     StagePlan,
@@ -17,6 +18,7 @@ from submit import (
     canonical_sha256,
     ensure_no_active_duplicate,
     execute_submission,
+    require_force_gate,
     require_nibi_login,
     resolve_context,
     sbatch_command,
@@ -160,6 +162,91 @@ class SubmissionTests(unittest.TestCase):
         (final / "gate.json").write_text('{"pass": true}\n')
         (final / "unitcell.in").write_text("unit cell\n")
 
+    def write_force_final(self) -> tuple[Path, Path]:
+        def write(name: str) -> Path:
+            path = self.run_dir / "force-evidence" / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(f"synthetic {name}\n")
+            return path.resolve()
+
+        def ref(path: Path) -> dict[str, str]:
+            return {"path": str(path), "sha256": sha256_path(path)}
+
+        backend_names = (
+            "force_finalize.py", "campaign.py", "force_backend.py", "submit.py",
+            "postprocess_backend.py", "qe_input.py", "qe_output.py",
+        )
+        backends = {
+            str((SLURM_DIR.parent / name).resolve()): sha256_path(SLURM_DIR.parent / name)
+            for name in backend_names
+        }
+        plan = write("plan.json")
+        receipt = (self.run_dir / "slurm_attempts/force-finalize/final-1/force_finalize_receipt.json").resolve()
+        receipt.parent.mkdir(parents=True)
+        receipt.write_text(json.dumps({
+            "schema_version": 1, "stage": "force_finalize", "pass": True,
+            "material": "Example", "plan": str(plan.resolve()), "plan_sha256": sha256_path(plan),
+            "force_dataset_ready_for_fc2_fc3_construction": True,
+            "scientific_results_claimed": False, "audit_backend_sha256": backends,
+            "force_finalize_backend_sha256": sha256_path(SLURM_DIR.parent / "force_finalize.py"),
+        }))
+        accepted = {name: ref(write(f"accepted-{name}")) for name in ("gate", "provenance", "unitcell")}
+        named = {name: ref(write(name)) for name in (
+            "preflight_inventory", "preflight_result", "dataset", "selection_receipt",
+        )}
+        canonical = {}
+        for stem in ("input", "output", "stderr"):
+            path = write(f"canonical-{stem}")
+            canonical[f"{stem}_path"] = str(path)
+            canonical[f"{stem}_sha256"] = sha256_path(path)
+        artifact = {"displacement_id": 1}
+        for stem in ("input", "output", "stderr"):
+            path = write(f"artifact-{stem}")
+            artifact[f"{stem}_path"] = str(path)
+            artifact[f"{stem}_sha256"] = sha256_path(path)
+        batch_names = (
+            "collection", "force_manifest", "task_map", "budget_receipt",
+            "budget_ledger_reservation", "submission_request", "submission_result",
+            "submission_summary", "collector_request", "collector_result",
+            "scheduler_accounting", "scheduler_accounting_status",
+        )
+        batch = {"batch_id": "batch-1", **{name: ref(write(name)) for name in batch_names}}
+        raw_dir = (self.run_dir / "force-evidence/raw").resolve()
+        raw_dir.mkdir()
+        raw_file = raw_dir / "scf.out"
+        raw_file.write_text("raw force\n")
+        batch["raw_artifacts"] = [{
+            "task_id": 0, "attempt_path": str(raw_dir),
+            "files_sha256": {raw_file.name: sha256_path(raw_file)},
+        }]
+        final = self.run_dir / "force/final"
+        final.mkdir(parents=True)
+        index_path = final / "index.json"
+        index = {
+            "schema_version": 1, "stage": "force_dataset_index", "material": "Example",
+            "config": str(self.config_path.resolve()), "config_sha256": self.context.config_sha256,
+            "force_dataset_ready_for_fc2_fc3_construction": True,
+            "plan": str(plan), "plan_sha256": sha256_path(plan),
+            "finalize_receipt": ref(receipt), "audit_backend_sha256": backends,
+            "force_finalize_backend_sha256": sha256_path(SLURM_DIR.parent / "force_finalize.py"),
+            "accepted_structure": accepted, **named, "canonical_pristine": canonical,
+            "artifacts": [artifact], "required_fc3_displacement_ids": [1], "batches": [batch],
+        }
+        index_path.write_text(json.dumps(index))
+        (final / "gate.json").write_text(json.dumps({
+            "schema_version": 1, "stage": "force_dataset_gate", "pass": True,
+            "production_dataset_complete": True,
+            "eligible_for_force_constant_construction": True,
+            "scientific_results_claimed": False,
+            "scope": "audited production force dataset readiness only",
+            "material": "Example", "config_sha256": self.context.config_sha256,
+            "index_sha256": sha256_path(index_path), "plan_sha256": sha256_path(plan),
+            "finalize_receipt_sha256": sha256_path(receipt),
+            "audit_backend_sha256": backends,
+            "force_finalize_backend_sha256": sha256_path(SLURM_DIR.parent / "force_finalize.py"),
+        }))
+        return index_path, Path(batch["budget_ledger_reservation"]["path"])
+
     def write_task_map(self, count: int = 3) -> Path:
         path = self.run_dir / "force" / "task_map.tsv"
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -202,6 +289,13 @@ class SubmissionTests(unittest.TestCase):
             "maximum_concurrency": 2,
             "walltime_hours": 1,
             "maximum_technical_retries_per_task": 1,
+            "reserved_core_hours": count * 32 * 1 * 2,
+            "reserved_core_hours_before": 0,
+            "charged_core_hours_before": 0,
+            "used_core_hours": 0,
+            "approved_total_core_hours": self.config["resource_budget"]["approved_total_core_hours_per_material"],
+            "production_batch_number": 1 if mode == "production" else None,
+            "production_input_hashes": [task["input_sha256"] for task in tasks if task["displacement_id"] != 0] if mode == "production" else [],
             "resource_policy_sha256": canonical_sha256(self.config["resource_budget"]),
         }
         receipt_path = bundle / "budget_receipt.json"
@@ -255,6 +349,9 @@ class SubmissionTests(unittest.TestCase):
         (ledger / "reservation-000000.json").write_text(
             json.dumps(
                 {
+                    "phase": receipt["phase"],
+                    "task_count": count,
+                    "reserved_core_hours": receipt["reserved_core_hours"],
                     "receipt_path": str(receipt_path.resolve()),
                     "receipt_sha256": sha256_path(receipt_path),
                 }
@@ -277,11 +374,20 @@ class SubmissionTests(unittest.TestCase):
         manifest.update(task_map_sha256=sha256_path(path), task_count=len(manifest["tasks"]))
         receipt_path = bundle / "budget_receipt.json"
         receipt = json.loads(receipt_path.read_text())
-        receipt.update(task_map_sha256=sha256_path(path), task_count=len(manifest["tasks"]))
+        receipt.update(
+            task_map_sha256=sha256_path(path), task_count=len(manifest["tasks"]),
+            reserved_core_hours=len(manifest["tasks"]) * receipt["mpi_ranks"]
+            * receipt["walltime_hours"] * (1 + receipt["maximum_technical_retries_per_task"]),
+            production_input_hashes=[task["input_sha256"] for task in manifest["tasks"] if task["displacement_id"] != 0] if manifest["mode"] == "production" else [],
+        )
         receipt_path.write_text(json.dumps(receipt))
         manifest["budget_receipt_sha256"] = sha256_path(receipt_path)
         (bundle / "force_manifest.json").write_text(json.dumps(manifest))
-        (self.run_dir / ".force_budget/reservation-000000.json").write_text(json.dumps({"receipt_path":str(receipt_path.resolve()), "receipt_sha256":sha256_path(receipt_path)}))
+        (self.run_dir / ".force_budget/reservation-000000.json").write_text(json.dumps({
+            "phase": receipt["phase"], "task_count": receipt["task_count"],
+            "reserved_core_hours": receipt["reserved_core_hours"],
+            "receipt_path": str(receipt_path.resolve()), "receipt_sha256": sha256_path(receipt_path),
+        }))
 
     def test_rehashed_force_manifest_cannot_replace_replayed_selection(self) -> None:
         task_map = self.write_force_bundle()
@@ -340,6 +446,40 @@ class SubmissionTests(unittest.TestCase):
         (final / "unitcell.in").write_text("unit cell\n")
         with self.assertRaisesRegex(SubmissionError, "has not passed"):
             stage_plan(self.context, "preflight", attempt_id="preflight-2")
+
+    def test_imported_run_replays_for_downstream_and_rejects_relax(self) -> None:
+        self.pass_relax_gate()
+        imported = SubmissionContext(
+            config_path=self.context.config_path,
+            run_dir=self.context.run_dir,
+            config=self.context.config,
+            manifest={**self.context.manifest, "accepted_structure_import": {"receipt": "x"}},
+            config_sha256=self.context.config_sha256,
+        )
+        with patch(
+            "accepted_structure_import.verify_imported_acceptance",
+            return_value={"healthy": True},
+        ) as replay:
+            stage_plan(imported, "preflight", attempt_id="imported-preflight")
+        replay.assert_called_once_with(imported.config_path, imported.run_dir)
+        with self.assertRaisesRegex(SubmissionError, "cannot submit a relax stage"):
+            stage_plan(imported, "relax", attempt_id="imported-relax")
+
+    def test_import_replay_failure_stops_each_downstream_stage(self) -> None:
+        imported = SubmissionContext(
+            config_path=self.context.config_path,
+            run_dir=self.context.run_dir,
+            config=self.context.config,
+            manifest={**self.context.manifest, "accepted_structure_import": {"receipt": "x"}},
+            config_sha256=self.context.config_sha256,
+        )
+        for stage in ("preflight", "force", "postprocess"):
+            with self.subTest(stage=stage), patch(
+                "accepted_structure_import.verify_imported_acceptance",
+                side_effect=CampaignError("receipt hash mismatch"),
+            ):
+                with self.assertRaisesRegex(SubmissionError, "receipt hash mismatch"):
+                    stage_plan(imported, stage, attempt_id=f"imported-{stage}")
 
     def test_force_requires_recorded_production_selection(self) -> None:
         self.pass_relax_gate()
@@ -411,6 +551,39 @@ class SubmissionTests(unittest.TestCase):
         outside.write_text("0\ta\n")
         with self.assertRaisesRegex(SubmissionError, "inside RUN_DIR"):
             validate_task_map(outside, self.run_dir.resolve(), 8)
+
+    def test_force_bundle_replays_synchronously_rehashed_ledger_semantics(self) -> None:
+        task_map = self.write_force_bundle(3)
+        bundle = task_map.parent
+        receipt_path = bundle / "budget_receipt.json"
+        ledger_path = self.run_dir / ".force_budget" / "reservation-000000.json"
+        manifest_path = bundle / "force_manifest.json"
+        original_receipt = receipt_path.read_text()
+        original_ledger = ledger_path.read_text()
+        original_manifest = manifest_path.read_text()
+        cases = (
+            ("phase", "not-a-phase", "budget receipt phase is invalid"),
+            ("task_count", -1, "budget receipt does not bind"),
+            ("reserved_core_hours", -1, "budget ledger replay failed.*reserved_core_hours"),
+            ("reserved_core_hours", 1, "budget ledger replay failed.*inconsistent"),
+        )
+        for field, value, expected in cases:
+            with self.subTest(field=field, value=value):
+                receipt = json.loads(original_receipt)
+                ledger = json.loads(original_ledger)
+                receipt[field] = value
+                ledger[field] = value
+                receipt_path.write_text(json.dumps(receipt))
+                ledger["receipt_sha256"] = sha256_path(receipt_path)
+                ledger_path.write_text(json.dumps(ledger))
+                manifest = json.loads(original_manifest)
+                manifest["budget_receipt_sha256"] = sha256_path(receipt_path)
+                manifest_path.write_text(json.dumps(manifest))
+                with self.assertRaisesRegex(SubmissionError, expected):
+                    validate_force_bundle(self.context, task_map)
+                receipt_path.write_text(original_receipt)
+                ledger_path.write_text(original_ledger)
+                manifest_path.write_text(original_manifest)
 
     def test_force_map_requires_exact_explicit_header(self) -> None:
         task_map = self.write_force_bundle()
@@ -716,13 +889,37 @@ class SubmissionTests(unittest.TestCase):
         scheduler_query.assert_not_called()
 
     def test_postprocess_requires_collected_force_gate(self) -> None:
-        with self.assertRaisesRegex(SubmissionError, "passing collected-force gate"):
+        with self.assertRaisesRegex(SubmissionError, "canonical force/final"):
             stage_plan(self.context, "postprocess", attempt_id="postprocess-1")
         final = self.run_dir / "force" / "final"
         final.mkdir(parents=True)
         (final / "gate.json").write_text('{"pass": true}\n')
-        plan = stage_plan(self.context, "postprocess", attempt_id="postprocess-2")
-        self.assertEqual(plan.script, SLURM_DIR / "postprocess.sbatch")
+        with self.assertRaisesRegex(SubmissionError, "canonical force/final"):
+            stage_plan(self.context, "postprocess", attempt_id="postprocess-2")
+
+    def test_require_force_gate_rejects_indexed_budget_ledger_mutation(self) -> None:
+        _, ledger = self.write_force_final()
+        require_force_gate(self.context)
+        ledger.write_text(ledger.read_text() + "mutated\n")
+        with self.assertRaisesRegex(SubmissionError, "budget_ledger_reservation hash mismatch"):
+            require_force_gate(self.context)
+
+    def test_indexed_file_rejects_symlink_component_targeting_run_dir(self) -> None:
+        index_path, _ = self.write_force_final()
+        alias = self.run_dir / "root-alias"
+        alias.symlink_to(self.run_dir, target_is_directory=True)
+        index = json.loads(index_path.read_text())
+        original = Path(index["accepted_structure"]["gate"]["path"])
+        index["accepted_structure"]["gate"]["path"] = str(
+            alias / original.relative_to(self.run_dir.resolve())
+        )
+        index_path.write_text(json.dumps(index))
+        gate_path = self.run_dir / "force/final/gate.json"
+        gate = json.loads(gate_path.read_text())
+        gate["index_sha256"] = sha256_path(index_path)
+        gate_path.write_text(json.dumps(gate))
+        with self.assertRaisesRegex(SubmissionError, "path may not contain a symlink"):
+            require_force_gate(self.context)
 
     def test_dependency_syntax_is_fail_closed(self) -> None:
         plan = StagePlan(

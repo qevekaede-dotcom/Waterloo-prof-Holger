@@ -140,6 +140,43 @@
       "large_shift_action": "flag_electronic_phonon_geometry_mismatch_and_require_review"
     }
   },
+  "reviewed_bfgs_polish": {
+    "status": "reviewed_planned_hypothesis_not_validated",
+    "reason": "The original tight relax and the one-reset attempt are both preserved terminal BFGS failures. This is one separately reviewed diagnostic-plus-polish hypothesis, not another automatic reset.",
+    "source_requirement": "terminal_one_reset_BFGS_failure_with_original_recovery_lineage",
+    "maximum_polish_attempts": 1,
+    "automatic_submission_allowed": false,
+    "fresh_run_dir_required": true,
+    "fresh_qe_scratch_required": true,
+    "preserve_original_standardized_geometry_as_cumulative_shift_reference": true,
+    "bfgs_parameters": {
+      "bfgs_ndim": 1,
+      "trust_radius_ini": 0.05,
+      "trust_radius_min": 0.0001,
+      "trust_radius_max": 0.2,
+      "units": "bohr",
+      "qe_semantics": "bfgs_ndim=1 keeps standard quasi-Newton BFGS; trust_radius_ini/min/max are respectively the initial, reset-floor, and maximum ionic displacement controls documented for QE BFGS.",
+      "validation_status": "reviewed_planned_values_not_calculated_results"
+    },
+    "force_consistency_diagnostic": {
+      "geometry": "one_reset_terminal_final_coordinates",
+      "baseline_repetitions": 2,
+      "baseline_ecutrho_ry": 800,
+      "higher_ecutrho_ry": 1000,
+      "ecutwfc_ry": 100,
+      "kmesh": [4, 7, 7],
+      "conv_thr_ry": 1e-10,
+      "nosym": true,
+      "noinv": true,
+      "fresh_scratch_per_scf": true,
+      "maximum_duplicate_rms_difference_ry_bohr": 5e-06,
+      "maximum_higher_ecutrho_component_difference_ry_bohr": 5e-05,
+      "maximum_higher_ecutrho_rms_difference_ry_bohr": 1e-05,
+      "all_criteria_required": true,
+      "acceptance_scope": "diagnostic_release_only_never_structure_acceptance_or_preflight"
+    },
+    "ordinary_acceptance_still_required": "normal BFGS convergence plus independent pristine SCF plus the unchanged full relax gate"
+  },
   "start_structure_standardization": {
     "symmetrize_start": true,
     "reason": "The high-precision archived vc-relax geometry is numerically close to Ibam but is recognized as P-1/C2c at tighter tolerances; idealization is an explicit, recorded scientific choice rather than a silent edit.",

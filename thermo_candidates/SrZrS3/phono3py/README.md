@@ -100,17 +100,42 @@ and [QE workflow](https://phonopy.github.io/phono3py/qe.html).
 
 ## Preflight choices, not production settings
 
-| Role | Supercell | Atoms | Reference edge lengths [angstrom] |
+| Role | Supercell | Atoms | Planned/reference edge lengths [angstrom] |
 | --- | --- | ---: | --- |
+| Exploratory count-only lower-cost hypothesis | 2x1x1 | 40 | 7.677, 8.641, 14.003 |
+| Exploratory count-only lower-cost hypothesis | 3x1x1 | 60 | 11.515, 8.641, 14.003 |
 | Economic candidate | 3x2x1 | 120 | 11.515, 17.282, 14.003 |
 | Preferred-size candidate | 4x2x1 | 160 | 15.354, 17.282, 14.003 |
 | FC2 range check | 5x2x1 | 200 | generated value must be recorded |
 | FC2 escalation only | 4x2x2 | 320 | generated value must be recorded |
 
-The intended FC3 pair-cutoff design values are 4.0, 5.0, and 6.0 angstrom,
-with their converted bohr values in the JSON. The no-cutoff variants are
-count-only cost bounds and must never be submitted automatically. Candidate
-status does not imply that any matrix or cutoff is scientifically adequate.
+The 2x1x1 and 3x1x1 rows are deliberately limited to count-only preflight
+with the new 3.70-angstrom cutoff. They are hypotheses awaiting remote
+phono3py validation of the displacement count, `physical_unit.length`, and
+included/excluded nonzero pair groups; they are not accepted settings and
+cannot become selection-eligible from count evidence alone. Their stored
+edge lengths are planned/reference calculations, not generated measurements:
+they come from applying the diagonal replication matrices to the versioned
+reference cell `(3.838453236, 8.641205776, 14.002978756)` angstrom. This gives
+2x1x1 edges `(7.676906472, 8.641205776, 14.002978756)` angstrom and a
+half-shortest-edge reference bound of `3.838453236` angstrom; 3x1x1 gives
+`(11.515359708, 8.641205776, 14.002978756)` angstrom and a bound of
+`4.320602888` angstrom. A minimum-image pair-distance scan of the final
+20-atom fractional coordinates in the same versioned source places 3.70
+angstrom between reference shells at `3.613697991` and `3.783161892`
+angstrom. These are reference-only calculations, not phono3py pair-group
+evidence from the accepted remote structure. Thus 3.70 angstrom is a bounded
+exploratory screen geometrically inside both reference half-cell bounds, but
+that necessary check does not establish interaction-range convergence or
+eliminate finite-size effects. Using the config's conversion constant,
+`3.70 / 0.529177210903 = 6.99198666111535` bohr (the stored binary64 value).
+
+The previously declared routine FC3 pair-cutoff design values remain 4.0, 5.0,
+and 6.0 angstrom, with their converted bohr values in the JSON. The no-cutoff
+variants are count-only cost bounds and must never be submitted automatically.
+Candidate status does not imply that any matrix or cutoff is scientifically
+adequate. All existing production selections remain null and every production
+gate remains closed pending explicit scientific, force, and resource review.
 
 ## Force and transport acceptance
 

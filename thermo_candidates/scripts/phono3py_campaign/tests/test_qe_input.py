@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import unittest
 
 from qe_input import (
@@ -147,6 +148,57 @@ class PrepareInputsTests(unittest.TestCase):
         self.assertIn("electron_maxstep = 300", generated)
         self.assertIn("mixing_beta = 0.25", generated)
         self.assertIn("ion_dynamics = 'bfgs'", generated)
+
+    def test_optional_bfgs_controls_preserve_defaults_and_validate_order(self) -> None:
+        arguments = dict(
+            outdir="out",
+            prefix="x",
+            pseudo_dir="pseudo",
+            conv_thr=1e-10,
+            forc_conv_thr=1e-5,
+            ecutwfc=50,
+            ecutrho=400,
+            kmesh=(2, 2, 2),
+        )
+        unchanged = build_fixed_cell_relax_input(SOURCE_INPUT, **arguments)
+        explicit_none = build_fixed_cell_relax_input(
+            SOURCE_INPUT,
+            bfgs_ndim=None,
+            trust_radius_ini=None,
+            trust_radius_min=None,
+            trust_radius_max=None,
+            **arguments,
+        )
+        self.assertEqual(unchanged.encode(), explicit_none.encode())
+        self.assertEqual(
+            hashlib.sha256(unchanged.encode()).hexdigest(),
+            "3bfb6e234bd1451b23bf4e68cc047f133ef3c12307a7972b51ec970d0e014400",
+        )
+        self.assertNotIn("bfgs_ndim", unchanged)
+        self.assertNotIn("trust_radius_", unchanged)
+
+        polished = build_fixed_cell_relax_input(
+            SOURCE_INPUT,
+            bfgs_ndim=1,
+            trust_radius_ini=0.05,
+            trust_radius_min=1e-4,
+            trust_radius_max=0.2,
+            **arguments,
+        )
+        self.assertIn("bfgs_ndim = 1", polished)
+        self.assertIn("trust_radius_ini = 0.05", polished)
+        self.assertIn("trust_radius_min = 0.0001", polished)
+        self.assertIn("trust_radius_max = 0.2", polished)
+
+        for values, message in (
+            ({"bfgs_ndim": 0}, "bfgs_ndim"),
+            ({"bfgs_ndim": True}, "bfgs_ndim"),
+            ({"trust_radius_min": 0.1, "trust_radius_ini": 0.05}, "must satisfy"),
+            ({"trust_radius_ini": 0.3, "trust_radius_max": 0.2}, "must satisfy"),
+            ({"trust_radius_min": 0.0}, "finite and positive"),
+        ):
+            with self.subTest(values=values), self.assertRaisesRegex(QEInputError, message):
+                build_fixed_cell_relax_input(SOURCE_INPUT, **values, **arguments)
 
     def test_relax_rejects_active_cell_dynamics_and_duplicate_target(self) -> None:
         active_cell = SOURCE_INPUT.replace("&CELL\n/", "&CELL\n  cell_dynamics = 'bfgs',\n/")

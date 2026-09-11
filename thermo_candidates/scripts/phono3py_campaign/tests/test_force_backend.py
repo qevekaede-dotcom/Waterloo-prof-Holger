@@ -1,5 +1,6 @@
 """Synthetic provenance and force-task failure tests; no scientific execution."""
 import copy
+import csv
 import json
 import os
 from pathlib import Path
@@ -126,6 +127,60 @@ class ForceBackendTests(unittest.TestCase):
         self.assertFalse(self.verify.called)  # Older completed upstream code is valid.
         with self.assertRaisesRegex(fb.ForceError, "already exists"):
             self.prepare()
+
+    def test_force_manifest_archives_import_receipt_and_source_inventory(self):
+        archived = self.run / "accepted_structure_source" / "source_run" / "gate.json"
+        archived.parent.mkdir(parents=True)
+        archived.write_text("archived acceptance evidence\n")
+        receipt = self.run / "accepted_structure_import.json"
+        self.dump(receipt, {
+            "source_files": {"source_run/gate.json": core.sha256_path(archived)},
+            "workflow_files": {},
+        })
+        saved_path = self.run / "run_manifest.json"
+        saved = core.load_json(saved_path)
+        saved["accepted_structure_import"] = {
+            "receipt": "accepted_structure_import.json",
+            "sha256": core.sha256_path(receipt),
+        }
+        self.dump(saved_path, saved)
+        with patch(
+            "accepted_structure_import.verify_imported_acceptance",
+            return_value={"healthy": True, "receipt_sha256": core.sha256_path(receipt)},
+        ):
+            result = self.prepare()
+        manifest = core.load_json(Path(result["manifest"]))
+        self.assertEqual(
+            manifest["evidence_sha256"][str(receipt.resolve())], core.sha256_path(receipt)
+        )
+        self.assertEqual(
+            manifest["evidence_sha256"][str(archived.resolve())], core.sha256_path(archived)
+        )
+
+    def test_force_preparation_rejects_tampered_import_archive(self):
+        archived = self.run / "accepted_structure_source" / "source_run" / "gate.json"
+        archived.parent.mkdir(parents=True)
+        archived.write_text("archived acceptance evidence\n")
+        expected = core.sha256_path(archived)
+        receipt = self.run / "accepted_structure_import.json"
+        self.dump(receipt, {
+            "source_files": {"source_run/gate.json": expected},
+            "workflow_files": {},
+        })
+        saved_path = self.run / "run_manifest.json"
+        saved = core.load_json(saved_path)
+        saved["accepted_structure_import"] = {
+            "receipt": "accepted_structure_import.json",
+            "sha256": core.sha256_path(receipt),
+        }
+        self.dump(saved_path, saved)
+        archived.write_text("tampered after receipt\n")
+        with patch(
+            "accepted_structure_import.verify_imported_acceptance",
+            return_value={"healthy": True, "receipt_sha256": core.sha256_path(receipt)},
+        ):
+            with self.assertRaisesRegex(fb.ForceError, "missing or altered evidence"):
+                self.prepare()
 
     def test_production_gate_requires_both_selections(self):
         with self.assertRaisesRegex(fb.ForceError, "explicit production"):
@@ -455,9 +510,31 @@ class ForceBackendTests(unittest.TestCase):
         self.assertFalse((self.run / "force/second/task_map.tsv").exists())
 
     def reserve(self, phase, tasks, name="reserve", **overrides):
+        destination = self.run / name
+        destination.mkdir(exist_ok=True)
+        rows = []
+        for task_id in range(tasks):
+            input_path = destination / f"task-{task_id}.in"
+            input_path.write_text(f"synthetic {name} task {task_id}\n")
+            rows.append({"task_id": task_id, "displacement_id": task_id,
+                         "role": "pristine" if task_id == 0 else "displacement",
+                         "input_path": str(input_path.resolve()),
+                         "input_sha256": core.sha256_path(input_path)})
+        task_map = destination / "task_map.tsv"
+        with task_map.open("w", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=fb.FIELDS, delimiter="\t", lineterminator="\n")
+            writer.writeheader()
+            writer.writerows(rows)
         request = {"phase":phase, "mpi_ranks":32, "walltime_hours":1, "max_concurrency":2, **overrides}
-        return fb._reserve_budget(self.config, self.run, self.run / name, tasks, "a"*64,
-            "production" if phase == "production" else "pilot", request)
+        receipt = fb._reserve_budget(self.config, self.run, destination, tasks, core.sha256_path(task_map),
+            "production" if phase == "production" else "pilot", request,
+            [row["input_sha256"] for row in rows[1:]] if phase == "production" else [])
+        self.dump(destination / "force_manifest.json", {
+            "schema_version": 1, "stage": "force", "mode": "production" if phase == "production" else "pilot",
+            "material": "X", "task_map_sha256": core.sha256_path(task_map), "task_count": tasks,
+            "tasks": rows, "budget_receipt_sha256": core.sha256_path(destination / "budget_receipt.json"),
+        })
+        return receipt
 
     def test_unapproved_production_budget_rejected(self):
         with self.assertRaisesRegex(fb.ForceError, "approved total core-hour"):
@@ -510,6 +587,102 @@ class ForceBackendTests(unittest.TestCase):
             with self.assertRaisesRegex(fb.ForceError, "cumulative 32"):
                 self.reserve("validation", 13, "second")
 
+    def test_reservation_replay_rejects_synchronously_rehashed_semantic_tampering(self):
+        self.reserve("initial", 3, "first")
+        receipt_path = self.run / "first" / "budget_receipt.json"
+        ledger_path = self.run / ".force_budget" / "reservation-000000.json"
+        original_receipt = receipt_path.read_text()
+        original_ledger = ledger_path.read_text()
+        cases = (
+            ("phase", "not-a-phase", "phase is invalid"),
+            ("task_count", -1, "task_count is invalid"),
+            ("reserved_core_hours", -1, "reserved_core_hours"),
+            ("reserved_core_hours", 1, "does not bind its exact force bundle"),
+        )
+        for field, value, expected in cases:
+            with self.subTest(field=field, value=value):
+                receipt = json.loads(original_receipt)
+                ledger = json.loads(original_ledger)
+                receipt[field] = value
+                ledger[field] = value
+                self.dump(receipt_path, receipt)
+                ledger["receipt_sha256"] = core.sha256_path(receipt_path)
+                self.dump(ledger_path, ledger)
+                with self.assertRaisesRegex(fb.ForceError, expected):
+                    self.reserve("initial", 1, "second")
+                receipt_path.write_text(original_receipt)
+                ledger_path.write_text(original_ledger)
+
+    def test_reservation_replay_rejects_noncontiguous_and_repeated_records(self):
+        self.reserve("initial", 3, "first")
+        ledger = self.run / ".force_budget"
+        source = ledger / "reservation-000000.json"
+        noncontiguous = ledger / "reservation-000002.json"
+        noncontiguous.write_text(source.read_text())
+        with self.assertRaisesRegex(fb.ForceError, "non-contiguous"):
+            fb.replay_budget_ledger(self.run)
+        noncontiguous.unlink()
+        repeated = ledger / "reservation-000001.json"
+        repeated.write_text(source.read_text())
+        with self.assertRaisesRegex(fb.ForceError, "repeated reservation evidence"):
+            fb.replay_budget_ledger(self.run)
+
+    def test_rehashed_three_task_history_cannot_be_shrunk_before_initial_cap_check(self):
+        self.reserve("initial", 3, "first")
+        receipt_path = self.run / "first" / "budget_receipt.json"
+        ledger_path = self.run / ".force_budget" / "reservation-000000.json"
+        receipt = json.loads(receipt_path.read_text())
+        ledger = json.loads(ledger_path.read_text())
+        # Model the original exploit: adjust the history from 3*32*2=192 to
+        # 1*32*2=64 and rehash the ledger, without rewriting task-map/manifest.
+        receipt.update(task_count=1, reserved_core_hours=64)
+        ledger.update(task_count=1, reserved_core_hours=64)
+        self.dump(receipt_path, receipt)
+        ledger["receipt_sha256"] = core.sha256_path(receipt_path)
+        self.dump(ledger_path, ledger)
+        with self.assertRaisesRegex(fb.ForceError, "does not bind its exact force bundle"):
+            self.reserve("initial", 5, "second")
+
+    def test_ledger_symlink_to_outside_is_rejected_without_outside_writes(self):
+        outside = self.root / "outside-ledger"
+        outside.mkdir()
+        (self.run / ".force_budget").symlink_to(outside, target_is_directory=True)
+        with self.assertRaisesRegex(fb.ForceError, "non-symlink RUN_DIR child"):
+            self.reserve("initial", 3, "first")
+        self.assertEqual(list(outside.iterdir()), [])
+
+    def test_ledger_record_and_lock_symlinks_fail_closed(self):
+        self.reserve("initial", 3, "first")
+        ledger = self.run / ".force_budget"
+        outside = self.root / "outside-file"
+        outside.write_text("outside")
+        record = ledger / "reservation-000000.json"
+        record.unlink()
+        record.symlink_to(outside)
+        with self.assertRaisesRegex(fb.ForceError, "record or lock is unsafe"):
+            fb.replay_budget_ledger(self.run, self.config)
+
+    def test_ledger_lock_symlink_fails_closed(self):
+        self.reserve("initial", 3, "first")
+        ledger = self.run / ".force_budget"
+        outside = self.root / "outside-lock"
+        outside.write_text("outside")
+        lock = ledger / "lock"
+        lock.unlink()
+        lock.symlink_to(outside)
+        with self.assertRaisesRegex(fb.ForceError, "record or lock is unsafe"):
+            fb.replay_budget_ledger(self.run, self.config)
+
+    def test_ledger_executions_symlink_fails_before_claim_write(self):
+        self.reserve("initial", 3, "first")
+        ledger = self.run / ".force_budget"
+        outside = self.root / "outside-executions"
+        outside.mkdir()
+        (ledger / "executions").symlink_to(outside, target_is_directory=True)
+        with self.assertRaisesRegex(fb.ForceError, "executions directory is unsafe"):
+            fb._claim_execution(self.run, {}, {}, 0, self.run / "attempt", None)
+        self.assertEqual(list(outside.iterdir()), [])
+
     def test_production_batches_first32_then64_and_budget_cannot_be_exceeded(self):
         self.config["resource_budget"]["approved_total_core_hours_per_material"] = 10000
         self.config["resource_budget"]["selection_required_before_force_submission"] = False
@@ -524,7 +697,7 @@ class ForceBackendTests(unittest.TestCase):
             with self.assertRaisesRegex(fb.ForceError, "64 SCFs"):
                 self.reserve("production", 65, "large-later")
             self.config["resource_budget"]["approved_total_core_hours_per_material"] = 6200
-            with self.assertRaisesRegex(fb.ForceError, "remaining budget"):
+            with self.assertRaisesRegex(fb.ForceError, "policy/approved-total|remaining budget"):
                 self.reserve("production", 2, "over-budget")
 
     def test_concurrency_and_measured_walltime_enforced(self):

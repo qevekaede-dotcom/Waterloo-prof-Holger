@@ -20,6 +20,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
@@ -34,6 +35,7 @@ from qe_input import (
     parse_qe_input,
     replace_geometry_from_final_coordinates,
     replace_qe_geometry,
+    validate_bfgs_parameters,
 )
 from qe_output import QEOutputError, inspect_output
 
@@ -424,6 +426,108 @@ def validate_config(config_path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
         force_stop = positive_number(required(config, "tight_relax.hard_stop_max_force_ry_bohr"), "hard-stop force")
         check(force_target < force_stop, "accept force must be below hard-stop force")
         check(required(config, "tight_relax.cell_fixed") is True, "tight relax must keep cell fixed")
+        polish_policy = config.get("reviewed_bfgs_polish")
+        if polish_policy is not None:
+            check(isinstance(polish_policy, Mapping), "reviewed_bfgs_polish must be an object")
+            if not isinstance(polish_policy, Mapping):
+                raise CampaignError("reviewed_bfgs_polish must be an object")
+            check(
+                polish_policy.get("status")
+                == "reviewed_planned_hypothesis_not_validated",
+                "BFGS polish settings must remain labeled as a reviewed, unvalidated hypothesis",
+            )
+            check(polish_policy.get("automatic_submission_allowed") is False,
+                  "BFGS polish automatic submission must be false")
+            check(polish_policy.get("maximum_polish_attempts") == 1,
+                  "BFGS polish must allow exactly one attempt")
+            check(
+                polish_policy.get("source_requirement")
+                == "terminal_one_reset_BFGS_failure_with_original_recovery_lineage",
+                "BFGS polish must require the terminal one-reset lineage",
+            )
+            check(polish_policy.get("fresh_run_dir_required") is True,
+                  "BFGS polish must require a fresh RUN_DIR")
+            check(polish_policy.get("fresh_qe_scratch_required") is True,
+                  "BFGS polish must require fresh QE scratch")
+            check(
+                polish_policy.get("preserve_original_standardized_geometry_as_cumulative_shift_reference") is True,
+                "BFGS polish must preserve the original cumulative-shift reference",
+            )
+            parameters = required(polish_policy, "bfgs_parameters")
+            if not isinstance(parameters, Mapping):
+                raise CampaignError("reviewed_bfgs_polish.bfgs_parameters must be an object")
+            validate_bfgs_parameters(
+                bfgs_ndim=parameters.get("bfgs_ndim"),
+                trust_radius_ini=parameters.get("trust_radius_ini"),
+                trust_radius_min=parameters.get("trust_radius_min"),
+                trust_radius_max=parameters.get("trust_radius_max"),
+            )
+            check(parameters.get("units") == "bohr", "BFGS trust radii must be labeled in bohr")
+            check(
+                parameters.get("validation_status")
+                == "reviewed_planned_values_not_calculated_results",
+                "BFGS polish values must remain labeled as planned, not results",
+            )
+            diagnostic = required(polish_policy, "force_consistency_diagnostic")
+            check(isinstance(diagnostic, Mapping), "force-consistency diagnostic must be an object")
+            if not isinstance(diagnostic, Mapping):
+                raise CampaignError("force-consistency diagnostic must be an object")
+            check(diagnostic.get("baseline_repetitions") == 2,
+                  "force-consistency diagnostic requires exactly two baseline SCFs")
+            baseline_rho = positive_number(
+                diagnostic.get("baseline_ecutrho_ry"), "diagnostic baseline ecutrho"
+            )
+            higher_rho = positive_number(
+                diagnostic.get("higher_ecutrho_ry"), "diagnostic higher ecutrho"
+            )
+            check(
+                math.isclose(baseline_rho, float(required(config, "tight_relax.ecutrho_ry")), rel_tol=0, abs_tol=1e-12),
+                "diagnostic baseline ecutrho must equal tight-relax ecutrho",
+            )
+            check(higher_rho > baseline_rho,
+                  "diagnostic higher ecutrho must exceed its baseline")
+            diagnostic_ecutwfc = positive_number(
+                diagnostic.get("ecutwfc_ry"), "diagnostic ecutwfc"
+            )
+            check(
+                math.isclose(diagnostic_ecutwfc, float(required(config, "tight_relax.ecutwfc_ry")), rel_tol=0, abs_tol=1e-12),
+                "diagnostic ecutwfc must equal tight-relax ecutwfc",
+            )
+            check(
+                integer_triplet(diagnostic.get("kmesh"), "diagnostic kmesh", positive=True)
+                == integer_triplet(required(config, "tight_relax.kmesh"), "tight_relax.kmesh", positive=True),
+                "diagnostic kmesh must equal tight-relax kmesh",
+            )
+            diagnostic_conv = positive_number(
+                diagnostic.get("conv_thr_ry"), "diagnostic conv_thr"
+            )
+            check(
+                math.isclose(diagnostic_conv, float(required(config, "tight_relax.conv_thr_ry")), rel_tol=0, abs_tol=0),
+                "diagnostic conv_thr must equal tight-relax conv_thr",
+            )
+            check(diagnostic.get("nosym") is True and diagnostic.get("noinv") is True,
+                  "diagnostic SCFs must use nosym/noinv")
+            check(diagnostic.get("fresh_scratch_per_scf") is True,
+                  "diagnostic SCFs must each use fresh scratch")
+            check(diagnostic.get("all_criteria_required") is True,
+                  "all force-consistency diagnostic criteria must be required")
+            check(
+                diagnostic.get("acceptance_scope")
+                == "diagnostic_release_only_never_structure_acceptance_or_preflight",
+                "force-consistency diagnostic must not accept a structure or preflight",
+            )
+            positive_number(
+                diagnostic.get("maximum_duplicate_rms_difference_ry_bohr"),
+                "diagnostic duplicate-noise threshold",
+            )
+            positive_number(
+                diagnostic.get("maximum_higher_ecutrho_component_difference_ry_bohr"),
+                "diagnostic higher-ecutrho component threshold",
+            )
+            positive_number(
+                diagnostic.get("maximum_higher_ecutrho_rms_difference_ry_bohr"),
+                "diagnostic higher-ecutrho RMS threshold",
+            )
         selection_required = required(config, "production.selection_required")
         selected_supercell = required(config, "production.selected_supercell")
         selected_cutoff = required(config, "production.selected_cutoff")
@@ -577,7 +681,13 @@ def policy_sha256(config: Mapping[str, Any], stage: str) -> str:
 def manifest_for(config: Mapping[str, Any], config_path: Path) -> dict[str, Any]:
     source_qe = resolve_repo_source(config, "source.qe_scf_input")
     source_relax = resolve_repo_source(config, "source.original_relax_output")
-    tracked = [Path(__file__).resolve(), Path(__file__).with_name("qe_input.py"), Path(__file__).with_name("qe_output.py")]
+    tracked = [
+        Path(__file__).resolve(),
+        Path(__file__).with_name("qe_input.py"),
+        Path(__file__).with_name("qe_output.py"),
+    ]
+    if config.get("reviewed_bfgs_polish") is not None:
+        tracked.append(Path(__file__).with_name("polish_recovery.py"))
     return {
         "schema_version": 2,
         "material": required(config, "material.formula"),
@@ -1021,7 +1131,13 @@ def prepare_starting_geometry(
     return standardized, audit
 
 
-def relax_input_for(config: Mapping[str, Any], starting_input: str, pseudo_dir: Path) -> str:
+def relax_input_for(
+    config: Mapping[str, Any],
+    starting_input: str,
+    pseudo_dir: Path,
+    *,
+    bfgs_parameters: Mapping[str, Any] | None = None,
+) -> str:
     """Build the exact policy-matched fixed-cell input for any fresh attempt."""
 
     settings = required(config, "tight_relax")
@@ -1044,6 +1160,10 @@ def relax_input_for(config: Mapping[str, Any], starting_input: str, pseudo_dir: 
         tstress=bool(required(settings, "tstress")),
         electron_maxstep=int(required(settings, "electron_maxstep")),
         mixing_beta=float(required(settings, "mixing_beta")),
+        bfgs_ndim=None if bfgs_parameters is None else bfgs_parameters.get("bfgs_ndim"),
+        trust_radius_ini=None if bfgs_parameters is None else bfgs_parameters.get("trust_radius_ini"),
+        trust_radius_min=None if bfgs_parameters is None else bfgs_parameters.get("trust_radius_min"),
+        trust_radius_max=None if bfgs_parameters is None else bfgs_parameters.get("trust_radius_max"),
     )
 
 
@@ -1052,6 +1172,10 @@ def command_run_relax(config_path: Path, run_dir: Path) -> dict[str, Any]:
     config, _ = validate_config(config_path)
     run_dir = safe_run_dir(run_dir)
     run_manifest = verify_manifest(config, config_path, run_dir, stage="structure")
+    if run_manifest.get("accepted_structure_import") is not None:
+        raise CampaignError(
+            "an imported accepted-structure RUN_DIR cannot execute a relax stage"
+        )
     attempt = attempt_dir(run_dir)
     pseudo_dir_raw = os.environ.get("P3_PSEUDO_DIR")
     if not pseudo_dir_raw:
@@ -1064,6 +1188,9 @@ def command_run_relax(config_path: Path, run_dir: Path) -> dict[str, Any]:
         config, source_text, archived_relax_text
     )
     recovery = None
+    polish = None
+    if run_manifest.get("relax_recovery") is not None and run_manifest.get("relax_polish") is not None:
+        raise CampaignError("run manifest cannot combine automatic recovery and reviewed polish")
     if run_manifest.get("relax_recovery") is not None:
         from relax_recovery import load_recovery_start
 
@@ -1079,19 +1206,45 @@ def command_run_relax(config_path: Path, run_dir: Path) -> dict[str, Any]:
             "accepted_starting_geometry_sha256": hashlib.sha256(starting_input.encode()).hexdigest(),
             "source": "hashed failed BFGS attempt final coordinates; fresh BFGS history",
         }
+    elif run_manifest.get("relax_polish") is not None:
+        from polish_recovery import load_polish_start
+
+        reference_input = starting_input
+        starting_input, polish = load_polish_start(
+            config, run_dir, run_manifest, reference_input, pseudo_hashes
+        )
+        write_immutable(attempt / "reference_unitcell.in", reference_input)
+        structure_audit = {
+            **structure_audit,
+            "polish": polish,
+            "reference_unitcell_sha256": sha256_path(attempt / "reference_unitcell.in"),
+            "accepted_starting_geometry_sha256": hashlib.sha256(starting_input.encode()).hexdigest(),
+            "source": "hashed one-reset terminal BFGS geometry after passing force-consistency diagnostic; one reviewed polish only",
+        }
     write_json_immutable(attempt / "starting_structure_audit.json", structure_audit)
     write_immutable(attempt / "starting_unitcell.in", starting_input)
 
     settings = required(config, "tight_relax")
     formula = str(required(config, "material.formula"))
-    relax_input = relax_input_for(config, starting_input, pseudo_dir)
-    if recovery is not None:
+    polish_parameters = (
+        required(config, "reviewed_bfgs_polish.bfgs_parameters")
+        if polish is not None else None
+    )
+    relax_input = relax_input_for(
+        config, starting_input, pseudo_dir, bfgs_parameters=polish_parameters
+    )
+    if recovery is not None or polish is not None:
         from qe_input import _set_namelist_values
 
         relax_input = _set_namelist_values(relax_input, "CONTROL", {"restart_mode": "'from_scratch'"})
         relax_input = _set_namelist_values(relax_input, "ELECTRONS", {"startingpot": "'atomic'", "startingwfc": "'atomic+random'"})
         if (attempt / "tmp-relax").exists() or (attempt / "tmp-pristine").exists():
-            raise CampaignError("recovery requires empty, fresh QE scratch directories")
+            raise CampaignError("recovery/polish requires empty, fresh QE scratch directories")
+    if polish is not None:
+        relax_attempts = run_dir / "slurm_attempts" / "relax"
+        attempt_directories = [path for path in relax_attempts.iterdir() if path.is_dir()]
+        if attempt_directories != [attempt]:
+            raise CampaignError("reviewed BFGS polish permits exactly one immutable relax attempt")
     write_immutable(attempt / "relax.in", relax_input)
     relax_command = qe_command("relax.in")
     write_json_immutable(
@@ -1107,6 +1260,7 @@ def command_run_relax(config_path: Path, run_dir: Path) -> dict[str, Any]:
             "relax_input_sha256": sha256_path(attempt / "relax.in"),
             "pseudopotentials": pseudo_hashes,
             "recovery": recovery,
+            "polish": polish,
         },
     )
     relax_process = run_process(
@@ -1169,6 +1323,7 @@ def command_run_relax(config_path: Path, run_dir: Path) -> dict[str, Any]:
         "pristine_process": pristine_process,
         "finished_utc": utc_now(),
         "recovery": recovery,
+        "polish": polish,
     }
     write_json_immutable(attempt / "execution_manifest.json", execution)
     return execution
@@ -1203,6 +1358,10 @@ def command_finalize_relax(config_path: Path, run_dir: Path) -> dict[str, Any]:
     config, _ = validate_config(config_path)
     run_dir = safe_run_dir(run_dir)
     run_manifest = verify_manifest(config, config_path, run_dir, stage="structure")
+    if run_manifest.get("accepted_structure_import") is not None:
+        raise CampaignError(
+            "an imported accepted-structure RUN_DIR cannot finalize a relax stage"
+        )
     attempt = attempt_dir(run_dir)
     required_files = [
         attempt / "starting_unitcell.in",
@@ -1253,6 +1412,8 @@ def command_finalize_relax(config_path: Path, run_dir: Path) -> dict[str, Any]:
         and "End of BFGS Geometry Optimization" in relax_text
     )
     reference_path = attempt / "starting_unitcell.in"
+    if run_manifest.get("relax_recovery") is not None and run_manifest.get("relax_polish") is not None:
+        raise CampaignError("run manifest cannot combine automatic recovery and reviewed polish")
     if run_manifest.get("relax_recovery") is not None:
         from relax_recovery import load_recovery_start
 
@@ -1268,6 +1429,21 @@ def command_finalize_relax(config_path: Path, run_dir: Path) -> dict[str, Any]:
         audit = load_json(attempt / "starting_structure_audit.json")
         if audit.get("reference_unitcell_sha256") != sha256_path(reference_path):
             raise CampaignError("recovery cumulative-position reference hash mismatch")
+    elif run_manifest.get("relax_polish") is not None:
+        from polish_recovery import load_polish_start
+
+        reference_path = attempt / "reference_unitcell.in"
+        starting_input, polish = load_polish_start(
+            config, run_dir, run_manifest, reference_path.read_text(),
+            execution["pseudopotentials"],
+        )
+        if starting_input != (attempt / "starting_unitcell.in").read_text():
+            raise CampaignError("polish starting unitcell differs from its frozen seed")
+        if any(record.get("polish") != polish for record in (execution, relax_launch)):
+            raise CampaignError("polish launch/execution receipt mismatch")
+        audit = load_json(attempt / "starting_structure_audit.json")
+        if audit.get("reference_unitcell_sha256") != sha256_path(reference_path):
+            raise CampaignError("polish cumulative-position reference hash mismatch")
     shifts = _position_shifts_angstrom(
         reference_path.read_text(),
         (attempt / "pristine.in").read_text(),
@@ -1484,6 +1660,20 @@ def supercell_lattices_match(
     )
 
 
+def verify_imported_structure_if_present(
+    config_path: Path,
+    run_dir: Path,
+    manifest: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    """Replay a destination-owned accepted-structure import, when declared."""
+
+    if manifest.get("accepted_structure_import") is None:
+        return None
+    from accepted_structure_import import verify_imported_acceptance
+
+    return verify_imported_acceptance(config_path, run_dir)
+
+
 def command_preflight(config_path: Path, run_dir: Path) -> dict[str, Any]:
     require_compute_node()
     config, _ = validate_config(config_path)
@@ -1494,6 +1684,9 @@ def command_preflight(config_path: Path, run_dir: Path) -> dict[str, Any]:
     # current campaign.py hash that performs this preflight.
     run_manifest = verify_upstream_manifest(
         config, config_path, run_dir, stage="preflight"
+    )
+    imported_acceptance = verify_imported_structure_if_present(
+        config_path, run_dir, run_manifest
     )
     attempt = attempt_dir(run_dir)
     unitcell = run_dir / "relax" / "final" / "unitcell.in"
@@ -1729,6 +1922,10 @@ def command_preflight(config_path: Path, run_dir: Path) -> dict[str, Any]:
         "preflight_policy_sha256": run_manifest["preflight_policy_sha256"],
         "accepted_unitcell_sha256": sha256_path(unitcell),
         "accepted_relax_provenance_sha256": sha256_path(provenance_path),
+        "accepted_structure_import_receipt_sha256": (
+            None if imported_acceptance is None
+            else imported_acceptance["receipt_sha256"]
+        ),
         "preflight_complete": True,
         "all_routine_candidates_within_hard_cap": all_routine_within_cap,
         "eligible_candidate_count": len(eligible_candidates),
@@ -1754,6 +1951,7 @@ def command_status(config_path: Path, run_dir: Path) -> dict[str, Any]:
         "run_dir": str(run_dir),
         "prepared": (run_dir / RUN_MANIFEST).is_file(),
         "tight_relax_accepted": False,
+        "accepted_structure_origin": None,
         "preflight_attempts": 0,
         "production_selection_required": required(config, "production.selection_required"),
         "selected_supercell": required(config, "production.selected_supercell"),
@@ -1764,6 +1962,21 @@ def command_status(config_path: Path, run_dir: Path) -> dict[str, Any]:
         gate_data = load_json(gate)
         status["tight_relax_accepted"] = bool(gate_data.get("pass"))
         status["tight_relax_gate"] = gate_data
+        status["accepted_structure_origin"] = "calculated_in_run"
+    manifest_path = run_dir / RUN_MANIFEST
+    if manifest_path.is_file():
+        manifest = load_json(manifest_path)
+        if manifest.get("accepted_structure_import") is not None:
+            status["accepted_structure_origin"] = "imported_accepted_structure"
+            try:
+                status["accepted_structure_import"] = (
+                    verify_imported_structure_if_present(
+                        config_path, run_dir, manifest
+                    )
+                )
+            except (CampaignError, OSError, ValueError, KeyError) as exc:
+                status["tight_relax_accepted"] = False
+                status["accepted_structure_import_error"] = str(exc)
     attempts = run_dir / "slurm_attempts" / "preflight"
     if attempts.is_dir():
         inventories = list(attempts.glob("*/preflight_inventory.json"))
@@ -2628,6 +2841,556 @@ def command_replay_pilot_selection(
     )
 
 
+def _force_finalize_ref(path: Path, run_dir: Path, label: str) -> dict[str, str]:
+    """Return one strict, live path/hash reference for the standalone finalizer."""
+
+    from force_finalize import ForceFinalizeError, _safe_descendant
+
+    try:
+        resolved = _safe_descendant(Path(path), run_dir, label, file=True)
+    except ForceFinalizeError as exc:
+        raise CampaignError(str(exc)) from exc
+    return {"path": str(resolved), "sha256": sha256_path(resolved)}
+
+
+def _force_finalize_tolerances(config: Mapping[str, Any]) -> dict[str, float]:
+    """Read the two cross-batch pristine tolerances without supplying defaults."""
+
+    production = required(config, "production")
+    if (
+        not isinstance(production, Mapping)
+        or production.get("selection_required") is not False
+        or production.get("automatic_submission_allowed") is not True
+    ):
+        raise CampaignError("production selection has not been released")
+    value = required(config, "production.pristine_comparison_tolerances_ry_bohr")
+    if not isinstance(value, Mapping) or set(value) != {
+        "maximum_component",
+        "rms_component",
+    }:
+        raise CampaignError(
+            "production.pristine_comparison_tolerances_ry_bohr must explicitly "
+            "contain maximum_component and rms_component"
+        )
+    result: dict[str, float] = {}
+    for name in ("maximum_component", "rms_component"):
+        raw = value[name]
+        if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+            raise CampaignError(f"pristine {name} tolerance must be numeric")
+        number = float(raw)
+        if not math.isfinite(number) or number < 0:
+            raise CampaignError(
+                f"pristine {name} tolerance must be finite and non-negative"
+            )
+        result[name] = number
+    return result
+
+
+def _unique_manifest_evidence(
+    manifest: Mapping[str, Any], run_dir: Path, filename: str
+) -> Path:
+    evidence = manifest.get("evidence_sha256")
+    if not isinstance(evidence, Mapping):
+        raise CampaignError("production force manifest lacks source hashes")
+    matches = [
+        Path(raw_path)
+        for raw_path, digest in evidence.items()
+        if isinstance(raw_path, str)
+        and Path(raw_path).name == filename
+        and isinstance(digest, str)
+        and re.fullmatch(r"[0-9a-f]{64}", digest)
+    ]
+    if len(matches) != 1:
+        raise CampaignError(
+            f"production force manifest must bind exactly one {filename}; "
+            f"found {len(matches)}"
+        )
+    path = _strict_evidence_path(matches[0], run_dir, filename)
+    if not path.is_file() or sha256_path(path) != evidence[str(matches[0])]:
+        raise CampaignError(f"production force manifest {filename} hash mismatch")
+    return path
+
+
+def _force_finalize_batch(
+    collection_path: Path, run_dir: Path
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Translate one explicit completed collection into a fully hashed plan batch."""
+
+    collection_ref = _force_finalize_ref(
+        collection_path, run_dir, "production collection"
+    )
+    collection = load_json(Path(collection_ref["path"]))
+    if (
+        collection.get("schema_version") != 1
+        or collection.get("stage") != "collect"
+        or collection.get("collection_kind") != "force_array_batch"
+        or collection.get("force_mode") != "production"
+        or collection.get("collection_integrity_complete") is not True
+        or collection.get("batch_execution_complete") is not True
+        or collection.get("incomplete") is not False
+    ):
+        raise CampaignError("force-finalize requires a completed production collection")
+    primary = collection.get("primary")
+    if not isinstance(primary, Mapping):
+        raise CampaignError("production collection lacks primary submission metadata")
+    attempt_id = primary.get("attempt_id")
+    if not isinstance(attempt_id, str) or re.fullmatch(
+        r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}", attempt_id
+    ) is None:
+        raise CampaignError("production collection has an invalid submission attempt ID")
+    manifest_path = Path(str(primary.get("force_manifest", "")))
+    task_map_path = Path(str(primary.get("task_map", "")))
+    manifest_ref = _force_finalize_ref(manifest_path, run_dir, "force manifest")
+    task_map_ref = _force_finalize_ref(task_map_path, run_dir, "force task map")
+    if (
+        manifest_ref["sha256"] != primary.get("force_manifest_sha256")
+        or manifest_ref["sha256"] != primary.get("submitted_force_manifest_sha256")
+        or task_map_ref["sha256"] != primary.get("task_map_sha256")
+        or task_map_ref["sha256"] != primary.get("submitted_task_map_sha256")
+    ):
+        raise CampaignError("production collection does not bind submitted force inputs")
+    manifest = load_json(Path(manifest_ref["path"]))
+    if manifest.get("mode") != "production" or manifest.get("stage") != "force":
+        raise CampaignError("collection force manifest is not a production manifest")
+    budget_path = Path(manifest_ref["path"]).parent / "budget_receipt.json"
+    budget_ref = _force_finalize_ref(budget_path, run_dir, "force budget receipt")
+    if budget_ref["sha256"] != manifest.get("budget_receipt_sha256"):
+        raise CampaignError("force budget receipt hash differs from its manifest")
+
+    from force_backend import replay_budget_ledger
+    reservation_matches = [
+        item["path"] for item in replay_budget_ledger(run_dir)
+        if item["record"]["receipt_path"] == budget_ref["path"]
+        and item["record"]["receipt_sha256"] == budget_ref["sha256"]
+    ]
+    if len(reservation_matches) != 1:
+        raise CampaignError(
+            "budget receipt must be anchored by exactly one force-budget ledger reservation"
+        )
+
+    submission_dir = run_dir / "submissions" / "force" / attempt_id
+    references = {
+        "submission_request": _force_finalize_ref(
+            submission_dir / "request.json", run_dir, "force submission request"
+        ),
+        "submission_result": _force_finalize_ref(
+            submission_dir / "primary_result.json", run_dir, "force submission result"
+        ),
+        "submission_summary": _force_finalize_ref(
+            submission_dir / "submission.json", run_dir, "force submission summary"
+        ),
+        "collector_request": _force_finalize_ref(
+            submission_dir / "collector_request.json", run_dir, "collector request"
+        ),
+        "collector_result": _force_finalize_ref(
+            submission_dir / "collector_result.json", run_dir, "collector result"
+        ),
+    }
+    summary = load_json(Path(references["submission_summary"]["path"]))
+    collector = summary.get("collector")
+    if not isinstance(collector, Mapping):
+        raise CampaignError("force submission summary lacks its collector identity")
+    expected_collection = (
+        run_dir
+        / "slurm_attempts"
+        / "collect"
+        / str(collector.get("attempt_id", ""))
+        / "collection.json"
+    )
+    if Path(collection_ref["path"]) != expected_collection:
+        raise CampaignError("explicit collection is not the submitted collector output")
+
+    scheduler = primary.get("scheduler_accounting")
+    if not isinstance(scheduler, Mapping):
+        raise CampaignError("production collection lacks scheduler accounting references")
+    accounting_ref = _force_finalize_ref(
+        Path(str(scheduler.get("path", ""))), run_dir, "scheduler accounting"
+    )
+    accounting_status_ref = _force_finalize_ref(
+        Path(str(scheduler.get("status_path", ""))),
+        run_dir,
+        "scheduler accounting status",
+    )
+    if (
+        accounting_ref["sha256"] != scheduler.get("sha256")
+        or accounting_status_ref["sha256"] != scheduler.get("status_sha256")
+        or scheduler.get("sacct_exit_code") != 0
+    ):
+        raise CampaignError("production collection scheduler accounting is not hash-bound")
+
+    entries = collection.get("entries")
+    if not isinstance(entries, list) or not entries:
+        raise CampaignError("production collection has no force-task entries")
+    raw_artifacts: list[dict[str, Any]] = []
+    raw_names = (
+        "context.tsv",
+        "exit_code.txt",
+        "finished_utc.txt",
+        "force_claim.json",
+        "launch.json",
+        "result.json",
+        "scf.process.json",
+        "scf.in",
+        "scf.out",
+        "scf.err",
+    )
+    for entry in entries:
+        if not isinstance(entry, Mapping):
+            raise CampaignError("production collection has a malformed force-task entry")
+        task_id = entry.get("task_id")
+        if isinstance(task_id, bool) or not isinstance(task_id, int) or task_id < 0:
+            raise CampaignError("production collection has an invalid force-task ID")
+        attempt_path = Path(str(entry.get("attempt_path", "")))
+        evidence = entry.get("evidence")
+        if not isinstance(evidence, Mapping):
+            raise CampaignError(f"force task {task_id} lacks collected raw hashes")
+        hashes: dict[str, str] = {}
+        for name in raw_names:
+            item = evidence.get(name)
+            if not isinstance(item, Mapping):
+                raise CampaignError(f"force task {task_id} lacks raw evidence {name}")
+            reference = _force_finalize_ref(
+                attempt_path / name, run_dir, f"force task {task_id} {name}"
+            )
+            if reference["sha256"] != item.get("sha256"):
+                raise CampaignError(f"force task {task_id} {name} hash mismatch")
+            hashes[name] = reference["sha256"]
+        raw_artifacts.append(
+            {
+                "task_id": task_id,
+                "attempt_path": str(attempt_path.resolve()),
+                "files_sha256": hashes,
+            }
+        )
+
+    batch = {
+        "batch_id": attempt_id,
+        "collection": collection_ref,
+        "force_manifest": manifest_ref,
+        "task_map": task_map_ref,
+        "budget_receipt": budget_ref,
+        "budget_ledger_reservation": _force_finalize_ref(
+            reservation_matches[0], run_dir, "force-budget ledger reservation"
+        ),
+        **references,
+        "scheduler_accounting": accounting_ref,
+        "scheduler_accounting_status": accounting_status_ref,
+        "raw_artifacts": sorted(raw_artifacts, key=lambda item: item["task_id"]),
+    }
+    return batch, manifest
+
+
+def command_plan_force_finalize(
+    config_path: Path,
+    run_dir: Path,
+    *,
+    output_path: Path,
+    collection_paths: Sequence[Path] | None,
+    submission_attempt_ids: Sequence[str] | None,
+    canonical_pristine_batch_id: str,
+) -> dict[str, Any]:
+    """Create and fully replay one explicit local production-force plan."""
+
+    from force_finalize import ForceFinalizeError, _audit
+
+    config_path = Path(config_path).resolve()
+    run_dir = safe_run_dir(Path(run_dir))
+    config, _ = validate_config(config_path)
+    tolerances = _force_finalize_tolerances(config)
+    explicit_collections = list(collection_paths or ())
+    attempt_ids = list(submission_attempt_ids or ())
+    if bool(explicit_collections) == bool(attempt_ids):
+        raise CampaignError(
+            "supply exactly one source mode: one or more --collection values or "
+            "one or more --submission-attempt-id values"
+        )
+    if attempt_ids:
+        if len(set(attempt_ids)) != len(attempt_ids):
+            raise CampaignError("submission attempt IDs must be unique")
+        explicit_collections = []
+        for attempt_id in attempt_ids:
+            if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}", attempt_id) is None:
+                raise CampaignError(f"invalid submission attempt ID: {attempt_id}")
+            summary_path = (
+                run_dir / "submissions" / "force" / attempt_id / "submission.json"
+            )
+            summary_path = Path(
+                _force_finalize_ref(
+                    summary_path, run_dir, f"submission attempt {attempt_id} summary"
+                )["path"]
+            )
+            summary = load_json(summary_path)
+            collector = summary.get("collector")
+            if summary.get("attempt_id") != attempt_id or not isinstance(
+                collector, Mapping
+            ):
+                raise CampaignError(
+                    f"submission attempt {attempt_id} lacks one exact collector"
+                )
+            collector_attempt = collector.get("attempt_id")
+            if not isinstance(collector_attempt, str) or not collector_attempt:
+                raise CampaignError(
+                    f"submission attempt {attempt_id} has no collector attempt ID"
+                )
+            explicit_collections.append(
+                run_dir
+                / "slurm_attempts"
+                / "collect"
+                / collector_attempt
+                / "collection.json"
+            )
+    resolved_collections = [
+        Path(_force_finalize_ref(path, run_dir, "production collection")["path"])
+        for path in explicit_collections
+    ]
+    if len(set(resolved_collections)) != len(resolved_collections):
+        raise CampaignError("production collections must be unique")
+
+    built = [_force_finalize_batch(path, run_dir) for path in resolved_collections]
+    batches = [item[0] for item in built]
+    manifests = [item[1] for item in built]
+    if len({batch["batch_id"] for batch in batches}) != len(batches):
+        raise CampaignError("multiple collections claim the same production submission")
+    if canonical_pristine_batch_id not in {batch["batch_id"] for batch in batches}:
+        raise CampaignError("canonical pristine batch ID is absent from explicit collections")
+
+    canonical_index = next(
+        index
+        for index, batch in enumerate(batches)
+        if batch["batch_id"] == canonical_pristine_batch_id
+    )
+    canonical_manifest = manifests[canonical_index]
+    pristine_tasks = [
+        task
+        for task in canonical_manifest.get("tasks", [])
+        if isinstance(task, Mapping)
+        and task.get("displacement_id") == 0
+        and task.get("role") == "pristine"
+    ]
+    if len(pristine_tasks) != 1:
+        raise CampaignError(
+            "canonical production batch must contain exactly one pristine task"
+        )
+    pristine_task_id = pristine_tasks[0].get("task_id")
+    canonical_raw = next(
+        (
+            item
+            for item in batches[canonical_index]["raw_artifacts"]
+            if item["task_id"] == pristine_task_id
+        ),
+        None,
+    )
+    if canonical_raw is None:
+        raise CampaignError("canonical pristine raw artifact is absent")
+
+    first_manifest = manifests[0]
+    dataset = _unique_manifest_evidence(
+        first_manifest, run_dir, "phono3py_disp.yaml"
+    )
+    inventory = _unique_manifest_evidence(
+        first_manifest, run_dir, "preflight_inventory.json"
+    )
+    preflight_result = _unique_manifest_evidence(
+        first_manifest, run_dir, "preflight_result.json"
+    )
+    accepted_paths = {
+        "gate": run_dir / "relax" / "final" / "gate.json",
+        "provenance": run_dir / "relax" / "final" / "provenance.json",
+        "unitcell": run_dir / "relax" / "final" / "unitcell.in",
+    }
+    selection = first_manifest.get("selection_validation")
+    if not isinstance(selection, Mapping):
+        raise CampaignError("production force manifest lacks selection validation")
+    selection_path = Path(str(selection.get("selection_receipt_path", "")))
+
+    fixed_hashes = {
+        str(path.resolve()): sha256_path(path.resolve())
+        for path in (*accepted_paths.values(), inventory, preflight_result, dataset)
+    }
+    selection_ref = _force_finalize_ref(
+        selection_path, run_dir, "selection receipt"
+    )
+    for manifest in manifests:
+        evidence = manifest.get("evidence_sha256")
+        validation = manifest.get("selection_validation")
+        if not isinstance(evidence, Mapping) or any(
+            evidence.get(path) != digest for path, digest in fixed_hashes.items()
+        ):
+            raise CampaignError(
+                "production batches do not bind identical accepted sources"
+            )
+        if (
+            not isinstance(validation, Mapping)
+            or validation.get("selection_receipt_path") != selection_ref["path"]
+            or validation.get("selection_receipt_sha256") != selection_ref["sha256"]
+        ):
+            raise CampaignError(
+                "production batches do not bind one selection receipt"
+            )
+        for filename, expected in (
+            ("phono3py_disp.yaml", dataset),
+            ("preflight_inventory.json", inventory),
+            ("preflight_result.json", preflight_result),
+        ):
+            if _unique_manifest_evidence(manifest, run_dir, filename) != expected:
+                raise CampaignError(
+                    "production batches refer to different preflight evidence"
+                )
+
+    plan = {
+        "schema_version": 1,
+        "stage": "force_finalize_plan",
+        "material": required(config, "material.formula"),
+        "config_sha256": sha256_path(config_path),
+        "accepted_structure": {
+            name: _force_finalize_ref(path, run_dir, f"accepted structure {name}")
+            for name, path in accepted_paths.items()
+        },
+        "selected_preflight": {
+            "inventory": _force_finalize_ref(
+                inventory, run_dir, "preflight inventory"
+            ),
+            "result": _force_finalize_ref(
+                preflight_result, run_dir, "preflight result"
+            ),
+            "dataset": _force_finalize_ref(
+                dataset, run_dir, "phono3py displacement dataset"
+            ),
+        },
+        "selection_receipt": selection_ref,
+        "pristine_comparison_tolerances_ry_bohr": tolerances,
+        "canonical_pristine": {
+            "batch_id": canonical_pristine_batch_id,
+            "task_id": pristine_task_id,
+            "output_sha256": canonical_raw["files_sha256"]["scf.out"],
+        },
+        "batches": batches,
+    }
+    output_path = Path(os.path.abspath(output_path))
+    if output_path.exists():
+        raise CampaignError(f"force-finalize plan output already exists: {output_path}")
+    output_parent = output_path.parent
+    if (
+        not output_parent.resolve().is_relative_to(run_dir)
+        or "READY_TO_ATTACH" in output_path.parts
+    ):
+        raise CampaignError(
+            "force-finalize plan output must be below RUN_DIR in a non-symlink directory"
+        )
+    current = output_parent
+    while True:
+        if current.is_symlink():
+            raise CampaignError(
+                "force-finalize plan output path may not contain a symlink"
+            )
+        if current.resolve() == run_dir:
+            break
+        parent = current.parent
+        if parent == current:
+            raise CampaignError("force-finalize plan output path does not reach RUN_DIR")
+        current = parent
+    output_parent.mkdir(parents=True, exist_ok=True)
+    payload = json.dumps(plan, indent=2, sort_keys=True) + "\n"
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            prefix=".force-finalize-plan-audit-",
+            suffix=".json",
+            dir=output_parent,
+            delete=False,
+        ) as handle:
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+            temporary_path = Path(handle.name)
+        _audit(config_path, run_dir, temporary_path, sha256_path(temporary_path))
+    except ForceFinalizeError as exc:
+        raise CampaignError(f"force-finalize plan audit failed: {exc}") from exc
+    finally:
+        if temporary_path is not None and temporary_path.exists():
+            temporary_path.unlink()
+    write_immutable(output_path, payload)
+    return {
+        "healthy": True,
+        "stage": "force_finalize_plan",
+        "plan": str(output_path),
+        "plan_sha256": sha256_path(output_path),
+        "batch_count": len(batches),
+        "canonical_pristine": plan["canonical_pristine"],
+        "finalize_requirement": (
+            "Run finalize-force with --expect-plan-sha exactly equal to plan_sha256."
+        ),
+    }
+
+
+def command_finalize_force(
+    config_path: Path,
+    run_dir: Path,
+    *,
+    plan_path: Path,
+    expected_plan_sha256: str,
+    attempt_id: str,
+) -> dict[str, Any]:
+    """Call the standalone force finalizer locally with one explicit plan digest."""
+
+    from force_finalize import ForceFinalizeError, finalize_force_dataset
+
+    run_dir = safe_run_dir(Path(run_dir))
+    if re.fullmatch(r"[0-9a-f]{64}", expected_plan_sha256) is None:
+        raise CampaignError("--expect-plan-sha must be 64 lowercase hex characters")
+    if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}", attempt_id) is None:
+        raise CampaignError("invalid force-finalize attempt ID")
+    plan_path = Path(os.path.abspath(plan_path))
+    plan_ref = _force_finalize_ref(plan_path, run_dir, "force-finalize plan")
+    if plan_ref["sha256"] != expected_plan_sha256:
+        raise CampaignError("force-finalize plan hash mismatch")
+    plan = load_json(Path(plan_ref["path"]))
+    batches = plan.get("batches")
+    if not isinstance(batches, list) or not batches:
+        raise CampaignError("force-finalize plan has no production batches")
+    for batch in batches:
+        if not isinstance(batch, Mapping):
+            raise CampaignError("force-finalize plan contains a malformed batch")
+        budget_ref = batch.get("budget_receipt")
+        ledger_ref = batch.get("budget_ledger_reservation")
+        if not isinstance(budget_ref, Mapping) or not isinstance(ledger_ref, Mapping):
+            raise CampaignError(
+                "force-finalize plan must bind each budget receipt to its ledger reservation"
+            )
+        checked_budget = _force_finalize_ref(
+            Path(str(budget_ref.get("path", ""))), run_dir, "force budget receipt"
+        )
+        checked_ledger = _force_finalize_ref(
+            Path(str(ledger_ref.get("path", ""))),
+            run_dir,
+            "force-budget ledger reservation",
+        )
+        if checked_budget != dict(budget_ref) or checked_ledger != dict(ledger_ref):
+            raise CampaignError("force-finalize budget or ledger reference hash mismatch")
+        reservation = load_json(Path(checked_ledger["path"]))
+        if (
+            reservation.get("receipt_path") != checked_budget["path"]
+            or reservation.get("receipt_sha256") != checked_budget["sha256"]
+        ):
+            raise CampaignError("force-finalize ledger does not bind its budget receipt")
+    attempt = run_dir / "slurm_attempts" / "force-finalize" / attempt_id
+    try:
+        attempt.mkdir(parents=True, exist_ok=False)
+    except FileExistsError as exc:
+        raise CampaignError(f"force-finalize attempt already exists: {attempt}") from exc
+    try:
+        return finalize_force_dataset(
+            Path(config_path).resolve(),
+            run_dir,
+            plan_path,
+            expected_plan_sha256=expected_plan_sha256,
+            attempt_dir=attempt,
+        )
+    except ForceFinalizeError as exc:
+        raise CampaignError(f"force finalization failed: {exc}") from exc
+
+
 def print_json(value: object) -> None:
     print(json.dumps(value, indent=2, sort_keys=True))
 
@@ -2708,6 +3471,28 @@ def build_parser() -> argparse.ArgumentParser:
     replay_pilot.add_argument("--run-dir", type=Path, required=True)
     replay_pilot.add_argument("--receipt", type=Path, required=True)
     replay_pilot.add_argument("--expect-receipt-sha")
+
+    force_finalize_plan = subparsers.add_parser("plan-force-finalize")
+    force_finalize_plan.add_argument("--config", type=Path, required=True)
+    force_finalize_plan.add_argument("--run-dir", type=Path, required=True)
+    force_finalize_plan.add_argument("--output", type=Path, required=True)
+    sources = force_finalize_plan.add_mutually_exclusive_group(required=True)
+    sources.add_argument(
+        "--collection", type=Path, action="append", dest="collections"
+    )
+    sources.add_argument(
+        "--submission-attempt-id", action="append", dest="submission_attempt_ids"
+    )
+    force_finalize_plan.add_argument(
+        "--canonical-pristine-batch-id", required=True
+    )
+
+    force_finalize = subparsers.add_parser("finalize-force")
+    force_finalize.add_argument("--config", type=Path, required=True)
+    force_finalize.add_argument("--run-dir", type=Path, required=True)
+    force_finalize.add_argument("--plan", type=Path, required=True)
+    force_finalize.add_argument("--expect-plan-sha", required=True)
+    force_finalize.add_argument("--attempt-id", required=True)
 
     force_task = subparsers.add_parser("run-force-task")
     force_task.add_argument("--config", type=Path, required=True)
@@ -2806,6 +3591,23 @@ def main(argv: Iterable[str] | None = None) -> int:
                 run_dir,
                 receipt_path=args.receipt,
                 expected_receipt_sha256=args.expect_receipt_sha,
+            )
+        elif args.command == "plan-force-finalize":
+            result = command_plan_force_finalize(
+                args.config,
+                run_dir,
+                output_path=args.output,
+                collection_paths=args.collections,
+                submission_attempt_ids=args.submission_attempt_ids,
+                canonical_pristine_batch_id=args.canonical_pristine_batch_id,
+            )
+        elif args.command == "finalize-force":
+            result = command_finalize_force(
+                args.config,
+                run_dir,
+                plan_path=args.plan,
+                expected_plan_sha256=args.expect_plan_sha,
+                attempt_id=args.attempt_id,
             )
         else:
             config, _ = validate_config(args.config)
