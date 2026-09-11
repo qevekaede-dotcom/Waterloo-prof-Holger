@@ -1,15 +1,14 @@
 # Research handoff — current state
 
-Last repository/evidence audit: 2026-09-10. Research state reconciled from
-GitHub commit `0024114291043468c69f1d3a382cee51b64428d3` (2026-08-30),
-on `claude/canada-computing-center-task-d165w2`. That branch includes
-the other two Claude branches and was 13 commits ahead of `main`.
-The research and cleanup were merged into **`main`** through
+Last repository/evidence audit: 2026-09-11. Current continuation is in the
+separate worktree `/Users/kaede/research/Waterloo-Holger-remaining-phonons`,
+branch `codex/remaining-two-phonons`, with local implementation commit
+`e524d6e`. It was forked from the fetched active research commit `5fdd4a1` on
+`origin/codex/two-material-phonons`; the original worktree was left clean and
+unchanged. Historical repository reconciliation and the merge through
 [PR #1](https://github.com/qevekaede-dotcom/Waterloo-prof-Holger/pull/1)
-on 2026-09-06 (merge commit `88c2da2`). Resume from `main`.
-The temporary `codex/research-repository-cleanup` branch was deleted locally
-and on GitHub; all its commits are retained in `main`. Other research
-branches were left unchanged. See [audit](docs/REPOSITORY_AUDIT.md).
+remain documented in [the repository audit](docs/REPOSITORY_AUDIT.md), but
+`main` is not the current two-material research tip.
 
 Read [CLAUDE.md](CLAUDE.md) for standing rules and [AGENTS.md](AGENTS.md)
 for continuity. This file records state, not authorization to launch work.
@@ -113,7 +112,46 @@ subtracted using `--cfz`.
 
 ## Active two-material phonon campaign
 
-The fail-closed workflow is on GitHub branch `codex/two-material-phonons`.
+### 2026-09-11 local continuation milestone
+
+The user's completed SrCu2SnS4 calculation was audited as the experience
+baseline, not as a numerical template. Its retained result is only a historical
+first pass under the stricter current contract: the 4.0 cutoff was in bohr,
+force settings were mixed, the pristine job was not a healthy completion, and
+the corrected q-mesh ladder does not meet the current every-diagonal,
+every-temperature, two-step convergence rule. No cutoff, force, residual, or
+mesh threshold was copied automatically to the other materials.
+
+Local commit `e524d6e` prepares the next evidence-gated steps without running
+QE or phono3py:
+
+- SrZrS3 can import the already accepted recovery structure into a fresh,
+  self-contained run directory after replaying and archiving its complete
+  structure evidence. The new 2x1x1/3.70-A and 3x1x1/3.70-A combinations are
+  count-only hypotheses and cannot become production settings from count
+  evidence alone.
+- Rb2Cu2SnS4 retains both BFGS failures. A separate three-SCF diagnostic uses
+  two identical 100/800-Ry inputs and one 100/1000-Ry input at the terminal
+  one-reset geometry. A pass may release at most one fresh, small-trust-radius
+  BFGS polish; it still cannot replace normal BFGS convergence, an independent
+  pristine SCF, or the ordinary structure gate.
+- Production-force finalization now requires complete task/submission/
+  accounting/raw-evidence replay and a path-safe, prefix-checked resource
+  ledger before it can publish a force-dataset gate. That gate claims only
+  readiness to construct FC2/FC3, not a phonon or kappa result.
+
+Independent review ended at `ship`. The full local suite passed 259 tests with
+one optional-spglib skip; both material configs validate healthy, Python
+compilation, Slurm shell syntax, and Git whitespace checks pass. Both
+production selections remain null, automatic submission is false, approved
+core-hour budgets remain null, and public `postprocess`/final `audit` are still
+unreleased. No remote import, diagnostic, preflight, force, FC2/FC3, or kappa
+calculation was run. Live Nibi state is still unverified because interactive
+MFA is required. The former hourly automation has been removed; future checks
+are manual/user-directed.
+
+The historical fail-closed recovery workflow is on GitHub branch
+`codex/two-material-phonons`.
 The original failed chains used commit `92d973a` in the frozen clean clone
 `/scratch/yuhansun/Waterloo-prof-Holger-phonons-20260910` and run directories
 under `/scratch/yuhansun/phono3py-runs/20260910/`. The reviewed one-reset
@@ -192,29 +230,33 @@ position, atom-order, cell, and symmetry gate passes. Only a no-force
 phono3py count/geometry/unit preflight is released after that gate. Force
 arrays, FC2/FC3 construction, kappa postprocessing, and final claims remain
 blocked pending real pilot evidence and an explicit production selection.
-The active hourly Codex heartbeat reports live scheduler/evidence changes and
-must not treat these recorded job IDs as future live state without querying.
+No scheduled heartbeat remains. Any manual status check must query current
+scheduler/evidence state and must not treat these recorded job IDs as live.
 Both original job chains are now terminal. Keep their submission-time clone
 and scripts frozen for provenance; deploy reviewed recovery/downstream code in
 a separate clean checkout that consumes the original hashed evidence.
 
 ## Next research work, when requested
 
-1. Rb2Cu2SnS4 requires scientific review before another ionic continuation.
-   The allowed one-reset path is exhausted, and a second automatic reset is
-   deliberately rejected. Do not infer acceptance from the small final force.
-2. SrZrS3 requires an explicit new cutoff/supercell/resource selection because
-   every declared routine preflight candidate exceeds the 800-task cap. Do not
-   raise the cap or launch a pilot merely to bypass this gate; first review a
-   scientifically defensible smaller cutoff or alternative strategy and cost.
-3. For each material independently, run amplitude, basis/cutoff, force-k-mesh,
-   supercell, q-mesh, and NAC-sensitivity decisions. Do not copy SrCu2SnS4
-   numerical settings or infer a production choice from cost alone.
-4. Re-preflight SrCu2SnS4 using explicitly converted Angstrom-to-bohr cutoffs
+1. Complete one interactive `ssh drac` MFA login, then refresh the live
+   scheduler and immutable source hashes before using any recorded job/run ID.
+2. For SrZrS3, import the accepted structure into a fresh current-policy run
+   and submit only the two new count-only preflight combinations. Review their
+   real counts, units, pair groups, finite-size risk, and cost before selecting
+   or piloting anything.
+3. For Rb2Cu2SnS4, archive/replay the failed one-reset lineage and run only the
+   three-SCF force-consistency diagnostic. Release the single reviewed polish
+   only if that diagnostic passes; a second automatic reset remains forbidden.
+4. After each material independently reaches its gates, run amplitude,
+   basis/cutoff, force-k-mesh, supercell, q-mesh, and NAC-sensitivity decisions.
+   Do not infer a production choice from cost alone.
+5. Re-preflight SrCu2SnS4 using explicitly converted Angstrom-to-bohr cutoffs
    before estimating cost; the historical "5.0 A / 600 supercells" proposal
    was based on the same unit misunderstanding and is not a valid 5-A budget.
    Pair-cutoff, supercell, and tensor q-mesh convergence remain unperformed.
-5. Assemble the full three-material phonon writeup/package when supported
+6. Implement and review the explicit FC/postprocess policy before construction;
+   do not invent ASR/permutation thresholds from old drift text or test fixtures.
+7. Assemble the full three-material phonon writeup/package when supported
    by results; keep interim attachments frozen.
 
 Use [DRAC_SETUP.md](DRAC_SETUP.md) and the campaign

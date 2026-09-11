@@ -1220,3 +1220,67 @@ kappa_L, PF/tau, electronic-only zT, or full-zT conclusion. Preflight counts
 remain geometry/cost evidence only, low forces were not promoted to BFGS
 convergence, raw records were preserved, and every frozen attachment remained
 untouched.
+
+## 2026-09-11 — Session 17: independent continuation worktree and audited local preparation
+
+At the user's request, continuation work moved to the new worktree
+`/Users/kaede/research/Waterloo-Holger-remaining-phonons` on branch
+`codex/remaining-two-phonons`, based on verified active-branch commit
+`5fdd4a16924f48df4cfe1c83303d47b0cc323240`. Local implementation commit
+`e524d6e` prepares evidence-gated continuation for SrZrS3 and Rb2Cu2SnS4; it
+does not launch QE, phono3py, or any scheduler job.
+
+The completed SrCu2SnS4 work was audited as experience, not accepted as a
+numerical template. Its retained calculation is a historical first pass: the
+4.0 cutoff is in bohr (about 2.12 Angstrom), the pristine calculation did not
+finish healthily, only 154 of 168 force outputs satisfy the strict completion
+criteria, force settings are mixed, and the corrected q-mesh ladder does not
+meet the current every-diagonal, every-temperature, two-step convergence
+contract. Therefore no SrCu2SnS4 cutoff, supercell, force, residual, or mesh
+threshold was silently transferred to the remaining materials.
+
+SrZrS3's historical one-reset recovery remains the only accepted structure
+source: it has normal BFGS completion, an independent healthy pristine SCF,
+maximum terminal force components of 9.87e-6 and 1.046e-5 Ry/bohr, a
+0.0018847721-Angstrom cumulative shift, and Pnma symmetry. Its five existing
+preflight counts (1379, 2047, 1379, 2047, and 3747) all exceed the current 800
+displacement cap, so none is production-eligible. The new 2x1x1/3.70-Angstrom
+and 3x1x1/3.70-Angstrom candidates are explicitly count-only hypotheses. A
+new accepted-structure importer now replays and archives the full recovery
+lineage into a fresh self-contained run before any current-policy preflight;
+the old run cannot be mutated or used directly.
+
+Rb2Cu2SnS4 still has no accepted structure. Both the original job 21638193
+and the permitted one-reset job 21656285 ended with explicit BFGS
+nonconvergence; their low terminal forces are not optimizer convergence. The
+prepared next step is a fixed-geometry three-SCF diagnostic with two identical
+100/800-Ry inputs and one 100/1000-Ry input in separate scratch directories.
+Only a passing, reviewed diagnostic can release at most one fresh
+small-trust-radius BFGS polish, which must still be followed by normal BFGS,
+pristine, and structure-gate evidence. No automatic reset or submission is
+enabled.
+
+The shared workflow now also has a force-finalization gate that replays the
+exact production plan, task map, submissions, accounting, raw outputs,
+backend hashes, and resource-budget ledger before publishing a force-dataset
+receipt. It validates readiness to construct FC2/FC3 only; it does not claim a
+phonon or kappa result. A distinct fresh review finished with verdict `ship`
+after symlink, ledger-rewrite, task-map, imported-run, and final-coordinate
+regressions were closed. The focused security suite passed 8/8 tests and the
+full suite passed 259/259 tests with one optional-spglib skip. Both material
+configs validate healthy while retaining null production selections, disabled
+automatic submission, and null approved core-hour budgets; Python compilation,
+Slurm shell syntax, and Git whitespace checks also pass.
+
+Live Nibi state was not refreshed: the read-only SSH attempt reached the
+mandatory MFA boundary and produced no scheduler or remote-artifact evidence.
+The latest verified remote boundary remains 2026-09-10 15:11 UTC. No remote
+import, diagnostic, relaxation, preflight, pilot, force, FC2/FC3, q-mesh, or
+kappa work was run. The former hourly automation was removed, and future
+continuation is manual and user-directed.
+
+**Scientific-rigor review.** This session created local workflow controls and
+an audited continuation plan, not a new calculated material result. Production
+choices remain unapproved, public postprocessing and final audit remain
+unreleased, no historical failure was reclassified as success, and every
+`READY_TO_ATTACH/` directory and frozen raw record remained untouched.
