@@ -105,9 +105,9 @@ for query_attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
     printf '%s\n' "$SACCT_HEADER" > "$query_record"
     last_record="$query_record"
     last_error="$query_error"
-    if command -v sacct >/dev/null 2>&1; then
+    if [[ -x "$P3_SACCT" ]]; then
         set +e
-        LC_ALL=C sacct \
+        LC_ALL=C "$P3_SACCT" \
             --jobs "$PRIMARY_JOB_ID" \
             --array \
             --noheader \
@@ -118,7 +118,8 @@ for query_attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
         sacct_rc=$?
         set -e
     else
-        printf '%s\n' 'sacct command is unavailable' > "$query_error"
+        printf 'trusted sacct command is unavailable or not executable: %s\n' "$P3_SACCT" \
+            > "$query_error"
         sacct_rc=127
     fi
 

@@ -11,6 +11,12 @@ COLLECT_SCRIPT = Path(__file__).resolve().parents[1] / "slurm" / "collect.sbatch
 
 
 class CollectorSlurmScriptTests(unittest.TestCase):
+    def test_collector_uses_the_trusted_sacct_path_not_inherited_path(self) -> None:
+        text = COLLECT_SCRIPT.read_text()
+        self.assertIn('[[ -x "$P3_SACCT" ]]', text)
+        self.assertIn('LC_ALL=C "$P3_SACCT"', text)
+        self.assertNotIn("command -v sacct", text)
+
     def test_accounting_poll_preserves_queries_and_waits_for_terminal_array(self) -> None:
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
@@ -42,6 +48,7 @@ p3_begin_attempt() {
 }
 p3_activate_python() { :; }
 p3_run_cli() { printf '%s\\n' "$@" > "$P3_ATTEMPT_DIR/cli_args.txt"; }
+P3_SACCT="${FAKE_SACCT:?}"
 """
         )
         fake_bin = root / "bin"
@@ -85,6 +92,7 @@ fi
                 "PRIMARY_FORCE_MANIFEST_SHA256": "b" * 64,
                 "SLURM_JOB_ID": "999",
                 "FAKE_SACCT_COUNTER": str(counter),
+                "FAKE_SACCT": str(sacct),
             }
         )
         completed = subprocess.run(

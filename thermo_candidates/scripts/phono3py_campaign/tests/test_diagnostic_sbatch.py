@@ -64,6 +64,7 @@ class SlurmStageContractTests(unittest.TestCase):
         self.assertIn('CAMPAIGN_CLI="$P3_CAMPAIGN_DIR/campaign.py"', text)
         self.assertIn('export STDENV_MODULE="StdEnv/2023"', text)
         self.assertIn('export QE_MODULE="quantumespresso/7.3.1"', text)
+        self.assertIn('export P3_SACCT="/opt/software/slurm/bin/sacct"', text)
         self.assertIn('export QE_EXECUTABLE="pw.x"', text)
         self.assertIn('export QE_MPI_LAUNCHER="srun"', text)
         self.assertIn('export QE_NK="1"', text)
@@ -78,6 +79,7 @@ class SlurmStageContractTests(unittest.TestCase):
             "${CAMPAIGN_CLI:-",
             "${STDENV_MODULE:-",
             "${QE_MODULE:-",
+            "${P3_SACCT:-",
             "${P3_VENV:-",
             "${P3_PSEUDO_DIR:-",
             "${QE_EXECUTABLE:-",
