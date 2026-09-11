@@ -1005,6 +1005,44 @@ counts are preflight cost/geometry evidence only; they do not prove force,
 cutoff, supercell, q-mesh, or kappa convergence. All `READY_TO_ATTACH/`
 records remained unchanged.
 
+## 2026-09-11 — Session 15: hourly check blocked by expired Nibi MFA session
+
+The repository was resumed from `codex/two-material-phonons` at `c8dcb0b` only
+after inspecting the local worktree and fetching GitHub.  The checkout was
+clean and exactly matched `origin/codex/two-material-phonons` (ahead/behind
+`0/0`).  Every `READY_TO_ATTACH/` directory remained unchanged.
+
+A fresh read-only Nibi query at 04:18 UTC failed before any scheduler command
+ran.  `ssh -O check drac` confirmed that
+`/Users/kaede/.ssh/cm-yuhansun@nibi.alliancecan.ca-22` did not exist, and Nibi
+rejected batch authentication because interactive MFA was required.  Therefore
+this session obtained no current `squeue`, `sacct`, job-log, or run-directory
+evidence and did not infer live state from the historical job IDs.  No remote
+directory was prepared and no job was submitted or rerun.  The last verified
+remote snapshot remains 2026-09-10 15:11 UTC: SrZrS3 had passed its structure
+gate but every declared preflight candidate exceeded the 800-task cap, while
+Rb2Cu2SnS4 had exhausted the reviewed one-reset BFGS recovery path without a
+passing structure gate.
+
+Local lightweight validation used the scientific Python 3.11.15 environment
+with spglib 2.7.0, phonopy 4.3.1, and phono3py 4.3.3.  The campaign suite passed
+**201/201 tests**.  Both material configs validated healthy while retaining
+their null production selections; Python compilation, all Slurm `bash -n`
+checks, and `git diff --check` passed.  One operator invocation error is kept
+visible: the first config validation omitted the required `--config` option;
+the correctly formed rerun passed for both materials.  This was not a workflow
+or scientific failure.
+
+**Scientific-rigor review.** No new force, force constant, phonon, stability,
+q-mesh, kappa_L, NAC/SOC, PF/tau, or zT evidence was produced.  SrZrS3's
+preflight counts remain cost/geometry evidence only, and Rb2Cu2SnS4's low final
+force remains insufficient to replace normal BFGS convergence.  A new SrZrS3
+cutoff/supercell choice cannot be justified from the repository summary alone
+without the accepted remote geometry and shell inventory; a second Rb ionic
+continuation requires an explicit reviewed strategy.  The immediate operator
+action is to re-establish one interactive Nibi MFA session so the next hourly
+run can obtain live evidence before any further decision or submission.
+
 ## 2026-09-11 — Session 15: hourly live check blocked by renewed Nibi MFA
 
 Git was fetched before interpreting state. The local and remote

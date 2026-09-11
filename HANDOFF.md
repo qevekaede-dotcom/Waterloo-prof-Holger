@@ -128,6 +128,12 @@ campaign-code hash and Git commit.
 Live scheduler/evidence state last checked 2026-09-10 15:11 UTC; the user's
 queue was empty:
 
+A fresh read-only SSH query was attempted on 2026-09-11 at 04:18 UTC, but the
+eight-hour ControlMaster socket no longer existed and Nibi required interactive
+MFA.  That failed authentication produced no newer scheduler, log, or artifact
+evidence, so the 2026-09-10 15:11 UTC snapshot below remains the latest verified
+remote state rather than a claim about the current queue.
+
 - Rb2Cu2SnS4 recovery tight-relax `21656285`: FAILED with exit `2:0` after
   4 SCF cycles / 3 BFGS steps; collector `21656286`: COMPLETED. QE wrote
   `history already reset at previous step: exiting` followed by explicit
