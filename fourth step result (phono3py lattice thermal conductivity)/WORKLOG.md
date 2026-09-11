@@ -1005,6 +1005,65 @@ counts are preflight cost/geometry evidence only; they do not prove force,
 cutoff, supercell, q-mesh, or kappa convergence. All `READY_TO_ATTACH/`
 records remained unchanged.
 
+## 2026-09-11 — Session 15: hourly live check blocked by renewed Nibi MFA
+
+Git was fetched before interpreting state. The local and remote
+`codex/two-material-phonons` branches both resolved to `c8dcb0b`, the working
+tree was initially clean, and every `READY_TO_ATTACH/` path was unchanged.
+At 04:17 UTC the configured Nibi ControlMaster socket was absent; a batch-mode
+SSH connection was rejected at the mandatory keyboard-interactive/Duo step.
+No scheduler command ran, so this session obtained no current `squeue`,
+`sacct`, job-log, or run-directory evidence and did not relabel the 2026-09-10
+15:11 UTC terminal snapshot as live state. No relaxation, preflight, pilot,
+force, FC2/FC3, or kappa job was submitted.
+
+Local validation in the scientific environment passed **201/201 tests**, both
+material configuration checks, Python compilation, Slurm shell syntax, and
+`git diff --check`. The suite includes strict last-complete-force parsing,
+setting-matched pristine subtraction, ordered residual-corrected force-product
+reconstruction, and `--cfz` gates. One shell-validation invocation failed only
+because zsh expanded an absent `slurm/*.sh` glob; the corrected null-glob loop
+passed and this did not reflect a workflow-code failure.
+
+SrZrS3 remains at a passed structure gate with all five declared routine
+preflight candidates above the 800-displacement cap (1379--3747; 0/5 eligible).
+Rb2Cu2SnS4 remains without an accepted structure after the permitted one-reset
+recovery failed normal BFGS convergence. The next live evidence check requires
+one user-authenticated Nibi login; a second Rb ionic continuation and a new Sr
+cutoff/supercell/resource plan remain scientific decisions, not automatic
+retries.
+
+**Scientific-rigor review.** This was monitoring and software validation, not
+a material calculation. No new force, phonon, stability, cutoff, supercell,
+q-mesh, NAC/SOC, kappa_L, PF/tau, electronic-only zT, or full-zT conclusion was
+produced. Low terminal forces still do not replace normal BFGS convergence,
+and preflight counts remain cost/geometry evidence only. Frozen attachment
+records were not modified.
+
+## 2026-09-11 — Session 15: hourly live check blocked by renewed Nibi MFA
+
+The repository was fetched first; local and remote
+`codex/two-material-phonons` both resolved to `c8dcb0b`, with frozen
+`READY_TO_ATTACH/` records unchanged. At 04:16 UTC the previous Nibi
+ControlMaster socket was absent and batch-mode SSH was rejected at the
+mandatory keyboard-interactive/Duo step. No scheduler command ran, so this
+session obtained no current `squeue`, `sacct`, job-log, or run-directory
+evidence and did not relabel the 2026-09-10 terminal snapshot as live state.
+No job was submitted.
+
+Local lightweight validation passed **201/201 tests**, both material config
+checks, Python compilation, Slurm shell syntax, and targeted regressions for
+the last complete QE force block, setting-matched pristine input, and the
+ordered residual-corrected `--cfz` force product. Production remains blocked:
+SrZrS3 has zero candidate below the 800-displacement cap, and Rb2Cu2SnS4 has
+no accepted structure after its allowed one-reset recovery.
+
+**Scientific-rigor review.** No new force, phonon, stability, cutoff,
+supercell, q-mesh, NAC/SOC, kappa_L, PF/tau, electronic-only zT, or full-zT
+claim was made. Low terminal force still does not replace normal BFGS
+convergence; preflight counts remain cost/geometry evidence only. A fresh live
+query requires a user-authenticated Nibi SSH session.
+
 ## 2026-09-11 — Session 15: hourly check blocked by renewed Nibi MFA
 
 At 04:18 UTC, a fresh fetch confirmed that local branch
