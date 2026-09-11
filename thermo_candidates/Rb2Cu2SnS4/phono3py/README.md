@@ -62,15 +62,41 @@ job automatically:
 
 ```text
 polish_recovery.py prepare-lineage      # local, requires exact source hashes
-polish_recovery.py run-diagnostic       # inside an explicitly obtained compute allocation
+submit.py plan --stage diagnostic       # read-only; prints config SHA and allocation
+submit.py execute --stage diagnostic    # Nibi login; requires that exact config SHA
 polish_recovery.py finalize-diagnostic  # writes a diagnostic-only receipt/gate
 polish_recovery.py release-polish       # creates the fresh run manifest only after a pass
 submit.py plan --stage relax            # review only; execute remains a separate explicit action
 ```
 
+The diagnostic submission reads its complete allocation from
+`scheduler.diagnostic_resources`: one Nibi `cpubase_bycore_b2` node, 32 MPI
+ranks, 2000 MB per rank, and a 2-hour ceiling (64 core-hours). This conservative
+ceiling is derived from preserved job 21656285, whose four SCFs used 32 CPUs,
+recorded 62.50G, and took 26m45s total; it is a resource-planning bound, not a
+calculated material result. The Slurm stage runs only the three SCFs and writes
+immutable request/response plus attempt evidence. A distinct `afterany`
+collector preserves the raw diagnostic `sacct` row and a collection receipt;
+neither job calls `finalize-diagnostic` or `release-polish`.
+
+The diagnostic is fail-closed at submission as well as at scientific-attempt
+creation. The first immutable submission request, started Slurm dispatch, or
+diagnostic attempt consumes this RUN_DIR's sole opportunity. A scheduler,
+node, module, or startup failure is preserved for review and cannot be retried
+by reusing the same prepared lineage directory.
+
 `prepare-lineage` archives the terminal one-reset evidence and the complete
 original recovery lineage without modifying either source run. It retains the
-original standardized geometry as the cumulative-displacement reference.
+original standardized geometry as the cumulative-displacement reference and
+copies the exact launch-time UPF bytes into its own immutable
+`lineage_source/pseudopotentials/` archive. All three diagnostic inputs refer
+to that archive, and later runtime/finalization/release checks rehash each UPF.
+Finalization also replays the unique submission request/result/summary,
+dispatch claim, primary and collector wrapper contexts, diagnostic execution,
+collection receipt, and raw scheduler allocation; it requires
+`COMPLETED/0:0` and exact account/partition/node/CPU/time plus equivalent total
+memory. Any missing, ambiguous, symlinked, or mismatched record keeps release
+closed.
 `release-polish` creates a new manifest containing `relax_polish` only, never a
 second `relax_recovery` pointer. The submission and runtime guards consume the
 single polish slot after one attempt. Even if that polish converges, the usual

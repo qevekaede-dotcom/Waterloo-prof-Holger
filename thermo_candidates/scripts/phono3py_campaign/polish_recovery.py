@@ -16,8 +16,9 @@ import hashlib
 import json
 import os
 import re
+import stat
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 import campaign as core
 import relax_recovery
@@ -42,6 +43,115 @@ def _digest(value: Any, label: str) -> str:
     if not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{64}", value) is None:
         raise core.CampaignError(f"{label} must be a lowercase SHA256")
     return value
+
+
+def _strict_run_path(
+    run_dir: Path,
+    path: Path,
+    label: str,
+    *,
+    require_exists: bool = True,
+) -> Path:
+    """Use lstat on every RUN_DIR component and reject any symlink/escape."""
+
+    lexical_root = Path(os.path.abspath(run_dir))
+    root = run_dir.resolve(strict=True)
+    candidate_input = Path(os.path.abspath(path))
+    if candidate_input.is_relative_to(lexical_root):
+        relative = candidate_input.relative_to(lexical_root)
+    elif candidate_input.is_relative_to(root):
+        relative = candidate_input.relative_to(root)
+    else:
+        alias_root = None
+        for ancestor in (candidate_input, *candidate_input.parents):
+            try:
+                if stat.S_ISLNK(os.lstat(ancestor).st_mode):
+                    raise core.CampaignError(
+                        f"{label} path contains a symlink: {ancestor}"
+                    )
+                if os.path.samefile(ancestor, root):
+                    alias_root = ancestor
+                    break
+            except (FileNotFoundError, NotADirectoryError, OSError):
+                continue
+        if alias_root is None:
+            raise core.CampaignError(f"{label} must be a strict RUN_DIR descendant")
+        relative = candidate_input.relative_to(alias_root)
+    if not relative.parts:
+        raise core.CampaignError(f"{label} must be a strict RUN_DIR descendant")
+    candidate = root / relative
+    current = root
+    missing = False
+    for part in candidate.relative_to(root).parts:
+        current = current / part
+        if missing:
+            continue
+        try:
+            mode = os.lstat(current).st_mode
+        except FileNotFoundError:
+            missing = True
+            continue
+        if stat.S_ISLNK(mode):
+            raise core.CampaignError(f"{label} path contains a symlink: {current}")
+    if require_exists and missing:
+        raise core.CampaignError(f"{label} is missing: {candidate}")
+    resolved = candidate.resolve(strict=require_exists)
+    if resolved == root or not resolved.is_relative_to(root):
+        raise core.CampaignError(f"{label} resolves outside RUN_DIR")
+    return candidate
+
+
+def _copy_bytes_exclusive(path: Path, data: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("xb") as handle:
+        handle.write(data)
+        handle.flush()
+        os.fsync(handle.fileno())
+
+
+def _pseudopotential_archive_payload(
+    config: Mapping[str, Any], pseudopotentials: Mapping[str, Any]
+) -> tuple[dict[str, dict[str, str]], dict[str, bytes]]:
+    """Read and hash the exact submitted UPF bytes before creating lineage."""
+
+    configured = core.required(config, "pseudopotentials.files")
+    if not isinstance(configured, Mapping) or set(pseudopotentials) != set(configured):
+        raise core.CampaignError(
+            "one-reset pseudopotential species differ from the campaign configuration"
+        )
+    if len(set(configured.values())) != len(configured):
+        raise core.CampaignError("configured pseudopotential filenames are not unique")
+    inventory: dict[str, dict[str, str]] = {}
+    blobs: dict[str, bytes] = {}
+    for species, filename_value in configured.items():
+        filename = str(filename_value)
+        item = pseudopotentials.get(species)
+        if not isinstance(item, Mapping):
+            raise core.CampaignError("one-reset pseudopotential receipt is invalid")
+        source = Path(str(item.get("file", "")))
+        if (
+            not source.is_absolute()
+            or source.name != filename
+            or source.is_symlink()
+            or not source.is_file()
+        ):
+            raise core.CampaignError(
+                f"one-reset pseudopotential source is missing or unsafe: {species}"
+            )
+        data = source.read_bytes()
+        digest = hashlib.sha256(data).hexdigest()
+        if digest != _digest(item.get("sha256"), "pseudopotential hash"):
+            raise core.CampaignError(
+                f"one-reset pseudopotential bytes differ from their launch hash: {species}"
+            )
+        relative = f"lineage_source/pseudopotentials/{filename}"
+        inventory[str(species)] = {
+            "filename": filename,
+            "relative_path": relative,
+            "sha256": digest,
+        }
+        blobs[filename] = data
+    return inventory, blobs
 
 
 def _context(path: Path) -> dict[str, str]:
@@ -311,14 +421,18 @@ def prepare_lineage(
     policy = core.required(config, "reviewed_bfgs_polish")
     # Validate and materialize diagnostic inputs before the first write.
     source_launch = core.load_json(source_attempt / "relax_launch.json")
-    pseudo_dirs = {str(Path(str(item["file"])).parent) for item in source_launch["pseudopotentials"].values()}
-    if len(pseudo_dirs) != 1:
-        raise core.CampaignError("one-reset pseudopotential directories are inconsistent")
+    source_pseudos = source_launch.get("pseudopotentials")
+    if not isinstance(source_pseudos, Mapping):
+        raise core.CampaignError("one-reset launch lacks pseudopotential evidence")
+    pseudo_inventory, pseudo_blobs = _pseudopotential_archive_payload(
+        config, source_pseudos
+    )
+    archived_pseudo_dir = run_dir / "lineage_source/pseudopotentials"
     baseline, higher = _diagnostic_inputs(
         config,
         (source_attempt / "relax.in").read_text(),
         (source_attempt / "relax.out").read_text(),
-        Path(pseudo_dirs.pop()),
+        archived_pseudo_dir,
     )
     lineage = {
         "schema_version": 1,
@@ -340,6 +454,7 @@ def prepare_lineage(
             "baseline.in": hashlib.sha256(baseline.encode()).hexdigest(),
             "higher_ecutrho.in": hashlib.sha256(higher.encode()).hexdigest(),
         },
+        "pseudopotential_archive": pseudo_inventory,
         "review": review,
         "automatic_reset": False,
         "maximum_polish_attempts": 1,
@@ -353,6 +468,13 @@ def prepare_lineage(
         core.write_immutable(archive / name, path.read_text())
         if core.sha256_path(archive / name) != hashes[name] or core.sha256_path(path) != hashes[name]:
             raise core.CampaignError("source evidence changed while archiving; prepared lineage is incomplete")
+    for filename, data in pseudo_blobs.items():
+        archived = archived_pseudo_dir / filename
+        _copy_bytes_exclusive(archived, data)
+        if core.sha256_path(archived) != hashlib.sha256(data).hexdigest():
+            raise core.CampaignError(
+                f"archived pseudopotential hash mismatch after copy: {filename}"
+            )
     core.write_immutable(run_dir / "polish_seed.in", seed)
     core.write_immutable(run_dir / "polish_reference.in", reference)
     core.write_json_immutable(run_dir / LINEAGE_RECEIPT, lineage)
@@ -373,7 +495,9 @@ def prepare_lineage(
 
 
 def _load_lineage(config: Mapping[str, Any], run_dir: Path) -> dict[str, Any]:
-    receipt_path = run_dir / LINEAGE_RECEIPT
+    receipt_path = _strict_run_path(
+        run_dir, run_dir / LINEAGE_RECEIPT, "polish lineage receipt"
+    )
     receipt = core.load_json(receipt_path)
     if receipt.get("backend_sha256") != core.sha256_path(Path(__file__)):
         raise core.CampaignError("polish-lineage backend changed after preparation")
@@ -391,14 +515,85 @@ def _load_lineage(config: Mapping[str, Any], run_dir: Path) -> dict[str, Any]:
         if relative.is_absolute() or ".." in relative.parts:
             raise core.CampaignError("polish lineage source inventory path is unsafe")
         _digest(digest, "polish lineage source hash")
-        if core.sha256_path(run_dir / "lineage_source" / relative) != digest:
+        archived_source = _strict_run_path(
+            run_dir,
+            run_dir / "lineage_source" / relative,
+            f"archived polish-lineage evidence {name}",
+        )
+        if core.sha256_path(archived_source) != digest:
             raise core.CampaignError(f"archived polish-lineage hash mismatch: {name}")
     for name, key in (
         ("polish_seed.in", "seed_unitcell_sha256"),
         ("polish_reference.in", "reference_unitcell_sha256"),
     ):
-        if core.sha256_path(run_dir / name) != receipt.get(key):
+        geometry = _strict_run_path(run_dir, run_dir / name, f"polish lineage {name}")
+        if core.sha256_path(geometry) != receipt.get(key):
             raise core.CampaignError(f"polish lineage geometry hash mismatch: {name}")
+    configured_pseudos = core.required(config, "pseudopotentials.files")
+    pseudo_inventory = receipt.get("pseudopotential_archive")
+    if (
+        not isinstance(configured_pseudos, Mapping)
+        or not isinstance(pseudo_inventory, Mapping)
+        or set(pseudo_inventory) != set(configured_pseudos)
+    ):
+        raise core.CampaignError("polish lineage pseudopotential inventory is invalid")
+    pseudo_root = _strict_run_path(
+        run_dir,
+        run_dir / "lineage_source/pseudopotentials",
+        "archived pseudopotential directory",
+    )
+    if not pseudo_root.is_dir():
+        raise core.CampaignError("archived pseudopotential path is not a directory")
+    expected_pseudo_names = {str(value) for value in configured_pseudos.values()}
+    if {path.name for path in pseudo_root.iterdir()} != expected_pseudo_names:
+        raise core.CampaignError("archived pseudopotential directory has unexpected entries")
+    for species, filename_value in configured_pseudos.items():
+        filename = str(filename_value)
+        record = pseudo_inventory.get(species)
+        relative = f"lineage_source/pseudopotentials/{filename}"
+        if (
+            not isinstance(record, Mapping)
+            or record.get("filename") != filename
+            or record.get("relative_path") != relative
+        ):
+            raise core.CampaignError(
+                f"archived pseudopotential identity mismatch: {species}"
+            )
+        archived = _strict_run_path(
+            run_dir, run_dir / relative, f"archived pseudopotential {species}"
+        )
+        if not archived.is_file() or core.sha256_path(archived) != _digest(
+            record.get("sha256"), "archived pseudopotential hash"
+        ):
+            raise core.CampaignError(
+                f"archived pseudopotential hash mismatch: {species}"
+            )
+    archived_launch_path = _strict_run_path(
+        run_dir,
+        run_dir / "lineage_source/one_reset_attempt/relax_launch.json",
+        "archived one-reset launch",
+    )
+    archived_launch = core.load_json(archived_launch_path)
+    launch_pseudos = archived_launch.get("pseudopotentials")
+    review = receipt.get("review")
+    if not isinstance(launch_pseudos, Mapping) or not isinstance(review, Mapping):
+        raise core.CampaignError(
+            "polish lineage lacks archived launch pseudopotential evidence"
+        )
+    archived_pseudo_content = {
+        str(species): {
+            "filename": str(record["filename"]),
+            "sha256": str(record["sha256"]),
+        }
+        for species, record in pseudo_inventory.items()
+    }
+    if (
+        _pseudo_content(launch_pseudos) != archived_pseudo_content
+        or review.get("pseudopotentials") != archived_pseudo_content
+    ):
+        raise core.CampaignError(
+            "archived pseudopotentials differ from the one-reset launch lineage"
+        )
     diagnostic_inputs = receipt.get("diagnostic_input_sha256")
     if not isinstance(diagnostic_inputs, Mapping) or set(diagnostic_inputs) != {
         "baseline.in",
@@ -406,9 +601,213 @@ def _load_lineage(config: Mapping[str, Any], run_dir: Path) -> dict[str, Any]:
     }:
         raise core.CampaignError("polish diagnostic input inventory is invalid")
     for name, digest in diagnostic_inputs.items():
-        if core.sha256_path(run_dir / "diagnostic/inputs" / name) != digest:
+        diagnostic_input = _strict_run_path(
+            run_dir,
+            run_dir / "diagnostic/inputs" / name,
+            f"polish diagnostic input {name}",
+        )
+        if core.sha256_path(diagnostic_input) != digest:
             raise core.CampaignError(f"polish diagnostic input hash mismatch: {name}")
+    expected_baseline, expected_higher = _diagnostic_inputs(
+        config,
+        (run_dir / "lineage_source/one_reset_attempt/relax.in").read_text(),
+        (run_dir / "lineage_source/one_reset_attempt/relax.out").read_text(),
+        pseudo_root,
+    )
+    if (
+        (run_dir / "diagnostic/inputs/baseline.in").read_text()
+        != expected_baseline
+        or (run_dir / "diagnostic/inputs/higher_ecutrho.in").read_text()
+        != expected_higher
+    ):
+        raise core.CampaignError(
+            "polish diagnostic inputs do not reference the immutable pseudopotential archive"
+        )
     return receipt
+
+
+def verify_diagnostic_submission_ready(
+    config_path: Path, run_dir: Path
+) -> dict[str, Any]:
+    """Replay the prepared lineage and prove that diagnostic remains one-shot."""
+
+    config, validation = core.validate_config(config_path)
+    run_dir = core.safe_run_dir(run_dir)
+    if not run_dir.is_dir():
+        raise core.CampaignError(f"prepared polish RUN_DIR does not exist: {run_dir}")
+    if config.get("reviewed_bfgs_polish") is None:
+        raise core.CampaignError(
+            "diagnostic stage is valid only for a reviewed_bfgs_polish campaign"
+        )
+    manifest_path = _strict_run_path(
+        run_dir,
+        run_dir / core.RUN_MANIFEST,
+        "polish run manifest",
+        require_exists=False,
+    )
+    if os.path.lexists(manifest_path):
+        raise core.CampaignError(
+            "polish manifest is already released; diagnostic submission is closed"
+        )
+    diagnostic_root = _strict_run_path(
+        run_dir, run_dir / "diagnostic", "diagnostic root"
+    )
+    lineage_path = _strict_run_path(
+        run_dir, run_dir / LINEAGE_RECEIPT, "polish lineage receipt"
+    )
+    attempts_root = _strict_run_path(
+        run_dir, diagnostic_root / "attempts", "diagnostic attempts root"
+    )
+    dispatch_claim = _strict_run_path(
+        run_dir,
+        diagnostic_root / "dispatch_claim",
+        "diagnostic dispatch claim",
+        require_exists=False,
+    )
+    submission_root = _strict_run_path(
+        run_dir,
+        run_dir / "submissions/diagnostic",
+        "diagnostic submission root",
+        require_exists=False,
+    )
+    slurm_attempts_root = _strict_run_path(
+        run_dir,
+        run_dir / "slurm_attempts/diagnostic",
+        "diagnostic Slurm attempts root",
+        require_exists=False,
+    )
+    if not attempts_root.is_dir():
+        raise core.CampaignError(
+            "prepare-lineage has not created the diagnostic attempt root"
+        )
+    lineage = _load_lineage(config, run_dir)
+    if any(attempts_root.iterdir()):
+        raise core.CampaignError(
+            "the single reviewed diagnostic attempt has already been consumed"
+        )
+    if os.path.lexists(dispatch_claim):
+        raise core.CampaignError(
+            "the single reviewed diagnostic dispatch has already been consumed"
+        )
+    if os.path.lexists(submission_root) and not submission_root.is_dir():
+        raise core.CampaignError("diagnostic submission root is not a directory")
+    if submission_root.is_dir() and any(
+        path.name != ".submission.lock" for path in submission_root.iterdir()
+    ):
+        raise core.CampaignError(
+            "the single reviewed diagnostic submission has already been consumed"
+        )
+    if os.path.lexists(slurm_attempts_root) and not slurm_attempts_root.is_dir():
+        raise core.CampaignError("diagnostic Slurm attempts root is not a directory")
+    if slurm_attempts_root.is_dir() and any(slurm_attempts_root.iterdir()):
+        raise core.CampaignError(
+            "the single reviewed diagnostic Slurm attempt has already been consumed"
+        )
+    final_path = _strict_run_path(
+        run_dir,
+        diagnostic_root / "final",
+        "diagnostic final evidence",
+        require_exists=False,
+    )
+    if os.path.lexists(final_path):
+        raise core.CampaignError("diagnostic final evidence already exists")
+    config_sha = validation.get("config_sha256")
+    if config_sha != core.sha256_path(config_path.resolve()):
+        raise core.CampaignError("diagnostic config SHA256 changed during validation")
+    return {
+        "schema_version": 1,
+        "material": core.required(config, "material.formula"),
+        "config_sha256": config_sha,
+        "lineage": str(lineage_path),
+        "lineage_sha256": core.sha256_path(lineage_path),
+        "polish_policy_sha256": lineage["polish_policy_sha256"],
+        "structure_accepted": False,
+        "preflight_unlocked": False,
+        "maximum_diagnostic_attempts": 1,
+    }
+
+
+def _diagnostic_resource_record(config: Mapping[str, Any]) -> dict[str, Any]:
+    """Verify the live allocation against the signed configured request."""
+
+    resources = core.required(config, "scheduler.diagnostic_resources")
+    if not isinstance(resources, Mapping):
+        raise core.CampaignError("diagnostic resource policy must be an object")
+    expected_sha = core.canonical_sha256(resources)
+    if os.environ.get("P3_DIAGNOSTIC_RESOURCE_SHA256") != expected_sha:
+        raise core.CampaignError(
+            "diagnostic resource-policy SHA256 differs from the submitted config"
+        )
+
+    observed: dict[str, Any] = {}
+    for config_key, environment_key in (
+        ("nodes", "SLURM_JOB_NUM_NODES"),
+        ("ntasks", "SLURM_NTASKS"),
+        ("cpus_per_task", "SLURM_CPUS_PER_TASK"),
+    ):
+        raw = os.environ.get(environment_key, "")
+        if re.fullmatch(r"[1-9][0-9]*", raw) is None:
+            raise core.CampaignError(
+                f"diagnostic allocation lacks valid {environment_key}"
+            )
+        observed[config_key] = int(raw)
+        if observed[config_key] != resources.get(config_key):
+            raise core.CampaignError(
+                f"diagnostic allocation differs from configured {config_key}"
+            )
+
+    partition = os.environ.get("SLURM_JOB_PARTITION", "")
+    if partition != resources.get("partition"):
+        raise core.CampaignError(
+            "diagnostic allocation differs from configured partition"
+        )
+    observed["partition"] = partition
+
+    account = os.environ.get("SLURM_JOB_ACCOUNT", "")
+    if account != core.required(config, "scheduler.slurm_account"):
+        raise core.CampaignError(
+            "diagnostic allocation differs from configured Slurm account"
+        )
+    observed["account"] = account
+
+    memory = os.environ.get("SLURM_MEM_PER_CPU", "")
+    memory_match = re.fullmatch(r"([1-9][0-9]*)([Mm]?)", memory)
+    if memory_match is None:
+        raise core.CampaignError(
+            "diagnostic allocation lacks valid SLURM_MEM_PER_CPU"
+        )
+    memory_mb = int(memory_match.group(1))
+    if memory_mb != resources.get("mem_per_cpu_mb"):
+        raise core.CampaignError(
+            "diagnostic allocation differs from configured mem_per_cpu_mb"
+        )
+    observed["mem_per_cpu_mb"] = memory_mb
+
+    raw_time = os.environ.get("SLURM_TIMELIMIT", "")
+    if re.fullmatch(r"[1-9][0-9]*", raw_time):
+        time_limit_minutes = int(raw_time)
+    else:
+        matched_time = re.fullmatch(r"(?:(\d+)-)?(\d{1,2}):(\d{2}):(\d{2})", raw_time)
+        if matched_time is None:
+            raise core.CampaignError(
+                "diagnostic allocation lacks a valid SLURM_TIMELIMIT"
+            )
+        days = int(matched_time.group(1) or 0)
+        hours, minutes, seconds = map(int, matched_time.groups()[1:])
+        if minutes >= 60 or seconds >= 60 or seconds != 0:
+            raise core.CampaignError("diagnostic SLURM_TIMELIMIT is not minute-exact")
+        time_limit_minutes = days * 24 * 60 + hours * 60 + minutes
+    expected_minutes = int(float(resources.get("walltime_hours")) * 60)
+    if time_limit_minutes != expected_minutes:
+        raise core.CampaignError(
+            "diagnostic allocation differs from configured walltime_hours"
+        )
+    observed["time_limit_minutes"] = time_limit_minutes
+    return {
+        "policy_sha256": expected_sha,
+        "configured": dict(resources),
+        "observed_allocation": observed,
+    }
 
 
 def run_diagnostic(config_path: Path, run_dir: Path, *, attempt_id: str) -> dict[str, Any]:
@@ -422,19 +821,86 @@ def run_diagnostic(config_path: Path, run_dir: Path, *, attempt_id: str) -> dict
     config, _ = core.validate_config(config_path)
     run_dir = core.safe_run_dir(run_dir)
     lineage = _load_lineage(config, run_dir)
-    if (run_dir / core.RUN_MANIFEST).exists():
+    expected_lineage_sha = core.sha256_path(run_dir / LINEAGE_RECEIPT)
+    if os.environ.get("P3_DIAGNOSTIC_LINEAGE_SHA256") != expected_lineage_sha:
+        raise core.CampaignError(
+            "diagnostic prepared-lineage hash differs from the submitted request"
+        )
+    backend_sha = core.sha256_path(Path(__file__))
+    if os.environ.get("P3_DIAGNOSTIC_BACKEND_SHA256") != backend_sha:
+        raise core.CampaignError(
+            "diagnostic backend hash differs from the submitted workflow"
+        )
+    resources = _diagnostic_resource_record(config)
+    manifest_path = _strict_run_path(
+        run_dir,
+        run_dir / core.RUN_MANIFEST,
+        "polish run manifest",
+        require_exists=False,
+    )
+    if os.path.lexists(manifest_path):
         raise core.CampaignError("polish is already released; diagnostic cannot be rerun")
     if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}", attempt_id) is None:
         raise core.CampaignError("invalid diagnostic attempt ID")
-    attempts_root = run_dir / "diagnostic/attempts"
-    if any(path.is_dir() for path in attempts_root.iterdir()):
+    attempts_root = _strict_run_path(
+        run_dir,
+        run_dir / "diagnostic/attempts",
+        "diagnostic attempts root",
+    )
+    if not attempts_root.is_dir():
+        raise core.CampaignError("diagnostic attempts root is not a directory")
+    if any(attempts_root.iterdir()):
         raise core.CampaignError(
             "the single reviewed diagnostic attempt has already been consumed"
         )
-    attempt = attempts_root / attempt_id
+    dispatch_claim = _strict_run_path(
+        run_dir,
+        run_dir / "diagnostic/dispatch_claim",
+        "diagnostic dispatch claim",
+    )
+    claim_context = _context(
+        _strict_run_path(
+            run_dir,
+            dispatch_claim / "context.tsv",
+            "diagnostic dispatch claim context",
+        )
+    )
+    if (
+        claim_context.get("attempt_id") != attempt_id
+        or claim_context.get("slurm_job_id") != slurm_job_id
+    ):
+        raise core.CampaignError("diagnostic dispatch claim identity mismatch")
+    wrapper_attempt = _strict_run_path(
+        run_dir,
+        run_dir / "slurm_attempts/diagnostic" / attempt_id,
+        "diagnostic Slurm wrapper attempt",
+    )
+    if not wrapper_attempt.is_dir():
+        raise core.CampaignError("diagnostic Slurm wrapper attempt is not a directory")
+    if os.environ.get("P3_ATTEMPT_DIR") != str(wrapper_attempt):
+        raise core.CampaignError("diagnostic Slurm wrapper environment identity mismatch")
+    attempt = _strict_run_path(
+        run_dir,
+        attempts_root / attempt_id,
+        "diagnostic scientific attempt",
+        require_exists=False,
+    )
+    if os.path.lexists(attempt):
+        raise core.CampaignError("diagnostic scientific attempt already exists")
     attempt.mkdir(parents=False, exist_ok=False)
-    baseline_source = run_dir / "diagnostic/inputs/baseline.in"
-    higher_source = run_dir / "diagnostic/inputs/higher_ecutrho.in"
+    attempt = _strict_run_path(
+        run_dir, attempt, "diagnostic scientific attempt", require_exists=True
+    )
+    baseline_source = _strict_run_path(
+        run_dir,
+        run_dir / "diagnostic/inputs/baseline.in",
+        "baseline diagnostic input",
+    )
+    higher_source = _strict_run_path(
+        run_dir,
+        run_dir / "diagnostic/inputs/higher_ecutrho.in",
+        "higher-ecutrho diagnostic input",
+    )
     inputs = (baseline_source, baseline_source, higher_source)
     labels = ("baseline-a", "baseline-b", "higher-ecutrho")
     executions: dict[str, Any] = {}
@@ -442,6 +908,9 @@ def run_diagnostic(config_path: Path, run_dir: Path, *, attempt_id: str) -> dict
     for label, source in zip(labels, inputs):
         work = attempt / label
         work.mkdir()
+        work = _strict_run_path(
+            run_dir, work, f"diagnostic work directory {label}"
+        )
         core.write_immutable(work / "scf.in", source.read_text())
         if (work / "tmp-diagnostic").exists():
             raise core.CampaignError("diagnostic requires fresh QE scratch")
@@ -473,6 +942,14 @@ def run_diagnostic(config_path: Path, run_dir: Path, *, attempt_id: str) -> dict
         },
         "lineage_sha256": core.sha256_path(run_dir / LINEAGE_RECEIPT),
         "polish_policy_sha256": lineage["polish_policy_sha256"],
+        "resources": resources,
+        "workflow_sha256": {
+            "submit.py": os.environ.get("P3_SUBMIT_SCRIPT_SHA256"),
+            "campaign.py": os.environ.get("P3_CAMPAIGN_CLI_SHA256"),
+            "cluster.env": os.environ.get("P3_CLUSTER_ENV_SHA256"),
+            "diagnostic.sbatch": os.environ.get("P3_STAGE_SCRIPT_SHA256"),
+            "polish_recovery.py": backend_sha,
+        },
         "runs": executions,
         "structure_accepted": False,
     }
@@ -486,6 +963,8 @@ def _audit_diagnostic_attempt(
     attempt: Path,
     *,
     expected_execution_sha256: str,
+    expected_slurm_job_id: str,
+    expected_command: Sequence[str],
 ) -> dict[str, Any]:
     """Replay exact diagnostic execution, process, and force evidence."""
 
@@ -496,6 +975,13 @@ def _audit_diagnostic_attempt(
     ):
         raise core.CampaignError("diagnostic execution SHA256 mismatch")
     execution = core.load_json(execution_path)
+    if (
+        execution.get("schema_version") != 1
+        or execution.get("structure_accepted") is not False
+    ):
+        raise core.CampaignError(
+            "diagnostic execution must be schema version 1 and structure-neutral"
+        )
     for field in ("created_utc", "started_utc", "finished_utc"):
         if UTC_RE.fullmatch(str(execution.get(field, ""))) is None:
             raise core.CampaignError(f"diagnostic execution has invalid {field}")
@@ -506,6 +992,10 @@ def _audit_diagnostic_attempt(
         or SLURM_NODELIST_RE.fullmatch(str(slurm.get("node_list", ""))) is None
     ):
         raise core.CampaignError("diagnostic execution has invalid Slurm identity")
+    if str(slurm.get("job_id")) != expected_slurm_job_id:
+        raise core.CampaignError(
+            "diagnostic execution Slurm job ID differs from the submitted primary job"
+        )
     context = execution.get("context")
     if (
         not isinstance(context, Mapping)
@@ -518,6 +1008,40 @@ def _audit_diagnostic_attempt(
         raise core.CampaignError("diagnostic execution/lineage mismatch")
     if execution.get("polish_policy_sha256") != lineage.get("polish_policy_sha256"):
         raise core.CampaignError("diagnostic execution/polish-policy mismatch")
+    resources = execution.get("resources")
+    configured_resources = core.required(config, "scheduler.diagnostic_resources")
+    if (
+        not isinstance(resources, Mapping)
+        or resources.get("policy_sha256")
+        != core.canonical_sha256(configured_resources)
+        or resources.get("configured") != configured_resources
+    ):
+        raise core.CampaignError("diagnostic execution/resource-policy mismatch")
+    observed_resources = resources.get("observed_allocation")
+    expected_observed = {
+        key: configured_resources[key]
+        for key in ("partition", "nodes", "ntasks", "cpus_per_task")
+    }
+    expected_observed["mem_per_cpu_mb"] = configured_resources["mem_per_cpu_mb"]
+    expected_observed["account"] = core.required(config, "scheduler.slurm_account")
+    expected_observed["time_limit_minutes"] = int(
+        float(configured_resources["walltime_hours"]) * 60
+    )
+    if observed_resources != expected_observed:
+        raise core.CampaignError("diagnostic execution/allocation mismatch")
+    expected_workflow = {
+        "submit.py": core.sha256_path(Path(__file__).with_name("submit.py")),
+        "campaign.py": core.sha256_path(Path(__file__).with_name("campaign.py")),
+        "cluster.env": core.sha256_path(
+            Path(__file__).with_name("slurm") / "cluster.env"
+        ),
+        "diagnostic.sbatch": core.sha256_path(
+            Path(__file__).with_name("slurm") / "diagnostic.sbatch"
+        ),
+        "polish_recovery.py": core.sha256_path(Path(__file__)),
+    }
+    if execution.get("workflow_sha256") != expected_workflow:
+        raise core.CampaignError("diagnostic execution/workflow hash mismatch")
     labels = ("baseline-a", "baseline-b", "higher-ecutrho")
     runs = execution.get("runs")
     if not isinstance(runs, Mapping) or set(runs) != set(labels):
@@ -530,7 +1054,7 @@ def _audit_diagnostic_attempt(
     output_hashes: dict[str, str] = {}
     health: dict[str, Any] = {}
     nat = int(core.required(config, "material.unitcell_atoms"))
-    expected_command = core.qe_command("scf.in")
+    expected_command = list(expected_command)
     for label in labels:
         record = runs.get(label)
         work = attempt / label
@@ -602,6 +1126,730 @@ def _audit_diagnostic_attempt(
     }
 
 
+def _strict_json(run_dir: Path, path: Path, label: str) -> tuple[Path, dict[str, Any]]:
+    path = _strict_run_path(run_dir, path, label)
+    if not path.is_file():
+        raise core.CampaignError(f"{label} is not a regular file")
+    value = core.load_json(path)
+    if not isinstance(value, dict):
+        raise core.CampaignError(f"{label} is not a JSON object")
+    return path, value
+
+
+def _strict_text(run_dir: Path, path: Path, label: str) -> tuple[Path, str]:
+    path = _strict_run_path(run_dir, path, label)
+    if not path.is_file():
+        raise core.CampaignError(f"{label} is not a regular file")
+    return path, path.read_text()
+
+
+def _reject_symlinks_below(run_dir: Path, root: Path, label: str) -> None:
+    root = _strict_run_path(run_dir, root, label)
+    if not root.is_dir():
+        raise core.CampaignError(f"{label} is not a directory")
+    for parent, directories, files in os.walk(root, followlinks=False):
+        for name in (*directories, *files):
+            _strict_run_path(run_dir, Path(parent) / name, label)
+
+
+def _slurm_time_minutes(raw: str, label: str) -> int:
+    if re.fullmatch(r"[1-9][0-9]*", raw):
+        return int(raw)
+    matched = re.fullmatch(r"(?:(\d+)-)?(\d{1,2}):(\d{2}):(\d{2})", raw)
+    if matched is None:
+        raise core.CampaignError(f"{label} is invalid")
+    days = int(matched.group(1) or 0)
+    hours, minutes, seconds = map(int, matched.groups()[1:])
+    if minutes >= 60 or seconds != 0:
+        raise core.CampaignError(f"{label} is not minute-exact")
+    return days * 1440 + hours * 60 + minutes
+
+
+def _command_exports(command: Any, label: str) -> dict[str, str]:
+    if not isinstance(command, list) or any(not isinstance(item, str) for item in command):
+        raise core.CampaignError(f"{label} command is invalid")
+    export_args = [item for item in command if item.startswith("--export=")]
+    if len(export_args) != 1:
+        raise core.CampaignError(f"{label} must contain exactly one Slurm export argument")
+    payload = export_args[0].removeprefix("--export=")
+    if not payload or payload == "ALL" or payload.startswith("ALL,"):
+        raise core.CampaignError(f"{label} inherited an unreviewed submission environment")
+    result: dict[str, str] = {}
+    for pair in payload.split(","):
+        if "=" not in pair:
+            raise core.CampaignError(f"{label} export is not an explicit assignment")
+        name, value = pair.split("=", 1)
+        if not name or name in result:
+            raise core.CampaignError(f"{label} export contains a duplicate/empty name")
+        result[name] = value
+    return result
+
+
+def _audit_diagnostic_dispatch_chain(
+    config: Mapping[str, Any],
+    config_path: Path,
+    run_dir: Path,
+    attempt_id: str,
+    expected_execution_sha256: str,
+) -> dict[str, Any]:
+    """Replay the unique submit, wrapper, collector, and accounting chain."""
+
+    if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}", attempt_id) is None:
+        raise core.CampaignError("invalid diagnostic attempt ID")
+    config_path = config_path.resolve(strict=True)
+    config_sha = core.sha256_path(config_path)
+    lineage = _load_lineage(config, run_dir)
+    lineage_path = _strict_run_path(
+        run_dir, run_dir / LINEAGE_RECEIPT, "diagnostic lineage receipt"
+    )
+    lineage_sha = core.sha256_path(lineage_path)
+    resources = core.required(config, "scheduler.diagnostic_resources")
+    resource_sha = core.canonical_sha256(resources)
+    account = str(core.required(config, "scheduler.slurm_account"))
+    expected_minutes = int(float(resources["walltime_hours"]) * 60)
+
+    submission_root = _strict_run_path(
+        run_dir, run_dir / "submissions/diagnostic", "diagnostic submission root"
+    )
+    if not submission_root.is_dir():
+        raise core.CampaignError("diagnostic submission root is not a directory")
+    submission_lock = submission_root / ".submission.lock"
+    if os.path.lexists(submission_lock):
+        submission_lock = _strict_run_path(
+            run_dir, submission_lock, "diagnostic submission lock"
+        )
+        if not stat.S_ISREG(os.lstat(submission_lock).st_mode):
+            raise core.CampaignError(
+                "diagnostic submission lock is not a regular non-symlink file"
+            )
+    submission_entries = {
+        item.name for item in submission_root.iterdir() if item.name != ".submission.lock"
+    }
+    if submission_entries != {attempt_id}:
+        raise core.CampaignError(
+            "diagnostic finalization requires exactly one same-ID submission record"
+        )
+    submission_dir = _strict_run_path(
+        run_dir, submission_root / attempt_id, "diagnostic submission attempt"
+    )
+    diagnostic_attempts = _strict_run_path(
+        run_dir, run_dir / "diagnostic/attempts", "diagnostic attempts root"
+    )
+    if not diagnostic_attempts.is_dir():
+        raise core.CampaignError("diagnostic attempts root is not a directory")
+    if {item.name for item in diagnostic_attempts.iterdir()} != {attempt_id}:
+        raise core.CampaignError(
+            "diagnostic finalization requires exactly one same-ID scientific attempt"
+        )
+    diagnostic_attempt = _strict_run_path(
+        run_dir,
+        diagnostic_attempts / attempt_id,
+        "diagnostic scientific attempt",
+    )
+    slurm_root = _strict_run_path(
+        run_dir, run_dir / "slurm_attempts/diagnostic", "diagnostic Slurm root"
+    )
+    if not slurm_root.is_dir():
+        raise core.CampaignError("diagnostic Slurm root is not a directory")
+    if {item.name for item in slurm_root.iterdir()} != {attempt_id}:
+        raise core.CampaignError(
+            "diagnostic finalization requires exactly one same-ID Slurm attempt"
+        )
+    wrapper = _strict_run_path(
+        run_dir, slurm_root / attempt_id, "diagnostic Slurm attempt"
+    )
+    claim = _strict_run_path(
+        run_dir, run_dir / "diagnostic/dispatch_claim", "diagnostic dispatch claim"
+    )
+    for root, label in (
+        (submission_dir, "diagnostic submission attempt"),
+        (diagnostic_attempt, "diagnostic scientific attempt"),
+        (wrapper, "diagnostic Slurm attempt"),
+        (claim, "diagnostic dispatch claim"),
+    ):
+        _reject_symlinks_below(run_dir, root, label)
+
+    request_path, request = _strict_json(
+        run_dir, submission_dir / "request.json", "diagnostic submission request"
+    )
+    primary_result_path, primary_result = _strict_json(
+        run_dir,
+        submission_dir / "primary_result.json",
+        "diagnostic submission response",
+    )
+    summary_path, summary = _strict_json(
+        run_dir, submission_dir / "submission.json", "diagnostic submission summary"
+    )
+    collector_request_path, collector_request = _strict_json(
+        run_dir,
+        submission_dir / "collector_request.json",
+        "diagnostic collector request",
+    )
+    collector_result_path, collector_result = _strict_json(
+        run_dir,
+        submission_dir / "collector_result.json",
+        "diagnostic collector response",
+    )
+    expected_submission_files = {
+        "request.json",
+        "primary_result.json",
+        "submission.json",
+        "collector_request.json",
+        "collector_result.json",
+    }
+    if {item.name for item in submission_dir.iterdir()} != expected_submission_files:
+        raise core.CampaignError(
+            "diagnostic submission record has an ambiguous file inventory"
+        )
+
+    campaign_dir = Path(__file__).resolve().parent
+    workflow = {
+        "submit.py": core.sha256_path(campaign_dir / "submit.py"),
+        "campaign.py": core.sha256_path(campaign_dir / "campaign.py"),
+        "cluster.env": core.sha256_path(campaign_dir / "slurm/cluster.env"),
+        "diagnostic.sbatch": core.sha256_path(
+            campaign_dir / "slurm/diagnostic.sbatch"
+        ),
+        "polish_recovery.py": core.sha256_path(Path(__file__)),
+    }
+    scheduler_options = [
+        f"--partition={resources['partition']}",
+        f"--nodes={resources['nodes']}",
+        f"--ntasks={resources['ntasks']}",
+        f"--cpus-per-task={resources['cpus_per_task']}",
+        f"--mem-per-cpu={resources['mem_per_cpu_mb']}M",
+        f"--time={expected_minutes // 60:02d}:{expected_minutes % 60:02d}:00",
+    ]
+    request_command = request.get("command")
+    exports = _command_exports(request_command, "diagnostic submission")
+    expected_exports = {
+        "CAMPAIGN_CONFIG": str(config_path),
+        "RUN_DIR": str(run_dir),
+        "ATTEMPT_ID": attempt_id,
+        "P3_SLURM_DIR": str(campaign_dir / "slurm"),
+        "P3_EXPECTED_CONFIG_SHA256": config_sha,
+        "P3_SUBMIT_SCRIPT_SHA256": workflow["submit.py"],
+        "P3_STAGE_SCRIPT_SHA256": workflow["diagnostic.sbatch"],
+        "P3_CLUSTER_ENV_SHA256": workflow["cluster.env"],
+        "P3_CAMPAIGN_CLI_SHA256": workflow["campaign.py"],
+        "P3_DIAGNOSTIC_RESOURCE_SHA256": resource_sha,
+        "P3_DIAGNOSTIC_LINEAGE_SHA256": lineage_sha,
+        "P3_DIAGNOSTIC_BACKEND_SHA256": workflow["polish_recovery.py"],
+    }
+    if exports != expected_exports:
+        raise core.CampaignError("diagnostic submission export allow-list mismatch")
+    expected_command_without_export = [
+        "sbatch",
+        "--parsable",
+        f"--account={account}",
+        *scheduler_options,
+    ]
+    export_index = request_command.index(
+        next(item for item in request_command if item.startswith("--export="))
+    )
+    if (
+        request_command[:export_index] != expected_command_without_export
+        or request_command[export_index + 1 :]
+        != [str(campaign_dir / "slurm/diagnostic.sbatch")]
+    ):
+        raise core.CampaignError("diagnostic submission command/resource mismatch")
+    if (
+        request.get("stage") != "diagnostic"
+        or request.get("attempt_id") != attempt_id
+        or request.get("slurm_account") != account
+        or request.get("config") != str(config_path)
+        or request.get("config_sha256") != config_sha
+        or request.get("run_dir") != str(run_dir)
+        or request.get("run_manifest_sha256") is not None
+        or request.get("polish_lineage_sha256") != lineage_sha
+        or request.get("diagnostic_lineage_sha256") != lineage_sha
+        or request.get("diagnostic_resource_sha256") != resource_sha
+        or request.get("scheduler_options") != scheduler_options
+        or request.get("workflow_sha256") != workflow
+        or request.get("submit_script_sha256") != workflow["submit.py"]
+        or request.get("stage_script_sha256") != workflow["diagnostic.sbatch"]
+        or request.get("cluster_env_sha256") != workflow["cluster.env"]
+    ):
+        raise core.CampaignError("diagnostic submission request evidence mismatch")
+
+    primary_job_id = str(primary_result.get("job_id", ""))
+    primary_stdout = str(primary_result.get("stdout", ""))
+    primary_stdout_line = next(
+        (line.strip() for line in primary_stdout.splitlines() if line.strip()), ""
+    )
+    if (
+        re.fullmatch(r"[1-9][0-9]*", primary_job_id) is None
+        or primary_result.get("stage") != "diagnostic"
+        or primary_result.get("attempt_id") != attempt_id
+        or primary_result.get("config_sha256") != config_sha
+        or primary_result.get("returncode") != 0
+        or primary_result.get("command") != request_command
+        or re.fullmatch(rf"{re.escape(primary_job_id)}(?:;[^\s;]+)?", primary_stdout_line)
+        is None
+        or UTC_RE.fullmatch(str(primary_result.get("finished_utc", ""))) is None
+    ):
+        raise core.CampaignError("diagnostic primary submission response mismatch")
+
+    collector = summary.get("collector")
+    if (
+        summary.get("healthy") is not True
+        or summary.get("mode") != "execute"
+        or summary.get("stage") != "diagnostic"
+        or summary.get("attempt_id") != attempt_id
+        or summary.get("primary_job_id") != primary_job_id
+        or summary.get("primary_command") != request_command
+        or summary.get("config_sha256") != config_sha
+        or summary.get("slurm_account") != account
+        or summary.get("polish_lineage_sha256") != lineage_sha
+        or summary.get("diagnostic_resource_sha256") != resource_sha
+        or summary.get("scheduler_options") != scheduler_options
+        or summary.get("workflow_sha256") != workflow
+        or summary.get("record_dir") != str(submission_dir)
+        or not isinstance(collector, Mapping)
+    ):
+        raise core.CampaignError("diagnostic submission summary mismatch")
+
+    collector_attempt_id = str(collector.get("attempt_id", ""))
+    collector_job_id = str(collector.get("job_id", ""))
+    if (
+        re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}", collector_attempt_id)
+        is None
+        or re.fullmatch(r"[1-9][0-9]*", collector_job_id) is None
+        or collector_attempt_id == attempt_id
+        or collector_job_id == primary_job_id
+        or collector.get("primary_stage") != "diagnostic"
+        or collector.get("primary_attempt_id") != attempt_id
+        or collector.get("primary_job_id") != primary_job_id
+        or collector.get("dependency") != f"afterany:{primary_job_id}"
+        or collector.get("command") != collector_request.get("command")
+        or collector.get("request_sha256") != core.sha256_path(collector_request_path)
+        or collector.get("result_sha256") != core.sha256_path(collector_result_path)
+    ):
+        raise core.CampaignError("diagnostic collector summary identity mismatch")
+    if (
+        collector_request.get("stage") != "collect"
+        or collector_request.get("attempt_id") != collector_attempt_id
+        or collector_request.get("slurm_account") != account
+        or collector_request.get("config_sha256") != config_sha
+        or collector_request.get("primary_stage") != "diagnostic"
+        or collector_request.get("primary_attempt_id") != attempt_id
+        or collector_request.get("primary_job_id") != primary_job_id
+        or collector_request.get("primary_request_sha256")
+        != core.sha256_path(request_path)
+        or collector_request.get("primary_result_sha256")
+        != core.sha256_path(primary_result_path)
+        or collector_request.get("primary_stage_script_sha256")
+        != workflow["diagnostic.sbatch"]
+        or collector_request.get("collector_script_sha256")
+        != core.sha256_path(campaign_dir / "slurm/collect.sbatch")
+        or collector_request.get("cluster_env_sha256") != workflow["cluster.env"]
+        or collector_request.get("campaign_cli_sha256") != workflow["campaign.py"]
+        or collector_request.get("diagnostic_lineage_sha256") != lineage_sha
+        or collector_request.get("diagnostic_resource_sha256") != resource_sha
+        or collector_request.get("dependency") != f"afterany:{primary_job_id}"
+    ):
+        raise core.CampaignError("diagnostic collector request evidence mismatch")
+    collector_command = collector_request.get("command")
+    collector_exports = _command_exports(collector_command, "diagnostic collector")
+    collect_script = campaign_dir / "slurm/collect.sbatch"
+    expected_collector_exports = {
+        **expected_exports,
+        "ATTEMPT_ID": collector_attempt_id,
+        "P3_STAGE_SCRIPT_SHA256": core.sha256_path(collect_script),
+        "PRIMARY_STAGE": "diagnostic",
+        "PRIMARY_ATTEMPT_ID": attempt_id,
+        "PRIMARY_JOB_ID": primary_job_id,
+        "PRIMARY_REQUEST_SHA256": core.sha256_path(request_path),
+        "PRIMARY_RESULT_SHA256": core.sha256_path(primary_result_path),
+        "PRIMARY_STAGE_SCRIPT_SHA256": workflow["diagnostic.sbatch"],
+    }
+    collector_export_arg = next(
+        item for item in collector_command if item.startswith("--export=")
+    )
+    collector_export_index = collector_command.index(collector_export_arg)
+    if (
+        collector_exports != expected_collector_exports
+        or collector_command[:collector_export_index]
+        != ["sbatch", "--parsable", f"--account={account}"]
+        or collector_command[collector_export_index + 1 :]
+        != [f"--dependency=afterany:{primary_job_id}", str(collect_script)]
+    ):
+        raise core.CampaignError("diagnostic collector dispatch command mismatch")
+    collector_stdout = str(collector_result.get("stdout", ""))
+    collector_stdout_line = next(
+        (line.strip() for line in collector_stdout.splitlines() if line.strip()), ""
+    )
+    if (
+        collector_result.get("stage") != "collect"
+        or collector_result.get("attempt_id") != collector_attempt_id
+        or collector_result.get("job_id") != collector_job_id
+        or collector_result.get("primary_stage") != "diagnostic"
+        or collector_result.get("primary_attempt_id") != attempt_id
+        or collector_result.get("primary_job_id") != primary_job_id
+        or collector_result.get("config_sha256") != config_sha
+        or collector_result.get("returncode") != 0
+        or collector_result.get("command") != collector_command
+        or re.fullmatch(
+            rf"{re.escape(collector_job_id)}(?:;[^\s;]+)?", collector_stdout_line
+        )
+        is None
+        or UTC_RE.fullmatch(str(collector_result.get("finished_utc", ""))) is None
+    ):
+        raise core.CampaignError("diagnostic collector submission response mismatch")
+
+    collector_root = _strict_run_path(
+        run_dir, run_dir / "slurm_attempts/collect", "diagnostic collector root"
+    )
+    if not collector_root.is_dir() or {
+        item.name for item in collector_root.iterdir()
+    } != {collector_attempt_id}:
+        raise core.CampaignError(
+            "diagnostic finalization requires exactly one referenced collector attempt"
+        )
+
+    claim_context = _context(
+        _strict_run_path(
+            run_dir, claim / "context.tsv", "diagnostic dispatch claim context"
+        )
+    )
+    wrapper_context = _context(
+        _strict_run_path(
+            run_dir, wrapper / "context.tsv", "diagnostic wrapper context"
+        )
+    )
+    claim_expected = {
+        "attempt_id": attempt_id,
+        "slurm_job_id": primary_job_id,
+        "config_sha256": config_sha,
+        "lineage_sha256": lineage_sha,
+        "resource_sha256": resource_sha,
+        "submit_script_sha256": workflow["submit.py"],
+        "stage_script_sha256": workflow["diagnostic.sbatch"],
+        "cluster_env_sha256": workflow["cluster.env"],
+        "campaign_cli_sha256": workflow["campaign.py"],
+        "diagnostic_backend_sha256": workflow["polish_recovery.py"],
+    }
+    if any(claim_context.get(key) != value for key, value in claim_expected.items()):
+        raise core.CampaignError("diagnostic dispatch claim evidence mismatch")
+    wrapper_expected = {
+        "stage": "diagnostic",
+        "attempt_id": attempt_id,
+        "slurm_job_id": primary_job_id,
+        "slurm_job_account": account,
+        "slurm_job_partition": str(resources["partition"]),
+        "slurm_job_num_nodes": str(resources["nodes"]),
+        "slurm_ntasks": str(resources["ntasks"]),
+        "slurm_cpus_per_task": str(resources["cpus_per_task"]),
+        "config": str(config_path),
+        "config_sha256": config_sha,
+        "campaign_cli": str(campaign_dir / "campaign.py"),
+        "campaign_cli_sha256": workflow["campaign.py"],
+        "submit_script_sha256": workflow["submit.py"],
+        "stage_script_sha256": workflow["diagnostic.sbatch"],
+        "cluster_env_sha256": workflow["cluster.env"],
+        "run_dir": str(run_dir),
+        "diagnostic_resource_sha256": resource_sha,
+        "diagnostic_lineage_sha256": lineage_sha,
+        "diagnostic_backend_sha256": workflow["polish_recovery.py"],
+    }
+    if any(wrapper_context.get(key) != value for key, value in wrapper_expected.items()):
+        raise core.CampaignError("diagnostic Slurm wrapper context mismatch")
+    runtime_expected = {
+        "stdenv_module": "StdEnv/2023",
+        "qe_module": "quantumespresso/7.3.1",
+        "qe_executable": "pw.x",
+        "qe_mpi_launcher": "srun",
+        "qe_nk": "1",
+        "omp_num_threads": str(resources["cpus_per_task"]),
+    }
+    if any(
+        wrapper_context.get(key) != value
+        for key, value in runtime_expected.items()
+    ):
+        raise core.CampaignError("diagnostic fixed runtime context mismatch")
+    p3_account_uid = str(wrapper_context.get("p3_account_uid", ""))
+    p3_account_home_raw = str(wrapper_context.get("p3_account_home", ""))
+    p3_account_home = Path(p3_account_home_raw)
+    p3_venv = Path(wrapper_context.get("p3_venv", ""))
+    p3_pseudo_dir = Path(wrapper_context.get("p3_pseudo_dir", ""))
+    if (
+        re.fullmatch(r"[1-9][0-9]*", p3_account_uid) is None
+        or not p3_account_home.is_absolute()
+        or p3_account_home == Path("/")
+        or str(p3_account_home) != p3_account_home_raw
+        or p3_venv != p3_account_home / "venvs/p3"
+        or p3_pseudo_dir
+        != p3_account_home / "pseudos/SSSP-1.3.0-PBE-precision"
+    ):
+        raise core.CampaignError("diagnostic derived runtime path mismatch")
+    if wrapper_context.get("slurm_mem_per_cpu") not in {
+        str(resources["mem_per_cpu_mb"]),
+        f"{resources['mem_per_cpu_mb']}M",
+        f"{resources['mem_per_cpu_mb']}m",
+    }:
+        raise core.CampaignError("diagnostic wrapper memory allocation mismatch")
+    if _slurm_time_minutes(
+        wrapper_context.get("slurm_timelimit", ""), "diagnostic wrapper time limit"
+    ) != expected_minutes:
+        raise core.CampaignError("diagnostic wrapper walltime mismatch")
+    exit_path, exit_text = _strict_text(
+        run_dir, wrapper / "exit_code.txt", "diagnostic wrapper exit code"
+    )
+    finished_path, finished_text = _strict_text(
+        run_dir, wrapper / "finished_utc.txt", "diagnostic wrapper finish time"
+    )
+    if exit_text.strip() != "0" or UTC_RE.fullmatch(finished_text.strip()) is None:
+        raise core.CampaignError("diagnostic Slurm wrapper did not complete successfully")
+
+    execution_path = _strict_run_path(
+        run_dir,
+        diagnostic_attempt / DIAGNOSTIC_EXECUTION,
+        "diagnostic execution record",
+    )
+    if core.sha256_path(execution_path) != _digest(
+        expected_execution_sha256, "diagnostic execution hash"
+    ):
+        raise core.CampaignError("diagnostic execution/submission chain hash mismatch")
+
+    collector_wrapper = _strict_run_path(
+        run_dir,
+        run_dir / "slurm_attempts/collect" / collector_attempt_id,
+        "diagnostic collector Slurm attempt",
+    )
+    _reject_symlinks_below(
+        run_dir, collector_wrapper, "diagnostic collector Slurm attempt"
+    )
+    collector_context = _context(
+        _strict_run_path(
+            run_dir, collector_wrapper / "context.tsv", "diagnostic collector context"
+        )
+    )
+    collector_context_expected = {
+        "stage": "collect",
+        "attempt_id": collector_attempt_id,
+        "slurm_job_id": collector_job_id,
+        "slurm_job_account": account,
+        "config_sha256": config_sha,
+        "run_dir": str(run_dir),
+        "primary_stage": "diagnostic",
+        "primary_attempt_id": attempt_id,
+        "primary_job_id": primary_job_id,
+        "primary_request_sha256": core.sha256_path(request_path),
+        "primary_result_sha256": core.sha256_path(primary_result_path),
+        "primary_stage_script_sha256": workflow["diagnostic.sbatch"],
+        "campaign_cli_sha256": workflow["campaign.py"],
+        "submit_script_sha256": workflow["submit.py"],
+        "cluster_env_sha256": workflow["cluster.env"],
+        "stage_script_sha256": core.sha256_path(
+            campaign_dir / "slurm/collect.sbatch"
+        ),
+        "diagnostic_resource_sha256": resource_sha,
+        "diagnostic_lineage_sha256": lineage_sha,
+        "diagnostic_backend_sha256": workflow["polish_recovery.py"],
+        "p3_account_uid": p3_account_uid,
+        "p3_account_home": p3_account_home_raw,
+        **runtime_expected,
+        "p3_venv": str(p3_venv),
+        "p3_pseudo_dir": str(p3_pseudo_dir),
+    }
+    if any(
+        collector_context.get(key) != value
+        for key, value in collector_context_expected.items()
+    ):
+        raise core.CampaignError("diagnostic collector Slurm context mismatch")
+    collector_exit_path, collector_exit = _strict_text(
+        run_dir,
+        collector_wrapper / "exit_code.txt",
+        "diagnostic collector wrapper exit code",
+    )
+    collector_finished_path, collector_finished = _strict_text(
+        run_dir,
+        collector_wrapper / "finished_utc.txt",
+        "diagnostic collector wrapper finish time",
+    )
+    if collector_exit.strip() != "0" or UTC_RE.fullmatch(
+        collector_finished.strip()
+    ) is None:
+        raise core.CampaignError("diagnostic collector wrapper did not succeed")
+
+    collection_path, collection = _strict_json(
+        run_dir,
+        collector_wrapper / "collection.json",
+        "diagnostic collection",
+    )
+    collection_receipt_path, collection_receipt = _strict_json(
+        run_dir,
+        collector_wrapper / "collection_receipt.json",
+        "diagnostic collection receipt",
+    )
+    if collection != collection_receipt:
+        raise core.CampaignError("diagnostic collection and receipt differ")
+    primary_collection = collection.get("primary")
+    submission_collection = collection.get("submission")
+    entry = collection.get("entry")
+    if (
+        collection.get("schema_version") != 1
+        or collection.get("stage") != "collect"
+        or collection.get("collection_kind") != "diagnostic_single_attempt"
+        or collection.get("material") != core.required(config, "material.formula")
+        or UTC_RE.fullmatch(str(collection.get("collected_utc", ""))) is None
+        or collection.get("collector_attempt") != str(collector_wrapper)
+        or collection.get("collection_integrity_complete") is not True
+        or collection.get("scheduler_completed_successfully") is not True
+        or collection.get("wrapper_completed_successfully") is not True
+        or collection.get("diagnostic_execution_present") is not True
+        or collection.get("diagnostic_execution_complete") is not True
+        or collection.get("incomplete") is not False
+        or collection.get("scientific_gate_published") is not False
+        or collection.get("structure_accepted") is not False
+        or collection.get("preflight_unlocked") is not False
+        or not isinstance(primary_collection, Mapping)
+        or primary_collection.get("stage") != "diagnostic"
+        or primary_collection.get("attempt_id") != attempt_id
+        or primary_collection.get("job_id") != primary_job_id
+        or primary_collection.get("wrapper_attempt") != str(wrapper)
+        or primary_collection.get("diagnostic_execution") != str(execution_path)
+        or primary_collection.get("diagnostic_execution_sha256")
+        != expected_execution_sha256
+        or not isinstance(submission_collection, Mapping)
+        or submission_collection.get("record_dir") != str(submission_dir)
+        or submission_collection.get("request_sha256")
+        != core.sha256_path(request_path)
+        or submission_collection.get("primary_result_sha256")
+        != core.sha256_path(primary_result_path)
+        or not isinstance(entry, Mapping)
+        or entry.get("errors") != []
+        or entry.get("wrapper_exit_code") != 0
+        or entry.get("context") != wrapper_context
+        or entry.get("dispatch_claim") != claim_context
+        or entry.get("evidence")
+        != core._hash_present_evidence(
+            wrapper,
+            (
+                "context.tsv",
+                "exit_code.txt",
+                "finished_utc.txt",
+                "stdout.log",
+                "stderr.log",
+            ),
+        )
+    ):
+        raise core.CampaignError("diagnostic collection receipt evidence mismatch")
+    accounting = primary_collection.get("scheduler_accounting")
+    if not isinstance(accounting, Mapping):
+        raise core.CampaignError("diagnostic collection lacks scheduler accounting")
+    accounting_path = _strict_run_path(
+        run_dir,
+        Path(str(accounting.get("path", ""))),
+        "diagnostic raw scheduler accounting",
+    )
+    accounting_status_path = _strict_run_path(
+        run_dir,
+        Path(str(accounting.get("status_path", ""))),
+        "diagnostic scheduler accounting status",
+    )
+    if (
+        accounting_path.parent != collector_wrapper
+        or accounting_status_path.parent != collector_wrapper
+        or accounting.get("sha256") != core.sha256_path(accounting_path)
+        or accounting.get("status_sha256")
+        != core.sha256_path(accounting_status_path)
+        or accounting.get("sacct_exit_code") != 0
+    ):
+        raise core.CampaignError("diagnostic scheduler accounting hash/status mismatch")
+    records, accounting_errors, metadata = core._read_sacct_records(
+        accounting_path,
+        accounting_status_path,
+        core.DIAGNOSTIC_SACCT_FIELDS,
+    )
+    if accounting_errors or metadata != accounting:
+        raise core.CampaignError("diagnostic raw scheduler accounting replay failed")
+    related = [
+        row
+        for row in records
+        if row.get("JobIDRaw") == primary_job_id
+        or row.get("JobIDRaw", "").startswith(primary_job_id + ".")
+    ]
+    allocations = [row for row in related if row.get("JobIDRaw") == primary_job_id]
+    if len(allocations) != 1 or entry.get("scheduler_records") != related:
+        raise core.CampaignError("diagnostic scheduler accounting identity mismatch")
+    allocation = allocations[0]
+    try:
+        allocated_cpus = int(allocation["AllocCPUS"])
+        nodes = int(allocation["NNodes"])
+        ncpus = int(allocation["NCPUS"])
+        elapsed = int(allocation["ElapsedRaw"])
+        time_limit = int(allocation["TimelimitRaw"])
+        total_memory = core._diagnostic_reqmem_total_mb(
+            allocation["ReqMem"], allocated_cpus=allocated_cpus, nodes=nodes
+        )
+    except (KeyError, TypeError, ValueError, core.CampaignError) as exc:
+        raise core.CampaignError("diagnostic scheduler allocation is invalid") from exc
+    if (
+        entry.get("allocation") != allocation
+        or core._normalized_slurm_state(allocation["State"]) != "COMPLETED"
+        or allocation["ExitCode"] != "0:0"
+        or allocation["Account"] != account
+        or allocation["Partition"] != resources["partition"]
+        or nodes != resources["nodes"]
+        or allocated_cpus != resources["ntasks"] * resources["cpus_per_task"]
+        or ncpus != allocated_cpus
+        or time_limit != expected_minutes
+        or not 0 <= elapsed <= expected_minutes * 60
+        or not abs(
+            total_memory
+            - resources["mem_per_cpu_mb"]
+            * resources["ntasks"]
+            * resources["cpus_per_task"]
+        )
+        <= 0.01
+    ):
+        raise core.CampaignError("diagnostic scheduler resource/completion mismatch")
+
+    return {
+        "attempt_id": attempt_id,
+        "primary_job_id": primary_job_id,
+        "collector_attempt_id": collector_attempt_id,
+        "collector_job_id": collector_job_id,
+        "config_sha256": config_sha,
+        "lineage_sha256": lineage_sha,
+        "resource_sha256": resource_sha,
+        "workflow_sha256": workflow,
+        "submission_request_sha256": core.sha256_path(request_path),
+        "submission_result_sha256": core.sha256_path(primary_result_path),
+        "submission_summary_sha256": core.sha256_path(summary_path),
+        "dispatch_claim_sha256": core.sha256_path(claim / "context.tsv"),
+        "wrapper_context_sha256": core.sha256_path(wrapper / "context.tsv"),
+        "wrapper_exit_code_sha256": core.sha256_path(exit_path),
+        "wrapper_finished_utc_sha256": core.sha256_path(finished_path),
+        "diagnostic_execution_sha256": expected_execution_sha256,
+        "collector_request_sha256": core.sha256_path(collector_request_path),
+        "collector_result_sha256": core.sha256_path(collector_result_path),
+        "collector_context_sha256": core.sha256_path(
+            collector_wrapper / "context.tsv"
+        ),
+        "collector_exit_code_sha256": core.sha256_path(collector_exit_path),
+        "collector_finished_utc_sha256": core.sha256_path(
+            collector_finished_path
+        ),
+        "collection_sha256": core.sha256_path(collection_path),
+        "collection_receipt_sha256": core.sha256_path(collection_receipt_path),
+        "scheduler_accounting_sha256": core.sha256_path(accounting_path),
+        "scheduler_accounting_status_sha256": core.sha256_path(
+            accounting_status_path
+        ),
+        "scheduler_allocation": allocation,
+        "qe_command": [
+            runtime_expected["qe_mpi_launcher"],
+            runtime_expected["qe_executable"],
+            "-nk",
+            runtime_expected["qe_nk"],
+            "-in",
+            "scf.in",
+        ],
+    }
+
+
 def _require_gate_matches_audit(gate: Mapping[str, Any], audit: Mapping[str, Any]) -> None:
     for key in (
         "checks",
@@ -626,13 +1874,27 @@ def finalize_diagnostic(
     expected_execution_sha256: str,
 ) -> dict[str, Any]:
     config, _ = core.validate_config(config_path)
+    config_path = config_path.resolve(strict=True)
     run_dir = core.safe_run_dir(run_dir)
-    attempt = run_dir / "diagnostic/attempts" / attempt_id
+    attempt = _strict_run_path(
+        run_dir,
+        run_dir / "diagnostic/attempts" / attempt_id,
+        "diagnostic scientific attempt",
+    )
+    submission_chain = _audit_diagnostic_dispatch_chain(
+        config,
+        config_path,
+        run_dir,
+        attempt_id,
+        expected_execution_sha256,
+    )
     audit = _audit_diagnostic_attempt(
         config,
         run_dir,
         attempt,
         expected_execution_sha256=expected_execution_sha256,
+        expected_slurm_job_id=submission_chain["primary_job_id"],
+        expected_command=submission_chain["qe_command"],
     )
     checks = audit["checks"]
     policy = core.required(config, "reviewed_bfgs_polish.force_consistency_diagnostic")
@@ -643,6 +1905,7 @@ def finalize_diagnostic(
         "checks": checks,
         "lineage_sha256": core.sha256_path(run_dir / LINEAGE_RECEIPT),
         "execution_sha256": expected_execution_sha256,
+        "submission_chain": submission_chain,
         "input_sha256": audit["input_sha256"],
         "output_sha256": audit["output_sha256"],
         "output_health": audit["output_health"],
@@ -656,43 +1919,72 @@ def finalize_diagnostic(
             "It does not establish ionic convergence, accept a structure, or replace the independent pristine SCF gate.",
         ],
     }
-    core.write_json_immutable(attempt / DIAGNOSTIC_RECEIPT, receipt)
+    receipt_path = _strict_run_path(
+        run_dir,
+        attempt / DIAGNOSTIC_RECEIPT,
+        "diagnostic attempt receipt",
+        require_exists=False,
+    )
+    core.write_json_immutable(receipt_path, receipt)
     if not receipt["pass"]:
         raise core.CampaignError("force-consistency diagnostic failed; polish remains blocked")
-    final = run_dir / "diagnostic/final"
-    final.mkdir(parents=True, exist_ok=False)
+    final = _strict_run_path(
+        run_dir,
+        run_dir / "diagnostic/final",
+        "diagnostic final directory",
+        require_exists=False,
+    )
+    if final.exists():
+        raise core.CampaignError("diagnostic final directory already exists")
+    final.mkdir(exist_ok=False)
+    _strict_run_path(run_dir, final, "diagnostic final directory")
     core.write_json_immutable(final / "gate.json", receipt)
     core.write_json_immutable(
         final / "provenance.json",
         {
             "attempt": str(attempt),
-            "receipt_sha256": core.sha256_path(attempt / DIAGNOSTIC_RECEIPT),
+            "attempt_id": attempt_id,
+            "receipt_sha256": core.sha256_path(receipt_path),
             "execution_sha256": expected_execution_sha256,
+            "submission_chain_sha256": core.canonical_sha256(submission_chain),
         },
     )
     return receipt
 
 
 def _audit_final_diagnostic(
-    config: Mapping[str, Any], run_dir: Path, gate_path: Path
+    config: Mapping[str, Any], config_path: Path, run_dir: Path, gate_path: Path
 ) -> dict[str, Any]:
     """Replay the finalized diagnostic from raw files and immutable records."""
 
-    provenance_path = run_dir / "diagnostic/final/provenance.json"
-    gate = core.load_json(gate_path)
-    provenance = core.load_json(provenance_path)
+    config_path = config_path.resolve(strict=True)
+    gate_path, gate = _strict_json(run_dir, gate_path, "diagnostic final gate")
+    provenance_path, provenance = _strict_json(
+        run_dir,
+        run_dir / "diagnostic/final/provenance.json",
+        "diagnostic final provenance",
+    )
     if (
         gate.get("pass") is not True
         or gate.get("structure_accepted") is not False
         or gate.get("preflight_unlocked") is not False
     ):
         raise core.CampaignError("a passing diagnostic-only gate is required before polish release")
-    diagnostic_attempt = Path(str(provenance.get("attempt", ""))).resolve()
-    try:
-        diagnostic_attempt.relative_to((run_dir / "diagnostic/attempts").resolve())
-    except ValueError as exc:
-        raise core.CampaignError("diagnostic final provenance attempt escapes RUN_DIR") from exc
-    receipt_path = diagnostic_attempt / DIAGNOSTIC_RECEIPT
+    attempt_id = str(provenance.get("attempt_id", ""))
+    if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}", attempt_id) is None:
+        raise core.CampaignError("diagnostic final provenance attempt ID is invalid")
+    diagnostic_attempt = _strict_run_path(
+        run_dir,
+        run_dir / "diagnostic/attempts" / attempt_id,
+        "diagnostic final scientific attempt",
+    )
+    if provenance.get("attempt") != str(diagnostic_attempt):
+        raise core.CampaignError("diagnostic final provenance attempt path mismatch")
+    receipt_path = _strict_run_path(
+        run_dir,
+        diagnostic_attempt / DIAGNOSTIC_RECEIPT,
+        "diagnostic final attempt receipt",
+    )
     if core.sha256_path(receipt_path) != provenance.get("receipt_sha256"):
         raise core.CampaignError("diagnostic final provenance hash mismatch")
     if core.load_json(receipt_path) != gate:
@@ -700,11 +1992,26 @@ def _audit_final_diagnostic(
     execution_sha256 = _digest(gate.get("execution_sha256"), "diagnostic gate execution hash")
     if provenance.get("execution_sha256") != execution_sha256:
         raise core.CampaignError("diagnostic provenance/execution hash mismatch")
+    submission_chain = _audit_diagnostic_dispatch_chain(
+        config,
+        config_path,
+        run_dir,
+        attempt_id,
+        execution_sha256,
+    )
+    if (
+        gate.get("submission_chain") != submission_chain
+        or provenance.get("submission_chain_sha256")
+        != core.canonical_sha256(submission_chain)
+    ):
+        raise core.CampaignError("diagnostic final submission chain differs from replay")
     audit = _audit_diagnostic_attempt(
         config,
         run_dir,
         diagnostic_attempt,
         expected_execution_sha256=execution_sha256,
+        expected_slurm_job_id=submission_chain["primary_job_id"],
+        expected_command=submission_chain["qe_command"],
     )
     _require_gate_matches_audit(gate, audit)
     return gate
@@ -712,12 +2019,42 @@ def _audit_final_diagnostic(
 
 def release_polish(config_path: Path, run_dir: Path) -> dict[str, Any]:
     config, _ = core.validate_config(config_path)
+    config_path = config_path.resolve(strict=True)
     run_dir = core.safe_run_dir(run_dir)
     lineage = _load_lineage(config, run_dir)
-    if (run_dir / core.RUN_MANIFEST).exists():
+    manifest_path = _strict_run_path(
+        run_dir,
+        run_dir / core.RUN_MANIFEST,
+        "polish run manifest",
+        require_exists=False,
+    )
+    if os.path.lexists(manifest_path):
         raise core.CampaignError("reviewed polish has already been released; only one is allowed")
-    gate_path = run_dir / "diagnostic/final/gate.json"
-    _audit_final_diagnostic(config, run_dir, gate_path)
+    snapshot_path = _strict_run_path(
+        run_dir,
+        run_dir / "config.snapshot.json",
+        "polish config snapshot",
+        require_exists=False,
+    )
+    release_directories = [
+        _strict_run_path(
+            run_dir,
+            run_dir / name,
+            f"polish {name} directory",
+            require_exists=False,
+        )
+        for name in ("relax", "preflight")
+    ]
+    if os.path.lexists(snapshot_path) or any(
+        os.path.lexists(directory) for directory in release_directories
+    ):
+        raise core.CampaignError("polish release targets already exist")
+    gate_path = _strict_run_path(
+        run_dir,
+        run_dir / "diagnostic/final/gate.json",
+        "diagnostic final gate",
+    )
+    _audit_final_diagnostic(config, config_path, run_dir, gate_path)
     manifest = core.manifest_for(config, config_path)
     manifest["relax_polish"] = {
         "kind": "single_reviewed_bfgs_polish",
@@ -728,10 +2065,10 @@ def release_polish(config_path: Path, run_dir: Path) -> dict[str, Any]:
         "maximum_attempts": 1,
         "automatic_submission_allowed": False,
     }
-    core.write_json_immutable(run_dir / core.RUN_MANIFEST, manifest)
-    core.write_json_immutable(run_dir / "config.snapshot.json", config)
-    (run_dir / "relax").mkdir(exist_ok=False)
-    (run_dir / "preflight").mkdir(exist_ok=False)
+    core.write_json_immutable(manifest_path, manifest)
+    core.write_json_immutable(snapshot_path, config)
+    for directory in release_directories:
+        directory.mkdir(exist_ok=False)
     return {
         "healthy": True,
         "stage": "release-single-reviewed-polish",
@@ -759,12 +2096,23 @@ def load_polish_start(
     lineage = _load_lineage(config, run_dir)
     if pointer.get("lineage_sha256") != core.sha256_path(run_dir / LINEAGE_RECEIPT):
         raise core.CampaignError("polish manifest/lineage hash mismatch")
-    gate_path = run_dir / str(pointer.get("diagnostic_gate", ""))
+    gate_path = _strict_run_path(
+        run_dir,
+        run_dir / str(pointer.get("diagnostic_gate", "")),
+        "polish diagnostic gate",
+    )
     if core.sha256_path(gate_path) != pointer.get("diagnostic_gate_sha256"):
         raise core.CampaignError("polish diagnostic gate hash mismatch")
-    _audit_final_diagnostic(config, run_dir, gate_path)
-    seed = (run_dir / "polish_seed.in").read_text()
-    reference = (run_dir / "polish_reference.in").read_text()
+    config_path_raw = manifest.get("config_path")
+    if not isinstance(config_path_raw, str):
+        raise core.CampaignError("polish manifest lacks its campaign config path")
+    _audit_final_diagnostic(config, Path(config_path_raw), run_dir, gate_path)
+    seed_path = _strict_run_path(run_dir, run_dir / "polish_seed.in", "polish seed")
+    reference_path = _strict_run_path(
+        run_dir, run_dir / "polish_reference.in", "polish reference"
+    )
+    seed = seed_path.read_text()
+    reference = reference_path.read_text()
     if reference != expected_reference:
         raise core.CampaignError("polish original cumulative-shift reference mismatch")
     if _pseudo_content(pseudopotentials) != lineage["review"]["pseudopotentials"]:

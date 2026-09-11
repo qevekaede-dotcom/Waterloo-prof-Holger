@@ -1,6 +1,6 @@
 #!/bin/bash
 # Immutable evidence collection.  Submit this with
-# `--dependency=afterany:<relax-or-force-job-id>` so failed jobs are captured
+# `--dependency=afterany:<diagnostic-relax-or-force-job-id>` so failures are captured
 # as well as successful jobs.  This script does not rerun or delete anything.
 #SBATCH --job-name=p3-collect
 #SBATCH --partition=cpubase_bycore_b2
@@ -22,8 +22,8 @@ p3_require_context
 : "${PRIMARY_STAGE:?submission must export the primary stage}"
 : "${PRIMARY_ATTEMPT_ID:?submission must export the primary attempt ID}"
 : "${PRIMARY_JOB_ID:?submission must export the primary Slurm job ID}"
-[[ "$PRIMARY_STAGE" == "relax" || "$PRIMARY_STAGE" == "force" ]] \
-    || p3_die "PRIMARY_STAGE must be relax or force"
+[[ "$PRIMARY_STAGE" == "diagnostic" || "$PRIMARY_STAGE" == "relax" || "$PRIMARY_STAGE" == "force" ]] \
+    || p3_die "PRIMARY_STAGE must be diagnostic, relax, or force"
 [[ "$PRIMARY_ATTEMPT_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$ ]] \
     || p3_die "PRIMARY_ATTEMPT_ID has invalid characters"
 [[ "$PRIMARY_ATTEMPT_ID" != "$ATTEMPT_ID" ]] \
@@ -32,6 +32,18 @@ p3_require_context
     || p3_die "PRIMARY_JOB_ID must contain only digits"
 
 EXPECTED_ALLOCATIONS=1
+if [[ "$PRIMARY_STAGE" == "diagnostic" ]]; then
+    : "${PRIMARY_REQUEST_SHA256:?diagnostic collector requires the primary request hash}"
+    : "${PRIMARY_RESULT_SHA256:?diagnostic collector requires the primary response hash}"
+    : "${PRIMARY_STAGE_SCRIPT_SHA256:?diagnostic collector requires the primary stage-script hash}"
+    for primary_hash in \
+        "$PRIMARY_REQUEST_SHA256" \
+        "$PRIMARY_RESULT_SHA256" \
+        "$PRIMARY_STAGE_SCRIPT_SHA256"; do
+        [[ "$primary_hash" =~ ^[0-9a-f]{64}$ ]] \
+            || p3_die "diagnostic primary submission hash is invalid"
+    done
+fi
 if [[ "$PRIMARY_STAGE" == "force" ]]; then
     : "${TASK_MAP:?force collector requires the exact immutable task_map.tsv}"
     : "${FORCE_MANIFEST:?force collector requires the exact immutable force_manifest.json}"
@@ -77,11 +89,16 @@ fi
 SACCT_RECORD="$P3_ATTEMPT_DIR/primary_sacct.psv"
 SACCT_STATUS="$P3_ATTEMPT_DIR/primary_sacct_exit_code.txt"
 SACCT_HEADER='JobID|JobIDRaw|State|ExitCode|ElapsedRaw|AllocCPUS|MaxRSS'
+SACCT_FORMAT='JobID,JobIDRaw,State,ExitCode,ElapsedRaw,AllocCPUS,MaxRSS'
+if [[ "$PRIMARY_STAGE" == "diagnostic" ]]; then
+    SACCT_HEADER='JobID|JobIDRaw|State|ExitCode|ElapsedRaw|AllocCPUS|MaxRSS|Account|Partition|NNodes|NCPUS|ReqMem|TimelimitRaw'
+    SACCT_FORMAT='JobID,JobIDRaw,State,ExitCode,ElapsedRaw,AllocCPUS,MaxRSS,Account,Partition,NNodes,NCPUS,ReqMem,TimelimitRaw'
+fi
 sacct_rc=127
 query_attempt=0
 last_record=""
 last_error=""
-for query_attempt in 1 2 3 4 5 6; do
+for query_attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
     query_label="$(printf '%02d' "$query_attempt")"
     query_record="$P3_ATTEMPT_DIR/primary_sacct-query-$query_label.psv"
     query_error="$P3_ATTEMPT_DIR/primary_sacct-query-$query_label.err"
@@ -95,7 +112,7 @@ for query_attempt in 1 2 3 4 5 6; do
             --array \
             --noheader \
             --parsable2 \
-            --format=JobID,JobIDRaw,State,ExitCode,ElapsedRaw,AllocCPUS,MaxRSS \
+            --format="$SACCT_FORMAT" \
             >> "$query_record" \
             2> "$query_error"
         sacct_rc=$?
@@ -139,10 +156,10 @@ for query_attempt in 1 2 3 4 5 6; do
         && "$terminal_allocations" -eq "$EXPECTED_ALLOCATIONS" ]]; then
         break
     fi
-    if [[ "$sacct_rc" -eq 127 || "$query_attempt" -eq 6 ]]; then
+    if [[ "$sacct_rc" -eq 127 || "$query_attempt" -eq 12 ]]; then
         break
     fi
-    sleep 5
+    sleep 10
 done
 cp "$last_record" "$SACCT_RECORD"
 cp "$last_error" "$P3_ATTEMPT_DIR/primary_sacct.err"
@@ -156,6 +173,13 @@ collect_args=(
     --scheduler-accounting "$SACCT_RECORD"
     --scheduler-accounting-status "$SACCT_STATUS"
 )
+if [[ "$PRIMARY_STAGE" == "diagnostic" ]]; then
+    collect_args+=(
+        --expect-primary-request-sha "$PRIMARY_REQUEST_SHA256"
+        --expect-primary-result-sha "$PRIMARY_RESULT_SHA256"
+        --expect-primary-stage-script-sha "$PRIMARY_STAGE_SCRIPT_SHA256"
+    )
+fi
 if [[ "$PRIMARY_STAGE" == "force" ]]; then
     collect_args+=(
         --force-manifest "$FORCE_MANIFEST"

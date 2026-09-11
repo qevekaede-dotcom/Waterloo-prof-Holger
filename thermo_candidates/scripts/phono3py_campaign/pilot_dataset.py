@@ -328,7 +328,11 @@ def prepare_pilot_dataset(config_path, run_dir, *, candidate_dir, preflight_inve
     _require(not destination.exists(), "pilot destination exists; use a new immutable directory")
     provenance, _ = fb._provenance(config, config_path, run_dir, parent_inventory, candidate)
     parent = core.load_json(parent_inventory)
-    _require(parent.get("preflight_complete") is True, "base preflight is not complete")
+    _require(
+        parent.get("preflight_complete") is True
+        and parent.get("full_config_preflight_complete", True) is True,
+        "full configured base preflight is not complete",
+    )
     result = core.load_json(candidate / "preflight_result.json")
     _require(result["supercell_id"] == probe_spec["supercell_id"] and result["cutoff_id"] == probe_spec["cutoff_id"],
              "explicit probe candidate differs from parent preflight")

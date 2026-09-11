@@ -80,6 +80,8 @@ class PilotDatasetTests(unittest.TestCase):
         self.refresh_preflight()
         inventory = core.load_json(self.inventory)
         inventory["preflight_complete"] = True
+        inventory["requested_scope_complete"] = True
+        inventory["full_config_preflight_complete"] = True
         self.dump(self.inventory, inventory)
 
     def prepare(self, spec=None, name="signed"):
@@ -154,6 +156,17 @@ class PilotDatasetTests(unittest.TestCase):
                 with self.assertRaisesRegex(pd.PilotDatasetError,"altered evidence"):
                     self.prepare()
             path.write_text(old)
+
+    def test_targeted_subset_inventory_cannot_seed_pilot_dataset(self):
+        inventory = core.load_json(self.inventory)
+        inventory["preflight_complete"] = False
+        inventory["requested_scope_complete"] = True
+        inventory["full_config_preflight_complete"] = False
+        self.dump(self.inventory, inventory)
+        with self.assertRaisesRegex(
+            pd.PilotDatasetError, "full configured base preflight"
+        ):
+            self.prepare(name="blocked-partial-preflight")
 
     def test_amplitude_unit_and_direction_fail_closed(self):
         for key,value in (("amplitude_angstrom",0.025),("amplitude_bohr",0.03)):

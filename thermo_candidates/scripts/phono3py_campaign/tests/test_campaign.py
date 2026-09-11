@@ -12,9 +12,13 @@ from campaign import (
     CampaignError,
     analyze_displacement_yaml,
     command_prepare_relax,
+    derive_no_cutoff_preflight_results,
     load_json,
     policy_sha256,
+    preflight_candidate_id,
+    preflight_completion_fields,
     safe_run_dir,
+    select_preflight_candidates,
     supercell_lattices_match,
     validate_config,
     verify_manifest,
@@ -187,6 +191,98 @@ class CampaignConfigTests(unittest.TestCase):
             self.assertIsNone(config["production"]["selected_supercell"])
             self.assertIsNone(config["production"]["selected_cutoff"])
 
+    def test_signed_preflight_subset_is_unique_nonempty_and_config_bound(self) -> None:
+        config = load_json(SR_CONFIG)
+        requested = [
+            "sr_fc3_3x1x1__sr_cutoff_3p70A",
+            "sr_fc3_2x1x1__sr_cutoff_3p70A",
+        ]
+        selected, signature = select_preflight_candidates(config, requested)
+        self.assertEqual(
+            signature["candidate_ids"],
+            [
+                "sr_fc3_2x1x1__sr_cutoff_3p70A",
+                "sr_fc3_3x1x1__sr_cutoff_3p70A",
+            ],
+        )
+        self.assertEqual(
+            [preflight_candidate_id(item) for item in selected],
+            signature["candidate_ids"],
+        )
+        self.assertRegex(signature["candidate_subset_sha256"], r"^[0-9a-f]{64}$")
+        self.assertEqual(
+            preflight_completion_fields(signature),
+            {
+                "preflight_complete": False,
+                "requested_scope_complete": True,
+                "full_config_preflight_complete": False,
+            },
+        )
+        all_selection = select_preflight_candidates(config, None)[1]
+        self.assertEqual(
+            preflight_completion_fields(all_selection),
+            {
+                "preflight_complete": True,
+                "requested_scope_complete": True,
+                "full_config_preflight_complete": True,
+            },
+        )
+        self.assertEqual(
+            select_preflight_candidates(config, list(reversed(requested)))[1],
+            signature,
+        )
+        for bad, message in (
+            ([], "nonempty"),
+            ([requested[0], requested[0]], "duplicates"),
+            (["not-configured"], "not uniquely present"),
+        ):
+            with self.subTest(bad=bad), self.assertRaisesRegex(CampaignError, message):
+                select_preflight_candidates(config, bad)
+
+        changed = copy.deepcopy(config)
+        changed["displacements"]["hard_cap"] += 1
+        self.assertNotEqual(
+            select_preflight_candidates(changed, requested)[1][
+                "candidate_subset_sha256"
+            ],
+            signature["candidate_subset_sha256"],
+        )
+
+    def test_no_cutoff_derivation_skips_unrun_parent_instead_of_failing(self) -> None:
+        rows = [
+            {
+                "fc3_supercell_id": "sr_fc3_3x2x1",
+                "cutoff_pair_id": None,
+                "count_only_no_cutoff": True,
+            },
+            {
+                "fc3_supercell_id": "sr_fc3_4x2x1",
+                "cutoff_pair_id": None,
+                "count_only_no_cutoff": True,
+            },
+        ]
+        results, skipped = derive_no_cutoff_preflight_results(
+            rows, {"sr_fc3_3x2x1": 11625}, 800
+        )
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["uncontracted_displacements"], 11625)
+        self.assertEqual(
+            skipped, ["sr_fc3_4x2x1__no_cutoff"]
+        )
+
+    def test_config_rejects_duplicate_preflight_candidate_identity(self) -> None:
+        bad = copy.deepcopy(load_json(SR_CONFIG))
+        bad["displacements"]["enumerate"].append(
+            copy.deepcopy(bad["displacements"]["enumerate"][0])
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "duplicate.json"
+            path.write_text(json.dumps(bad))
+            with self.assertRaisesRegex(
+                CampaignError, "duplicate preflight candidate id"
+            ):
+                validate_config(path)
+
     def test_rejects_distance_unit_mismatch(self) -> None:
         bad = copy.deepcopy(load_json(SR_CONFIG))
         bad["displacements"]["amplitude_bohr"] = 0.03
@@ -215,6 +311,17 @@ class CampaignConfigTests(unittest.TestCase):
             "double_displacement_four_sign_combinations_required"
         ] = False
         cases.append((missing_mixed_signs, "all four double-displacement signs"))
+
+        wrong_diagnostic_resources = copy.deepcopy(load_json(RB_CONFIG))
+        wrong_diagnostic_resources["scheduler"]["diagnostic_resources"][
+            "maximum_core_hours"
+        ] = 63
+        cases.append(
+            (
+                wrong_diagnostic_resources,
+                "maximum_core_hours must equal ntasks",
+            )
+        )
 
         with tempfile.TemporaryDirectory() as temporary:
             for index, (bad, message) in enumerate(cases):
@@ -341,6 +448,35 @@ class CampaignConfigTests(unittest.TestCase):
         self.assertEqual(keywords["pilot_dataset_manifest_sha256"], "c" * 64)
         self.assertIsNone(keywords["selection_evidence"])
         self.assertEqual(keywords["resource_request_path"], Path(arguments[-1]))
+
+    def test_preflight_cli_forwards_signed_candidate_subset(self) -> None:
+        candidate_ids = [
+            "sr_fc3_2x1x1__sr_cutoff_3p70A",
+            "sr_fc3_3x1x1__sr_cutoff_3p70A",
+        ]
+        signature = "a" * 64
+        arguments = [
+            "preflight",
+            "--config",
+            str(SR_CONFIG),
+            "--run-dir",
+            "/tmp/p3-preflight-subset",
+            "--candidate-id",
+            candidate_ids[0],
+            "--candidate-id",
+            candidate_ids[1],
+            "--expect-candidate-subset-sha",
+            signature,
+        ]
+        with patch.object(
+            campaign_module, "command_preflight", return_value={"healthy": True}
+        ) as command, patch.object(campaign_module, "print_json"):
+            self.assertEqual(campaign_module.main(arguments), 0)
+        self.assertEqual(command.call_args.kwargs["candidate_ids"], candidate_ids)
+        self.assertEqual(
+            command.call_args.kwargs["expected_candidate_subset_sha256"],
+            signature,
+        )
 
     def test_prepare_force_requires_pilot_anchor_and_rejects_it_for_production(self) -> None:
         common = {

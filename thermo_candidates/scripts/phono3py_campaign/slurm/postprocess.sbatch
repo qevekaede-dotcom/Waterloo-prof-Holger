@@ -24,7 +24,6 @@ p3_require_context
 p3_begin_attempt postprocess
 p3_activate_python
 
-export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:?}"
 export P3_STAGE="postprocess"
 p3_run_cli postprocess
 

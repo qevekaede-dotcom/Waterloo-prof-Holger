@@ -137,6 +137,26 @@ Candidate status does not imply that any matrix or cutoff is scientifically
 adequate. All existing production selections remain null and every production
 gate remains closed pending explicit scientific, force, and resource review.
 
+The next remote count attempt is intentionally restricted to exactly these two
+signed candidate identities:
+
+```text
+sr_fc3_2x1x1__sr_cutoff_3p70A
+sr_fc3_3x1x1__sr_cutoff_3p70A
+```
+
+Pass both as repeated `submit.py --candidate-id` arguments in the read-only
+preflight plan and again in execute; execute must additionally receive the
+plan's exact `candidate_subset_sha256` via `--expect-candidate-subset-sha`.
+The frontend canonicalizes the IDs into config order, signs them together with
+the preflight-policy SHA256, and carries that signature through the Slurm
+exports, attempt context, campaign CLI, and final inventory. Therefore this
+targeted run cannot silently enumerate the older large candidates. Its
+inventory reports only the requested scope complete and remains ineligible as
+a full pilot/production preflight. Calling preflight without any candidate
+arguments is still the backwards-compatible full-enumeration mode and forbids
+the subset expectation option.
+
 ## Force and transport acceptance
 
 The reference displaced-force setting is the most conservative member of the

@@ -74,7 +74,18 @@
   },
   "scheduler": {
     "cluster": "nibi",
-    "slurm_account": "def-kleinke_cpu"
+    "slurm_account": "def-kleinke_cpu",
+    "diagnostic_resources": {
+      "partition": "cpubase_bycore_b2",
+      "nodes": 1,
+      "ntasks": 32,
+      "cpus_per_task": 1,
+      "mem_per_cpu_mb": 2000,
+      "walltime_hours": 2,
+      "maximum_core_hours": 64,
+      "basis": "conservative_bound_from_nibi_job_21656285_not_a_scientific_result",
+      "basis_note": "Job 21656285 used 32 CPUs and recorded 62.50G; its four SCFs took 26m45s total, including about 720.6 s for the first SCF and 1502.9 s cumulative before the final ionic step. Two hours is a conservative submission ceiling for three sequential fresh-scratch diagnostic SCFs, not a calculated materials result."
+    }
   },
   "software": {
     "quantum_espresso_version": "7.3.1",

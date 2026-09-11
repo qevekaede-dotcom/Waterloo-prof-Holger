@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-import json
 import copy
 import hashlib
+import io
+import json
 import subprocess
 import tempfile
 import unittest
+from contextlib import redirect_stderr
 from pathlib import Path
 from unittest.mock import patch
 
@@ -15,9 +17,11 @@ from submit import (
     StagePlan,
     SubmissionContext,
     SubmissionError,
+    build_parser,
     canonical_sha256,
     ensure_no_active_duplicate,
     execute_submission,
+    plan_report,
     require_force_gate,
     require_nibi_login,
     resolve_context,
@@ -82,6 +86,26 @@ class SubmissionTests(unittest.TestCase):
             stage="preflight",
         )
 
+    def test_diagnostic_context_uses_prepared_lineage_without_run_manifest(self) -> None:
+        (self.run_dir / "run_manifest.json").unlink()
+        ready = {
+            "material": "Example",
+            "config_sha256": CONFIG_SHA,
+            "lineage_sha256": "d" * 64,
+        }
+        with patch(
+            "submit.validate_config",
+            return_value=(self.config, {"config_sha256": CONFIG_SHA}),
+        ), patch(
+            "polish_recovery.verify_diagnostic_submission_ready",
+            return_value=ready,
+        ) as verify:
+            context = resolve_context(self.config_path, self.run_dir, "diagnostic")
+        self.assertEqual(context.manifest, ready)
+        verify.assert_called_once_with(
+            self.config_path.resolve(), self.run_dir.resolve()
+        )
+
     def test_accepts_real_nibi_login_hostname_but_not_other_hosts(self) -> None:
         with patch.dict("submit.os.environ", {}, clear=True), patch(
             "submit.socket.getfqdn", return_value="ic-l5.nibi.sharcnet"
@@ -112,7 +136,20 @@ class SubmissionTests(unittest.TestCase):
         )
         self.config = {
             "material": {"formula": "Example"},
-            "scheduler": {"cluster": "nibi", "slurm_account": "def-kleinke_cpu"},
+            "scheduler": {
+                "cluster": "nibi",
+                "slurm_account": "def-kleinke_cpu",
+                "diagnostic_resources": {
+                    "partition": "cpubase_bycore_b2",
+                    "nodes": 1,
+                    "ntasks": 32,
+                    "cpus_per_task": 1,
+                    "mem_per_cpu_mb": 2000,
+                    "walltime_hours": 2,
+                    "maximum_core_hours": 64,
+                },
+            },
+            "reviewed_bfgs_polish": {},
             "displacements": {"hard_cap": 8},
             "resource_budget": {
                 "selection_required_before_force_submission": False,
@@ -428,7 +465,9 @@ class SubmissionTests(unittest.TestCase):
         self.assertEqual(command[6], "--array=0-2%2")
         self.assertEqual(command[-1], str(SLURM_DIR / "force_array.sbatch"))
         exports = command[5]
-        self.assertTrue(exports.startswith("--export=ALL,CAMPAIGN_CONFIG="))
+        self.assertTrue(exports.startswith("--export=CAMPAIGN_CONFIG="))
+        self.assertNotIn("--export=ALL", exports)
+        self.assertNotIn("BASH_ENV", exports)
         self.assertIn(f",RUN_DIR={self.run_dir.resolve()}", exports)
         self.assertIn(",ATTEMPT_ID=force-attempt-1", exports)
         self.assertIn(f",P3_SLURM_DIR={SLURM_DIR}", exports)
@@ -763,6 +802,249 @@ class SubmissionTests(unittest.TestCase):
                 )
         run.assert_not_called()
 
+    def test_diagnostic_plan_and_execute_include_afterany_collector(self) -> None:
+        (self.run_dir / "run_manifest.json").unlink()
+        ready = {
+            "material": "Example",
+            "config_sha256": CONFIG_SHA,
+            "lineage_sha256": "d" * 64,
+            "structure_accepted": False,
+            "preflight_unlocked": False,
+        }
+        self.context.manifest.clear()
+        self.context.manifest.update(ready)
+        with patch(
+            "polish_recovery.verify_diagnostic_submission_ready",
+            return_value=ready,
+        ):
+            report = plan_report(
+                self.context,
+                "diagnostic",
+                task_map=None,
+                max_in_flight=None,
+            )
+        self.assertTrue(report["collector"])
+        self.assertEqual(
+            report["scheduler_options"],
+            [
+                "--partition=cpubase_bycore_b2",
+                "--nodes=1",
+                "--ntasks=32",
+                "--cpus-per-task=1",
+                "--mem-per-cpu=2000M",
+                "--time=02:00:00",
+            ],
+        )
+
+        primary_completed = subprocess.CompletedProcess(
+            [], 0, stdout="32345;nibi\n", stderr=""
+        )
+        collector_completed = subprocess.CompletedProcess(
+            [], 0, stdout="32346;nibi\n", stderr=""
+        )
+        with patch("submit.require_nibi_login"), patch(
+            "submit.new_attempt_id",
+            side_effect=("diagnostic-attempt", "diagnostic-collector"),
+        ), patch(
+            "polish_recovery.verify_diagnostic_submission_ready",
+            return_value=ready,
+        ), patch(
+            "submit.subprocess.run",
+            side_effect=(primary_completed, collector_completed),
+        ) as run:
+            result = execute_submission(
+                self.context,
+                "diagnostic",
+                expected_config_sha=CONFIG_SHA,
+                task_map=None,
+                max_in_flight=None,
+            )
+        self.assertEqual(run.call_count, 2)
+        command = run.call_args_list[0].args[0]
+        self.assertIn("--partition=cpubase_bycore_b2", command)
+        self.assertIn("--ntasks=32", command)
+        export = next(item for item in command if item.startswith("--export="))
+        self.assertIn(",P3_DIAGNOSTIC_RESOURCE_SHA256=", export)
+        self.assertEqual(command[-1], str(SLURM_DIR / "diagnostic.sbatch"))
+        self.assertEqual(result["collector"]["job_id"], "32346")
+        self.assertEqual(result["collector"]["dependency"], "afterany:32345")
+        collector_command = run.call_args_list[1].args[0]
+        self.assertIn("--dependency=afterany:32345", collector_command)
+        self.assertEqual(collector_command[-1], str(SLURM_DIR / "collect.sbatch"))
+        record = Path(result["record_dir"])
+        request = json.loads((record / "request.json").read_text())
+        response = json.loads((record / "primary_result.json").read_text())
+        self.assertEqual(request["config_sha256"], CONFIG_SHA)
+        self.assertEqual(request["polish_lineage_sha256"], "d" * 64)
+        self.assertIsNone(request["run_manifest_sha256"])
+        self.assertEqual(response["job_id"], "32345")
+        self.assertEqual(response["stdout"], "32345;nibi\n")
+        self.assertEqual(response["config_sha256"], CONFIG_SHA)
+        self.assertTrue((record / "submission.json").is_file())
+        self.assertTrue((record / "collector_request.json").is_file())
+        self.assertTrue((record / "collector_result.json").is_file())
+
+    def test_preflight_plan_exports_only_the_signed_reviewed_subset(self) -> None:
+        config_path = Path(__file__).resolve().parents[4] / (
+            "thermo_candidates/SrZrS3/phono3py/campaign.json"
+        )
+        config = json.loads(config_path.read_text())
+        context = SubmissionContext(
+            config_path=config_path.resolve(),
+            run_dir=self.run_dir.resolve(),
+            config=config,
+            manifest={"material": "SrZrS3"},
+            config_sha256=sha256_path(config_path),
+        )
+        self.pass_relax_gate()
+        requested = [
+            "sr_fc3_3x1x1__sr_cutoff_3p70A",
+            "sr_fc3_2x1x1__sr_cutoff_3p70A",
+        ]
+        plan = stage_plan(
+            context,
+            "preflight",
+            attempt_id="subset-preflight",
+            candidate_ids=requested,
+        )
+        self.assertEqual(
+            plan.candidate_ids,
+            (
+                "sr_fc3_2x1x1__sr_cutoff_3p70A",
+                "sr_fc3_3x1x1__sr_cutoff_3p70A",
+            ),
+        )
+        self.assertRegex(plan.candidate_subset_sha256 or "", r"^[0-9a-f]{64}$")
+        command = sbatch_command(plan)
+        exports = next(item for item in command if item.startswith("--export="))
+        self.assertIn(
+            ",P3_PREFLIGHT_CANDIDATE_IDS="
+            "sr_fc3_2x1x1__sr_cutoff_3p70A:"
+            "sr_fc3_3x1x1__sr_cutoff_3p70A",
+            exports,
+        )
+        self.assertIn(",P3_PREFLIGHT_CANDIDATE_SHA256=", exports)
+        self.assertNotIn("sr_fc3_3x2x1__sr_cutoff_4A", exports)
+        with patch("submit.require_nibi_login"), patch("submit.subprocess.run") as run:
+            with self.assertRaisesRegex(
+                SubmissionError, "requires the exact 64-character"
+            ):
+                execute_submission(
+                    context,
+                    "preflight",
+                    expected_config_sha=context.config_sha256,
+                    task_map=None,
+                    max_in_flight=None,
+                    candidate_ids=requested,
+                )
+            with self.assertRaisesRegex(SubmissionError, "changed or was not copied"):
+                execute_submission(
+                    context,
+                    "preflight",
+                    expected_config_sha=context.config_sha256,
+                    task_map=None,
+                    max_in_flight=None,
+                    candidate_ids=requested,
+                    expected_candidate_subset_sha="0" * 64,
+                )
+        run.assert_not_called()
+
+        completed = subprocess.CompletedProcess(
+            [], 0, stdout="42345\n", stderr=""
+        )
+        with patch("submit.require_nibi_login"), patch(
+            "submit.new_attempt_id", return_value="signed-subset"
+        ), patch("submit.subprocess.run", return_value=completed) as run:
+            submitted = execute_submission(
+                context,
+                "preflight",
+                expected_config_sha=context.config_sha256,
+                task_map=None,
+                max_in_flight=None,
+                candidate_ids=requested,
+                expected_candidate_subset_sha=plan.candidate_subset_sha256,
+            )
+        self.assertEqual(run.call_count, 1)
+        self.assertEqual(
+            submitted["candidate_subset_sha256"], plan.candidate_subset_sha256
+        )
+        request = json.loads(
+            (Path(submitted["record_dir"]) / "request.json").read_text()
+        )
+        self.assertEqual(
+            request["candidate_subset_sha256"], plan.candidate_subset_sha256
+        )
+        for bad, message in (
+            ([requested[0], requested[0]], "duplicates"),
+            (["missing"], "not uniquely present"),
+            ([], "nonempty"),
+        ):
+            with self.subTest(bad=bad), self.assertRaisesRegex(
+                SubmissionError, message
+            ):
+                stage_plan(
+                    context,
+                    "preflight",
+                    attempt_id="bad-subset",
+                    candidate_ids=bad,
+                )
+
+    def test_candidate_subset_is_rejected_for_non_preflight_stage(self) -> None:
+        with self.assertRaisesRegex(SubmissionError, "only for the preflight"):
+            stage_plan(
+                self.context,
+                "relax",
+                attempt_id="wrong-stage",
+                candidate_ids=["candidate"],
+            )
+
+    def test_subset_expectation_is_forbidden_for_full_preflight(self) -> None:
+        with patch("submit.require_nibi_login"), patch("submit.subprocess.run") as run:
+            with self.assertRaisesRegex(SubmissionError, "forbidden without"):
+                execute_submission(
+                    self.context,
+                    "preflight",
+                    expected_config_sha=CONFIG_SHA,
+                    task_map=None,
+                    max_in_flight=None,
+                    expected_candidate_subset_sha="0" * 64,
+                )
+        run.assert_not_called()
+
+    def test_execute_cli_has_independent_subset_expectation_argument(self) -> None:
+        parsed = build_parser().parse_args(
+            [
+                "execute",
+                "--stage",
+                "preflight",
+                "--config",
+                str(self.config_path),
+                "--run-dir",
+                str(self.run_dir),
+                "--expect-config-sha",
+                CONFIG_SHA,
+                "--candidate-id",
+                "candidate-a__cutoff-a",
+                "--expect-candidate-subset-sha",
+                "a" * 64,
+            ]
+        )
+        self.assertEqual(parsed.expect_candidate_subset_sha, "a" * 64)
+        with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            build_parser().parse_args(
+                [
+                    "plan",
+                    "--stage",
+                    "preflight",
+                    "--config",
+                    str(self.config_path),
+                    "--run-dir",
+                    str(self.run_dir),
+                    "--expect-candidate-subset-sha",
+                    "a" * 64,
+                ]
+            )
+
     def test_relax_execute_submits_distinct_afterany_collector(self) -> None:
         completed = [
             subprocess.CompletedProcess([], 0, stdout="12345\n", stderr=""),
@@ -931,6 +1213,11 @@ class SubmissionTests(unittest.TestCase):
                 "RUN_DIR": str(self.run_dir.resolve()),
                 "ATTEMPT_ID": "attempt",
                 "P3_SLURM_DIR": str(SLURM_DIR),
+                "P3_EXPECTED_CONFIG_SHA256": "a" * 64,
+                "P3_SUBMIT_SCRIPT_SHA256": "b" * 64,
+                "P3_STAGE_SCRIPT_SHA256": "c" * 64,
+                "P3_CLUSTER_ENV_SHA256": "d" * 64,
+                "P3_CAMPAIGN_CLI_SHA256": "e" * 64,
             },
             array=None,
             task_count=None,
@@ -939,6 +1226,9 @@ class SubmissionTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(SubmissionError, "unsafe or unsupported dependency"):
             sbatch_command(plan, dependency="afterok:1;touch /tmp/x")
+        plan.exports["BASH_ENV"] = "/tmp/injected"
+        with self.assertRaisesRegex(SubmissionError, "explicit allow-list"):
+            sbatch_command(plan)
 
 
 if __name__ == "__main__":

@@ -18,6 +18,7 @@ import math
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -92,6 +93,127 @@ def sha256_path(path: Path) -> str:
 def canonical_sha256(value: object) -> str:
     encoded = json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
     return hashlib.sha256(encoded).hexdigest()
+
+
+def preflight_candidate_id(enumeration: Mapping[str, Any]) -> str:
+    """Return the stable public identity of one configured preflight row."""
+
+    supercell_id = enumeration.get(
+        "supercell_id", enumeration.get("fc3_supercell_id")
+    )
+    cutoff_id = enumeration.get("cutoff_pair_id")
+    if not isinstance(supercell_id, str) or not supercell_id:
+        raise CampaignError("preflight enumeration has no valid supercell id")
+    if cutoff_id is not None and (not isinstance(cutoff_id, str) or not cutoff_id):
+        raise CampaignError("preflight enumeration has an invalid cutoff id")
+    suffix = cutoff_id if cutoff_id is not None else "no_cutoff"
+    candidate_id = f"{supercell_id}__{suffix}"
+    if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,159}", candidate_id) is None:
+        raise CampaignError(f"unsafe preflight candidate id: {candidate_id!r}")
+    return candidate_id
+
+
+def select_preflight_candidates(
+    config: Mapping[str, Any], candidate_ids: Sequence[str] | None
+) -> tuple[list[Mapping[str, Any]], dict[str, Any]]:
+    """Resolve and sign an all-candidate or explicit subset preflight plan."""
+
+    enumerations = required(config, "displacements.enumerate")
+    if not isinstance(enumerations, list) or not enumerations:
+        raise CampaignError("displacements.enumerate must be a nonempty list")
+    configured: dict[str, Mapping[str, Any]] = {}
+    configured_order: list[str] = []
+    for enumeration in enumerations:
+        if not isinstance(enumeration, Mapping):
+            raise CampaignError("preflight enumeration rows must be objects")
+        candidate_id = preflight_candidate_id(enumeration)
+        if candidate_id in configured:
+            raise CampaignError(
+                f"preflight candidate is not unique in config enumerate: {candidate_id}"
+            )
+        configured[candidate_id] = enumeration
+        configured_order.append(candidate_id)
+
+    explicit_subset = candidate_ids is not None
+    if explicit_subset:
+        requested = list(candidate_ids)
+        if not requested:
+            raise CampaignError("explicit preflight candidate subset must be nonempty")
+        if any(not isinstance(item, str) or not item for item in requested):
+            raise CampaignError("preflight candidate ids must be nonempty strings")
+        if len(set(requested)) != len(requested):
+            raise CampaignError("preflight candidate subset contains duplicates")
+        unknown = [item for item in requested if item not in configured]
+        if unknown:
+            raise CampaignError(
+                "preflight candidate subset is not uniquely present in config enumerate: "
+                + ", ".join(unknown)
+            )
+        requested_set = set(requested)
+        selected_ids = [item for item in configured_order if item in requested_set]
+    else:
+        selected_ids = configured_order
+
+    signature_payload = {
+        "schema_version": 1,
+        "mode": "explicit_subset" if explicit_subset else "all_configured",
+        "candidate_ids": selected_ids,
+        "preflight_policy_sha256": policy_sha256(config, "preflight"),
+    }
+    selection = {
+        **signature_payload,
+        "candidate_subset_sha256": canonical_sha256(signature_payload),
+        "configured_candidate_count": len(configured_order),
+    }
+    return [configured[item] for item in selected_ids], selection
+
+
+def derive_no_cutoff_preflight_results(
+    enumerations: Sequence[Mapping[str, Any]],
+    uncontracted: Mapping[str, int],
+    hard_cap: int,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Derive no-cutoff count bounds only from selected, completed parents."""
+
+    results: list[dict[str, Any]] = []
+    skipped: list[str] = []
+    for enumeration in enumerations:
+        supercell_id = enumeration.get(
+            "supercell_id", enumeration.get("fc3_supercell_id")
+        )
+        candidate_id = preflight_candidate_id(enumeration)
+        if supercell_id not in uncontracted:
+            skipped.append(candidate_id)
+            continue
+        results.append(
+            {
+                "candidate_id": candidate_id,
+                "supercell_id": supercell_id,
+                "cutoff_id": None,
+                "count_only_no_cutoff": True,
+                "uncontracted_displacements": uncontracted[supercell_id],
+                "generated_displacement_supercells": None,
+                "derivation": "Number of displacements printed by a selected cutoff-pair run for the same supercell; no uncut file explosion was generated.",
+                "within_hard_cap": uncontracted[supercell_id] <= hard_cap,
+                "hard_cap": hard_cap,
+            }
+        )
+    return results, skipped
+
+
+def preflight_completion_fields(selection: Mapping[str, Any]) -> dict[str, bool]:
+    """Keep targeted count evidence distinct from a full configured preflight."""
+
+    mode = selection.get("mode")
+    if mode not in {"all_configured", "explicit_subset"}:
+        raise CampaignError("preflight candidate selection mode is invalid")
+    full = mode == "all_configured"
+    return {
+        # Compatibility alias retains its historical full-enumeration meaning.
+        "preflight_complete": full,
+        "requested_scope_complete": True,
+        "full_config_preflight_complete": full,
+    }
 
 
 def write_immutable(path: Path, content: str) -> None:
@@ -202,6 +324,78 @@ def safe_run_dir(path: Path) -> Path:
     return resolved
 
 
+def strict_run_descendant(
+    run_dir: Path,
+    path: Path,
+    label: str,
+    *,
+    require_exists: bool = True,
+) -> Path:
+    """Prove strict RUN_DIR containment while lstat-rejecting every symlink."""
+
+    lexical_root = Path(os.path.abspath(run_dir))
+    root = safe_run_dir(run_dir).resolve(strict=True)
+    candidate_input = Path(os.path.abspath(path))
+    if candidate_input.is_relative_to(lexical_root):
+        relative = candidate_input.relative_to(lexical_root)
+    elif candidate_input.is_relative_to(root):
+        relative = candidate_input.relative_to(root)
+    else:
+        alias_root = None
+        for ancestor in (candidate_input, *candidate_input.parents):
+            try:
+                if stat.S_ISLNK(os.lstat(ancestor).st_mode):
+                    raise CampaignError(
+                        f"{label} path contains a symlink: {ancestor}"
+                    )
+                if os.path.samefile(ancestor, root):
+                    alias_root = ancestor
+                    break
+            except (FileNotFoundError, NotADirectoryError, OSError):
+                continue
+        if alias_root is None:
+            raise CampaignError(f"{label} must be a strict descendant of RUN_DIR")
+        relative = candidate_input.relative_to(alias_root)
+    if not relative.parts:
+        raise CampaignError(f"{label} must be a strict descendant of RUN_DIR")
+    candidate = root / relative
+    current = root
+    missing = False
+    for part in candidate.relative_to(root).parts:
+        current = current / part
+        if missing:
+            continue
+        try:
+            mode = os.lstat(current).st_mode
+        except FileNotFoundError:
+            missing = True
+            continue
+        if stat.S_ISLNK(mode):
+            raise CampaignError(f"{label} path contains a symlink: {current}")
+    if require_exists and missing:
+        raise CampaignError(f"{label} does not exist: {candidate}")
+    resolved = candidate.resolve(strict=require_exists)
+    if resolved == root or not resolved.is_relative_to(root):
+        raise CampaignError(f"{label} resolves outside RUN_DIR")
+    if "READY_TO_ATTACH" in resolved.parts:
+        raise CampaignError(f"{label} may not use frozen attachment evidence")
+    return candidate
+
+
+def reject_symlinks_below(run_dir: Path, root: Path, label: str) -> None:
+    root = strict_run_descendant(run_dir, root, label, require_exists=True)
+    if not root.is_dir():
+        raise CampaignError(f"{label} is not a directory: {root}")
+    for parent, directories, files in os.walk(root, followlinks=False):
+        for name in (*directories, *files):
+            strict_run_descendant(
+                run_dir,
+                Path(parent) / name,
+                label,
+                require_exists=True,
+            )
+
+
 def validate_config(config_path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     config_path = config_path.resolve()
     config = load_json(config_path)
@@ -255,11 +449,26 @@ def validate_config(config_path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
             check(isinstance(candidate_id, str) and candidate_id not in supercells, f"duplicate supercell id {candidate_id!r}")
             supercells[str(candidate_id)] = candidate
 
-        for index, item in enumerate(required(config, "displacements.enumerate")):
+        enumeration_ids: set[str] = set()
+        enumerations = required(config, "displacements.enumerate")
+        check(
+            isinstance(enumerations, list) and bool(enumerations),
+            "displacements.enumerate must be a nonempty list",
+        )
+        for index, item in enumerate(enumerations):
+            check(isinstance(item, Mapping), f"enumerate[{index}] must be an object")
+            if not isinstance(item, Mapping):
+                continue
             supercell_id = item.get("supercell_id", item.get("fc3_supercell_id"))
             cutoff_id = item.get("cutoff_pair_id")
             check(supercell_id in supercells, f"enumerate[{index}] unknown supercell {supercell_id!r}")
             check(cutoff_id is None or cutoff_id in cutoff_ids, f"enumerate[{index}] unknown cutoff {cutoff_id!r}")
+            candidate_id = preflight_candidate_id(item)
+            check(
+                candidate_id not in enumeration_ids,
+                f"duplicate preflight candidate id {candidate_id!r}",
+            )
+            enumeration_ids.add(candidate_id)
 
         hard_cap = required(config, "displacements.hard_cap")
         check(isinstance(hard_cap, int) and not isinstance(hard_cap, bool) and hard_cap > 0, "hard_cap must be positive integer")
@@ -528,6 +737,61 @@ def validate_config(config_path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
                 diagnostic.get("maximum_higher_ecutrho_rms_difference_ry_bohr"),
                 "diagnostic higher-ecutrho RMS threshold",
             )
+            resources = required(config, "scheduler.diagnostic_resources")
+            check(
+                isinstance(resources, Mapping),
+                "scheduler.diagnostic_resources must be an object",
+            )
+            if not isinstance(resources, Mapping):
+                raise CampaignError("scheduler.diagnostic_resources must be an object")
+            partition = resources.get("partition")
+            check(
+                isinstance(partition, str)
+                and re.fullmatch(r"[A-Za-z0-9_.-]+", partition) is not None,
+                "diagnostic partition is invalid",
+            )
+            for key in ("nodes", "ntasks", "cpus_per_task", "mem_per_cpu_mb"):
+                value = resources.get(key)
+                check(
+                    isinstance(value, int) and not isinstance(value, bool) and value > 0,
+                    f"diagnostic {key} must be a positive integer",
+                )
+            walltime_hours = positive_number(
+                resources.get("walltime_hours"), "diagnostic walltime hours"
+            )
+            check(
+                math.isclose(
+                    walltime_hours * 60,
+                    round(walltime_hours * 60),
+                    rel_tol=0,
+                    abs_tol=1e-12,
+                ),
+                "diagnostic walltime must be exactly representable in whole minutes",
+            )
+            maximum_core_hours = positive_number(
+                resources.get("maximum_core_hours"), "diagnostic maximum core hours"
+            )
+            if all(
+                isinstance(resources.get(key), int)
+                and not isinstance(resources.get(key), bool)
+                for key in ("ntasks", "cpus_per_task")
+            ):
+                check(
+                    math.isclose(
+                        maximum_core_hours,
+                        float(resources["ntasks"])
+                        * float(resources["cpus_per_task"])
+                        * walltime_hours,
+                        rel_tol=0,
+                        abs_tol=1e-12,
+                    ),
+                    "diagnostic maximum_core_hours must equal ntasks * cpus_per_task * walltime_hours",
+                )
+            check(
+                resources.get("basis")
+                == "conservative_bound_from_nibi_job_21656285_not_a_scientific_result",
+                "diagnostic resource basis must preserve its measured-job provenance and non-result label",
+            )
         selection_required = required(config, "production.selection_required")
         selected_supercell = required(config, "production.selected_supercell")
         selected_cutoff = required(config, "production.selected_cutoff")
@@ -648,11 +912,9 @@ def attempt_dir(run_dir: Path) -> Path:
     raw = os.environ.get("P3_ATTEMPT_DIR")
     if not raw:
         raise CampaignError("P3_ATTEMPT_DIR is required for an immutable compute attempt")
-    path = Path(raw).resolve()
-    try:
-        path.relative_to(run_dir)
-    except ValueError as exc:
-        raise CampaignError(f"P3_ATTEMPT_DIR is outside RUN_DIR: {path}") from exc
+    path = strict_run_descendant(
+        run_dir, Path(raw), "P3_ATTEMPT_DIR", require_exists=True
+    )
     if not path.is_dir():
         raise CampaignError(f"P3_ATTEMPT_DIR does not exist: {path}")
     return path
@@ -1674,7 +1936,13 @@ def verify_imported_structure_if_present(
     return verify_imported_acceptance(config_path, run_dir)
 
 
-def command_preflight(config_path: Path, run_dir: Path) -> dict[str, Any]:
+def command_preflight(
+    config_path: Path,
+    run_dir: Path,
+    *,
+    candidate_ids: Sequence[str] | None = None,
+    expected_candidate_subset_sha256: str | None = None,
+) -> dict[str, Any]:
     require_compute_node()
     config, _ = validate_config(config_path)
     run_dir = safe_run_dir(run_dir)
@@ -1688,6 +1956,29 @@ def command_preflight(config_path: Path, run_dir: Path) -> dict[str, Any]:
     imported_acceptance = verify_imported_structure_if_present(
         config_path, run_dir, run_manifest
     )
+    selected_enumerations, candidate_selection = select_preflight_candidates(
+        config, candidate_ids
+    )
+    if candidate_ids is None and expected_candidate_subset_sha256 is not None:
+        raise CampaignError(
+            "--expect-candidate-subset-sha is valid only with an explicit candidate subset"
+        )
+    if candidate_ids is not None:
+        if (
+            not isinstance(expected_candidate_subset_sha256, str)
+            or re.fullmatch(r"[0-9a-f]{64}", expected_candidate_subset_sha256)
+            is None
+        ):
+            raise CampaignError(
+                "explicit preflight subset requires a 64-character --expect-candidate-subset-sha"
+            )
+        if (
+            expected_candidate_subset_sha256
+            != candidate_selection["candidate_subset_sha256"]
+        ):
+            raise CampaignError(
+                "preflight candidate subset SHA256 differs from the reviewed submission plan"
+            )
     attempt = attempt_dir(run_dir)
     unitcell = run_dir / "relax" / "final" / "unitcell.in"
     gate_path = run_dir / "relax" / "final" / "gate.json"
@@ -1731,7 +2022,7 @@ def command_preflight(config_path: Path, run_dir: Path) -> dict[str, Any]:
     uncontracted: dict[str, int] = {}
     deferred_no_cutoff: list[dict[str, Any]] = []
 
-    for enumeration in required(config, "displacements.enumerate"):
+    for enumeration in selected_enumerations:
         supercell_id = enumeration.get("supercell_id", enumeration.get("fc3_supercell_id"))
         cutoff_id = enumeration.get("cutoff_pair_id")
         if cutoff_id is None:
@@ -1834,6 +2125,7 @@ def command_preflight(config_path: Path, run_dir: Path) -> dict[str, Any]:
         if not math.isclose(volume_ratio, expected_det, rel_tol=2e-6):
             raise CampaignError(f"generated volume ratio mismatch for {supercell_id}: {volume_ratio}")
         result = {
+            "candidate_id": preflight_candidate_id(enumeration),
             "supercell_id": supercell_id,
             "cutoff_id": cutoff_id,
             "cutoff_pair_distance_angstrom": cutoff["cutoff_pair_distance_angstrom"],
@@ -1885,29 +2177,17 @@ def command_preflight(config_path: Path, run_dir: Path) -> dict[str, Any]:
         write_json_immutable(work / "preflight_result.json", result)
         results.append(result)
 
-    for enumeration in deferred_no_cutoff:
-        supercell_id = enumeration.get("supercell_id", enumeration.get("fc3_supercell_id"))
-        if supercell_id not in uncontracted:
-            raise CampaignError(f"no cutoff run supplied uncontracted count for {supercell_id}")
-        results.append(
-            {
-                "supercell_id": supercell_id,
-                "cutoff_id": None,
-                "count_only_no_cutoff": True,
-                "uncontracted_displacements": uncontracted[supercell_id],
-                "generated_displacement_supercells": None,
-                "derivation": "Number of displacements printed by a cutoff-pair run for the same supercell; no uncut file explosion was generated.",
-                "within_hard_cap": uncontracted[supercell_id] <= hard_cap,
-                "hard_cap": hard_cap,
-            }
-        )
+    derived_no_cutoff, skipped_no_cutoff = derive_no_cutoff_preflight_results(
+        deferred_no_cutoff, uncontracted, hard_cap
+    )
+    results.extend(derived_no_cutoff)
 
     routine_results = [
         item
         for item in results
         if item.get("cutoff_id") is not None and not item.get("count_only")
     ]
-    all_routine_within_cap = all(
+    all_routine_within_cap = bool(routine_results) and all(
         item.get("within_hard_cap", False) for item in routine_results
     )
     eligible_candidates = [
@@ -1926,7 +2206,13 @@ def command_preflight(config_path: Path, run_dir: Path) -> dict[str, Any]:
             None if imported_acceptance is None
             else imported_acceptance["receipt_sha256"]
         ),
-        "preflight_complete": True,
+        **preflight_completion_fields(candidate_selection),
+        "candidate_selection": candidate_selection,
+        "candidate_subset_sha256": candidate_selection[
+            "candidate_subset_sha256"
+        ],
+        "selected_candidate_ids": candidate_selection["candidate_ids"],
+        "skipped_no_cutoff_candidate_ids": skipped_no_cutoff,
         "all_routine_candidates_within_hard_cap": all_routine_within_cap,
         "eligible_candidate_count": len(eligible_candidates),
         "requires_budget_or_scientific_review": (
@@ -1937,6 +2223,7 @@ def command_preflight(config_path: Path, run_dir: Path) -> dict[str, Any]:
         "limitations": [
             "Counts and geometry checks are preflight results, not force convergence.",
             "No force-array or thermal-conductivity calculation was submitted by this command.",
+            "A no-cutoff derived row is omitted when this attempt did not run a cutoff-pair parent for the same supercell.",
         ],
     }
     write_json_immutable(attempt / "preflight_inventory.json", inventory)
@@ -2001,19 +2288,20 @@ SACCT_FIELDS = (
     "AllocCPUS",
     "MaxRSS",
 )
+DIAGNOSTIC_SACCT_FIELDS = SACCT_FIELDS + (
+    "Account",
+    "Partition",
+    "NNodes",
+    "NCPUS",
+    "ReqMem",
+    "TimelimitRaw",
+)
 
 
 def _strict_evidence_path(path: Path, root: Path, label: str) -> Path:
     """Resolve one evidence path and reject broad, escaped, or frozen paths."""
 
-    resolved = path.resolve()
-    if (
-        resolved == root.resolve()
-        or not resolved.is_relative_to(root.resolve())
-        or "READY_TO_ATTACH" in resolved.parts
-    ):
-        raise CampaignError(f"{label} must be a strict descendant of RUN_DIR")
-    return resolved
+    return strict_run_descendant(root, path, label, require_exists=True)
 
 
 def _read_context_tsv(path: Path) -> tuple[dict[str, str], list[str]]:
@@ -2038,7 +2326,9 @@ def _read_context_tsv(path: Path) -> tuple[dict[str, str], list[str]]:
 
 
 def _read_sacct_records(
-    accounting_path: Path, accounting_status_path: Path
+    accounting_path: Path,
+    accounting_status_path: Path,
+    fields: Sequence[str] = SACCT_FIELDS,
 ) -> tuple[list[dict[str, str]], list[str], dict[str, Any]]:
     """Read the collector-created sacct record without treating absence as success."""
 
@@ -2054,15 +2344,15 @@ def _read_sacct_records(
         try:
             with accounting_path.open(newline="") as handle:
                 reader = csv.DictReader(handle, delimiter="|")
-                if tuple(reader.fieldnames or ()) != SACCT_FIELDS:
+                if tuple(reader.fieldnames or ()) != tuple(fields):
                     errors.append("scheduler accounting has an unexpected field schema")
                 else:
                     for index, row in enumerate(reader, 1):
-                        if None in row or any(row.get(field) is None for field in SACCT_FIELDS):
+                        if None in row or any(row.get(field) is None for field in fields):
                             errors.append(f"scheduler accounting row {index} is malformed")
                             continue
                         records.append(
-                            {field: str(row[field]).strip() for field in SACCT_FIELDS}
+                            {field: str(row[field]).strip() for field in fields}
                         )
         except (OSError, csv.Error) as exc:
             errors.append(f"cannot parse scheduler accounting: {exc}")
@@ -2236,6 +2526,306 @@ def _accounting_for_force_task(
 
 def _normalized_slurm_state(value: str) -> str:
     return value.strip().upper().split()[0].rstrip("+") if value.strip() else ""
+
+
+def _diagnostic_reqmem_total_mb(
+    raw: str, *, allocated_cpus: int, nodes: int
+) -> float:
+    """Normalize Slurm ReqMem, including per-CPU/per-node suffixes, to MiB."""
+
+    matched = re.fullmatch(r"([0-9]+(?:\.[0-9]+)?)([KMGTP]?)([cn]?)", raw.strip(), re.I)
+    if matched is None:
+        raise CampaignError(f"diagnostic sacct ReqMem is invalid: {raw!r}")
+    value = float(matched.group(1))
+    unit = matched.group(2).upper() or "M"
+    factor = {"K": 1 / 1024, "M": 1, "G": 1024, "T": 1024**2, "P": 1024**3}[unit]
+    total = value * factor
+    suffix = matched.group(3).lower()
+    if suffix == "c":
+        total *= allocated_cpus
+    elif suffix == "n":
+        total *= nodes
+    return total
+
+
+def _collect_diagnostic_attempt(
+    *,
+    config: Mapping[str, Any],
+    config_path: Path,
+    run_dir: Path,
+    current_attempt: Path,
+    primary_attempt_id: str,
+    primary_job_id: str,
+    expected_primary_request_sha256: str,
+    expected_primary_result_sha256: str,
+    expected_primary_stage_script_sha256: str,
+    accounting_records: Sequence[Mapping[str, str]],
+    accounting_errors: Sequence[str],
+    accounting_metadata: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Collect one diagnostic without interpreting its force comparison."""
+
+    from polish_recovery import DIAGNOSTIC_EXECUTION, LINEAGE_RECEIPT, _load_lineage
+
+    lineage = _load_lineage(config, run_dir)
+    config_sha = sha256_path(config_path)
+    lineage_path = strict_run_descendant(
+        run_dir, run_dir / LINEAGE_RECEIPT, "diagnostic lineage"
+    )
+    lineage_sha = sha256_path(lineage_path)
+    resources = required(config, "scheduler.diagnostic_resources")
+    resource_sha = canonical_sha256(resources)
+    errors = list(accounting_errors)
+
+    submission_dir = strict_run_descendant(
+        run_dir,
+        run_dir / "submissions/diagnostic" / primary_attempt_id,
+        "diagnostic submission record",
+    )
+    reject_symlinks_below(
+        run_dir, submission_dir, "diagnostic submission record"
+    )
+    request_path = strict_run_descendant(
+        run_dir, submission_dir / "request.json", "diagnostic submission request"
+    )
+    result_path = strict_run_descendant(
+        run_dir,
+        submission_dir / "primary_result.json",
+        "diagnostic submission response",
+    )
+    for label, expected, path in (
+        ("primary request", expected_primary_request_sha256, request_path),
+        ("primary response", expected_primary_result_sha256, result_path),
+    ):
+        if re.fullmatch(r"[0-9a-f]{64}", expected or "") is None:
+            raise CampaignError(f"diagnostic collector {label} hash is invalid")
+        if sha256_path(path) != expected:
+            raise CampaignError(f"diagnostic collector {label} hash mismatch")
+    request = load_json(request_path)
+    response = load_json(result_path)
+    if (
+        request.get("stage") != "diagnostic"
+        or request.get("attempt_id") != primary_attempt_id
+        or request.get("config_sha256") != config_sha
+        or request.get("run_dir") != str(run_dir)
+        or request.get("polish_lineage_sha256") != lineage_sha
+        or request.get("diagnostic_lineage_sha256") != lineage_sha
+        or request.get("diagnostic_resource_sha256") != resource_sha
+        or request.get("slurm_account") != required(config, "scheduler.slurm_account")
+        or request.get("stage_script_sha256")
+        != expected_primary_stage_script_sha256
+    ):
+        errors.append("diagnostic submission request identity/hash mismatch")
+    if (
+        response.get("stage") != "diagnostic"
+        or response.get("attempt_id") != primary_attempt_id
+        or response.get("job_id") != primary_job_id
+        or response.get("config_sha256") != config_sha
+        or response.get("returncode") != 0
+    ):
+        errors.append("diagnostic submission response identity mismatch")
+
+    wrapper = strict_run_descendant(
+        run_dir,
+        run_dir / "slurm_attempts/diagnostic" / primary_attempt_id,
+        "diagnostic Slurm wrapper attempt",
+        require_exists=False,
+    )
+    if wrapper.is_dir():
+        reject_symlinks_below(
+            run_dir, wrapper, "diagnostic Slurm wrapper attempt"
+        )
+        wrapper_context_path = strict_run_descendant(
+            run_dir,
+            wrapper / "context.tsv",
+            "diagnostic wrapper context",
+            require_exists=False,
+        )
+        wrapper_context, context_errors = _read_context_tsv(wrapper_context_path)
+        errors.extend(context_errors)
+    else:
+        wrapper_context = {}
+        errors.append("diagnostic Slurm wrapper attempt is missing")
+    workflow = request.get("workflow_sha256")
+    if not isinstance(workflow, Mapping):
+        errors.append("diagnostic request has no workflow hash inventory")
+        workflow = {}
+    expected_context = {
+        "stage": "diagnostic",
+        "attempt_id": primary_attempt_id,
+        "slurm_job_id": primary_job_id,
+        "run_dir": str(run_dir),
+        "config_sha256": config_sha,
+        "diagnostic_resource_sha256": resource_sha,
+        "diagnostic_lineage_sha256": lineage_sha,
+        "diagnostic_backend_sha256": str(workflow.get("polish_recovery.py", "")),
+    }
+    for key, expected in expected_context.items():
+        if wrapper_context.get(key) != expected:
+            errors.append(f"diagnostic wrapper context mismatch for {key}")
+    for context_key, workflow_key in (
+        ("submit_script_sha256", "submit.py"),
+        ("campaign_cli_sha256", "campaign.py"),
+        ("cluster_env_sha256", "cluster.env"),
+        ("stage_script_sha256", "diagnostic.sbatch"),
+    ):
+        if wrapper_context.get(context_key) != workflow.get(workflow_key):
+            errors.append(f"diagnostic wrapper workflow mismatch for {workflow_key}")
+    if lineage.get("backend_sha256") != workflow.get("polish_recovery.py"):
+        errors.append("diagnostic lineage/backend workflow mismatch")
+
+    claim = strict_run_descendant(
+        run_dir,
+        run_dir / "diagnostic/dispatch_claim",
+        "diagnostic dispatch claim",
+        require_exists=False,
+    )
+    if claim.is_dir():
+        reject_symlinks_below(run_dir, claim, "diagnostic dispatch claim")
+        claim_context_path = strict_run_descendant(
+            run_dir,
+            claim / "context.tsv",
+            "diagnostic dispatch claim context",
+            require_exists=False,
+        )
+        claim_context, claim_errors = _read_context_tsv(claim_context_path)
+        errors.extend(claim_errors)
+    else:
+        claim_context = {}
+        errors.append("diagnostic dispatch claim is missing")
+    claim_expected = {
+        "attempt_id": primary_attempt_id,
+        "slurm_job_id": primary_job_id,
+        "config_sha256": config_sha,
+        "lineage_sha256": lineage_sha,
+        "resource_sha256": resource_sha,
+    }
+    for key, expected in claim_expected.items():
+        if claim_context.get(key) != expected:
+            errors.append(f"diagnostic dispatch claim mismatch for {key}")
+
+    if wrapper.is_dir():
+        wrapper_exit_path = strict_run_descendant(
+            run_dir,
+            wrapper / "exit_code.txt",
+            "diagnostic wrapper exit code",
+            require_exists=False,
+        )
+        wrapper_exit, exit_errors = _read_exit_code(wrapper)
+        errors.extend(exit_errors)
+        if wrapper_exit_path.is_symlink():  # defensive; strict path already rejects this
+            raise CampaignError("diagnostic wrapper exit code is symlinked")
+    else:
+        wrapper_exit = None
+    execution_path = strict_run_descendant(
+        run_dir,
+        run_dir / "diagnostic/attempts" / primary_attempt_id / DIAGNOSTIC_EXECUTION,
+        "diagnostic execution",
+        require_exists=False,
+    )
+    execution_sha = sha256_path(execution_path) if execution_path.is_file() else None
+    if execution_sha is None:
+        errors.append("diagnostic execution is missing")
+
+    related = [
+        dict(row)
+        for row in accounting_records
+        if row.get("JobIDRaw") == primary_job_id
+        or str(row.get("JobIDRaw", "")).startswith(primary_job_id + ".")
+    ]
+    allocations = [row for row in related if row.get("JobIDRaw") == primary_job_id]
+    allocation = allocations[0] if len(allocations) == 1 else None
+    if len(allocations) != 1:
+        errors.append(
+            f"expected one diagnostic sacct allocation row for {primary_job_id}; found {len(allocations)}"
+        )
+    allocation_matches = False
+    if allocation is not None:
+        try:
+            allocated_cpus = int(allocation["AllocCPUS"])
+            ncpus = int(allocation["NCPUS"])
+            nodes = int(allocation["NNodes"])
+            elapsed = int(allocation["ElapsedRaw"])
+            time_limit = int(allocation["TimelimitRaw"])
+            requested_total_mb = _diagnostic_reqmem_total_mb(
+                allocation["ReqMem"], allocated_cpus=allocated_cpus, nodes=nodes
+            )
+            configured_total_mb = (
+                int(resources["mem_per_cpu_mb"])
+                * int(resources["ntasks"])
+                * int(resources["cpus_per_task"])
+            )
+            allocation_matches = (
+                allocation["Account"] == required(config, "scheduler.slurm_account")
+                and allocation["Partition"] == resources["partition"]
+                and nodes == resources["nodes"]
+                and allocated_cpus == resources["ntasks"] * resources["cpus_per_task"]
+                and ncpus == allocated_cpus
+                and time_limit == int(float(resources["walltime_hours"]) * 60)
+                and 0 <= elapsed <= time_limit * 60
+                and math.isclose(
+                    requested_total_mb,
+                    configured_total_mb,
+                    rel_tol=0,
+                    abs_tol=0.01,
+                )
+            )
+        except (KeyError, TypeError, ValueError, CampaignError):
+            allocation_matches = False
+        if not allocation_matches:
+            errors.append("diagnostic sacct allocation differs from configured resources")
+    scheduler_success = bool(
+        allocation is not None
+        and _normalized_slurm_state(allocation.get("State", "")) == "COMPLETED"
+        and allocation.get("ExitCode") == "0:0"
+    )
+    wrapper_success = wrapper_exit == 0
+    integrity = not errors
+    complete = integrity and scheduler_success and wrapper_success and execution_sha is not None
+    evidence = _hash_present_evidence(
+        wrapper,
+        ("context.tsv", "exit_code.txt", "finished_utc.txt", "stdout.log", "stderr.log"),
+    )
+    return {
+        "schema_version": 1,
+        "stage": "collect",
+        "collection_kind": "diagnostic_single_attempt",
+        "material": required(config, "material.formula"),
+        "collected_utc": utc_now(),
+        "collector_attempt": str(current_attempt),
+        "submission": {
+            "record_dir": str(submission_dir),
+            "request_sha256": sha256_path(request_path),
+            "primary_result_sha256": sha256_path(result_path),
+        },
+        "primary": {
+            "stage": "diagnostic",
+            "attempt_id": primary_attempt_id,
+            "job_id": primary_job_id,
+            "wrapper_attempt": str(wrapper),
+            "diagnostic_execution": str(execution_path),
+            "diagnostic_execution_sha256": execution_sha,
+            "scheduler_accounting": dict(accounting_metadata),
+        },
+        "entry": {
+            "context": wrapper_context,
+            "dispatch_claim": claim_context,
+            "wrapper_exit_code": wrapper_exit,
+            "scheduler_records": related,
+            "allocation": dict(allocation) if allocation is not None else None,
+            "evidence": evidence,
+            "errors": errors,
+        },
+        "collection_integrity_complete": integrity,
+        "scheduler_completed_successfully": scheduler_success,
+        "wrapper_completed_successfully": wrapper_success,
+        "diagnostic_execution_present": execution_sha is not None,
+        "diagnostic_execution_complete": complete,
+        "incomplete": not complete,
+        "scientific_gate_published": False,
+        "structure_accepted": False,
+        "preflight_unlocked": False,
+    }
 
 
 def _collect_force_batch(
@@ -2590,12 +3180,15 @@ def command_collect(
     task_map: Path | None = None,
     expected_force_manifest_sha256: str | None = None,
     expected_task_map_sha256: str | None = None,
+    expected_primary_request_sha256: str | None = None,
+    expected_primary_result_sha256: str | None = None,
+    expected_primary_stage_script_sha256: str | None = None,
 ) -> dict[str, Any]:
     """Collect one explicitly identified upstream attempt without rerunning it."""
 
     require_compute_node()
-    if primary_stage not in {"relax", "force"}:
-        raise CampaignError("collector primary stage must be relax or force")
+    if primary_stage not in {"diagnostic", "relax", "force"}:
+        raise CampaignError("collector primary stage must be diagnostic, relax, or force")
     if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}", primary_attempt_id) is None:
         raise CampaignError("invalid primary attempt ID")
     if not primary_job_id.isdigit():
@@ -2603,25 +3196,54 @@ def command_collect(
     config_path = config_path.resolve()
     config, _ = validate_config(config_path)
     run_dir = safe_run_dir(run_dir)
-    verify_upstream_manifest(
-        config,
-        config_path,
-        run_dir,
-        stage="preflight" if primary_stage == "force" else "structure",
-    )
+    if primary_stage == "diagnostic":
+        from polish_recovery import _load_lineage
+
+        if os.path.lexists(run_dir / RUN_MANIFEST):
+            raise CampaignError(
+                "diagnostic collection must precede polish manifest release"
+            )
+        _load_lineage(config, run_dir)
+    else:
+        verify_upstream_manifest(
+            config,
+            config_path,
+            run_dir,
+            stage="preflight" if primary_stage == "force" else "structure",
+        )
     current_attempt = attempt_dir(run_dir)
-    accounting_path = _strict_evidence_path(
-        scheduler_accounting, run_dir, "scheduler accounting"
+    reject_symlinks_below(run_dir, current_attempt, "collector Slurm attempt")
+    accounting_path = strict_run_descendant(
+        run_dir,
+        scheduler_accounting,
+        "scheduler accounting",
+        require_exists=False,
     )
-    accounting_status_path = _strict_evidence_path(
-        scheduler_accounting_status, run_dir, "scheduler accounting status"
+    accounting_status_path = strict_run_descendant(
+        run_dir,
+        scheduler_accounting_status,
+        "scheduler accounting status",
+        require_exists=False,
     )
     if accounting_path.parent != current_attempt or accounting_status_path.parent != current_attempt:
         raise CampaignError("scheduler accounting must be created inside this collector attempt")
     accounting_records, accounting_errors, accounting_metadata = _read_sacct_records(
-        accounting_path, accounting_status_path
+        accounting_path,
+        accounting_status_path,
+        DIAGNOSTIC_SACCT_FIELDS if primary_stage == "diagnostic" else SACCT_FIELDS,
     )
     if primary_stage == "force":
+        if any(
+            value is not None
+            for value in (
+                expected_primary_request_sha256,
+                expected_primary_result_sha256,
+                expected_primary_stage_script_sha256,
+            )
+        ):
+            raise CampaignError(
+                "force collection must not receive diagnostic submission hashes"
+            )
         if (
             force_manifest is None
             or task_map is None
@@ -2646,6 +3268,41 @@ def command_collect(
             accounting_errors=accounting_errors,
             accounting_metadata=accounting_metadata,
         )
+    elif primary_stage == "diagnostic":
+        if (
+            expected_primary_request_sha256 is None
+            or expected_primary_result_sha256 is None
+            or expected_primary_stage_script_sha256 is None
+        ):
+            raise CampaignError(
+                "diagnostic collection requires primary request/result/stage hashes"
+            )
+        if any(
+            value is not None
+            for value in (
+                force_manifest,
+                task_map,
+                expected_force_manifest_sha256,
+                expected_task_map_sha256,
+            )
+        ):
+            raise CampaignError(
+                "diagnostic collection must not receive force-bundle paths"
+            )
+        report = _collect_diagnostic_attempt(
+            config=config,
+            config_path=config_path,
+            run_dir=run_dir,
+            current_attempt=current_attempt,
+            primary_attempt_id=primary_attempt_id,
+            primary_job_id=primary_job_id,
+            expected_primary_request_sha256=expected_primary_request_sha256,
+            expected_primary_result_sha256=expected_primary_result_sha256,
+            expected_primary_stage_script_sha256=expected_primary_stage_script_sha256,
+            accounting_records=accounting_records,
+            accounting_errors=accounting_errors,
+            accounting_metadata=accounting_metadata,
+        )
     else:
         if (
             force_manifest is not None
@@ -2654,6 +3311,17 @@ def command_collect(
             or expected_task_map_sha256 is not None
         ):
             raise CampaignError("relax collection must not receive force-bundle paths")
+        if any(
+            value is not None
+            for value in (
+                expected_primary_request_sha256,
+                expected_primary_result_sha256,
+                expected_primary_stage_script_sha256,
+            )
+        ):
+            raise CampaignError(
+                "relax collection must not receive diagnostic submission hashes"
+            )
         report = _collect_single_attempt(
             config=config,
             run_dir=run_dir,
@@ -2666,6 +3334,8 @@ def command_collect(
             accounting_metadata=accounting_metadata,
         )
     write_json_immutable(current_attempt / "collection.json", report)
+    if primary_stage == "diagnostic":
+        write_json_immutable(current_attempt / "collection_receipt.json", report)
     return report
 
 
@@ -3412,9 +4082,12 @@ def build_parser() -> argparse.ArgumentParser:
         subparser = subparsers.add_parser(name)
         subparser.add_argument("--config", type=Path, required=True)
         subparser.add_argument("--run-dir", type=Path, required=name != "validate-config")
+        if name == "preflight":
+            subparser.add_argument("--candidate-id", action="append", dest="candidate_ids")
+            subparser.add_argument("--expect-candidate-subset-sha")
         if name == "collect":
             subparser.add_argument(
-                "--primary-stage", choices=("relax", "force"), required=True
+                "--primary-stage", choices=("diagnostic", "relax", "force"), required=True
             )
             subparser.add_argument("--primary-attempt-id", required=True)
             subparser.add_argument("--primary-job-id", required=True)
@@ -3428,6 +4101,9 @@ def build_parser() -> argparse.ArgumentParser:
             subparser.add_argument("--task-map", type=Path)
             subparser.add_argument("--expect-force-manifest-sha")
             subparser.add_argument("--expect-task-map-sha")
+            subparser.add_argument("--expect-primary-request-sha")
+            subparser.add_argument("--expect-primary-result-sha")
+            subparser.add_argument("--expect-primary-stage-script-sha")
     pilot_dataset = subparsers.add_parser("prepare-pilot-dataset")
     pilot_dataset.add_argument("--config", type=Path, required=True)
     pilot_dataset.add_argument("--run-dir", type=Path, required=True)
@@ -3514,7 +4190,12 @@ def main(argv: Iterable[str] | None = None) -> int:
         if args.command == "prepare-relax":
             result = command_prepare_relax(args.config, run_dir)
         elif args.command == "preflight":
-            result = command_preflight(args.config, run_dir)
+            result = command_preflight(
+                args.config,
+                run_dir,
+                candidate_ids=args.candidate_ids,
+                expected_candidate_subset_sha256=args.expect_candidate_subset_sha,
+            )
         elif args.command == "status":
             result = command_status(args.config, run_dir)
         elif args.command == "collect":
@@ -3530,6 +4211,9 @@ def main(argv: Iterable[str] | None = None) -> int:
                 task_map=args.task_map,
                 expected_force_manifest_sha256=args.expect_force_manifest_sha,
                 expected_task_map_sha256=args.expect_task_map_sha,
+                expected_primary_request_sha256=args.expect_primary_request_sha,
+                expected_primary_result_sha256=args.expect_primary_result_sha,
+                expected_primary_stage_script_sha256=args.expect_primary_stage_script_sha,
             )
         elif args.command == "run-relax":
             result = command_run_relax(args.config, run_dir)

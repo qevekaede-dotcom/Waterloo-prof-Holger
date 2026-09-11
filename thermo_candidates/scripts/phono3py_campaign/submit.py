@@ -18,6 +18,7 @@ import os
 import re
 import secrets
 import socket
+import stat
 import subprocess
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -29,6 +30,7 @@ from campaign import (
     CampaignError,
     canonical_sha256,
     load_json,
+    select_preflight_candidates,
     required,
     safe_run_dir,
     sha256_path,
@@ -40,12 +42,13 @@ from campaign import (
 
 SLURM_DIR = (Path(__file__).resolve().parent / "slurm").resolve()
 STAGE_SCRIPTS = {
+    "diagnostic": "diagnostic.sbatch",
     "relax": "relax.sbatch",
     "preflight": "preflight.sbatch",
     "force": "force_array.sbatch",
     "postprocess": "postprocess.sbatch",
 }
-COLLECTED_STAGES = frozenset({"relax", "force"})
+COLLECTED_STAGES = frozenset({"diagnostic", "relax", "force"})
 SHA256_RE = re.compile(r"[0-9a-f]{64}")
 ATTEMPT_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}")
 TERMINAL_STATES = frozenset(
@@ -110,6 +113,9 @@ class StagePlan:
     budget_receipt_sha256: str | None = None
     force_mode: str | None = None
     scheduler_options: tuple[str, ...] = ()
+    candidate_ids: tuple[str, ...] | None = None
+    candidate_subset_sha256: str | None = None
+    diagnostic_resource_sha256: str | None = None
 
 
 def utc_now() -> str:
@@ -127,7 +133,10 @@ def new_attempt_id(stage: str) -> str:
 def write_json_exclusive(path: Path, value: object) -> None:
     """Create one immutable JSON record without replacing prior evidence."""
 
-    path.parent.mkdir(parents=True, exist_ok=True)
+    if not path.parent.is_dir() or path.parent.is_symlink():
+        raise SubmissionError(
+            f"immutable submission record parent is missing or unsafe: {path.parent}"
+        )
     payload = json.dumps(value, indent=2, sort_keys=True) + "\n"
     try:
         with path.open("x") as handle:
@@ -138,13 +147,120 @@ def write_json_exclusive(path: Path, value: object) -> None:
         raise SubmissionError(f"refusing to overwrite submission record: {path}") from exc
 
 
+def _strict_run_descendant(
+    run_dir: Path,
+    path: Path,
+    label: str,
+    *,
+    require_exists: bool = False,
+) -> Path:
+    """Reject symlinks component-by-component and prove strict containment."""
+
+    lexical_root = Path(os.path.abspath(run_dir))
+    root = run_dir.resolve(strict=True)
+    candidate_input = Path(os.path.abspath(path))
+    if candidate_input.is_relative_to(lexical_root):
+        relative = candidate_input.relative_to(lexical_root)
+    elif candidate_input.is_relative_to(root):
+        relative = candidate_input.relative_to(root)
+    else:
+        alias_root = None
+        for ancestor in (candidate_input, *candidate_input.parents):
+            try:
+                if stat.S_ISLNK(os.lstat(ancestor).st_mode):
+                    raise SubmissionError(
+                        f"{label} path contains a symlink: {ancestor}"
+                    )
+                if os.path.samefile(ancestor, root):
+                    alias_root = ancestor
+                    break
+            except (FileNotFoundError, NotADirectoryError, OSError):
+                continue
+        if alias_root is None:
+            raise SubmissionError(f"{label} must be a strict RUN_DIR descendant")
+        relative = candidate_input.relative_to(alias_root)
+    if not relative.parts:
+        raise SubmissionError(f"{label} must be a strict RUN_DIR descendant")
+    candidate = root / relative
+    current = root
+    missing = False
+    for part in candidate.relative_to(root).parts:
+        current = current / part
+        if missing:
+            continue
+        try:
+            mode = os.lstat(current).st_mode
+        except FileNotFoundError:
+            missing = True
+            continue
+        if stat.S_ISLNK(mode):
+            raise SubmissionError(f"{label} path contains a symlink: {current}")
+    if require_exists and missing:
+        raise SubmissionError(f"{label} does not exist: {candidate}")
+    resolved = candidate.resolve(strict=require_exists)
+    if resolved == root or not resolved.is_relative_to(root):
+        raise SubmissionError(f"{label} resolves outside RUN_DIR")
+    return candidate
+
+
+def _ensure_run_directory(run_dir: Path, relative: Path, label: str) -> Path:
+    """Create a RUN_DIR-relative directory chain without following symlinks."""
+
+    if relative.is_absolute() or not relative.parts or ".." in relative.parts:
+        raise SubmissionError(f"{label} has an unsafe relative path")
+    root = run_dir.resolve(strict=True)
+    current = root
+    for part in relative.parts:
+        current = _strict_run_descendant(root, current / part, label)
+        try:
+            mode = os.lstat(current).st_mode
+        except FileNotFoundError:
+            try:
+                os.mkdir(current, 0o750)
+            except FileExistsError:
+                pass
+            mode = os.lstat(current).st_mode
+        if stat.S_ISLNK(mode) or not stat.S_ISDIR(mode):
+            raise SubmissionError(f"{label} is not a non-symlink directory: {current}")
+        if current.resolve(strict=True) != current:
+            raise SubmissionError(f"{label} directory containment changed: {current}")
+    return current
+
+
+def _reject_symlinks_below(run_dir: Path, root: Path, label: str) -> None:
+    root = _strict_run_descendant(run_dir, root, label, require_exists=True)
+    if not root.is_dir():
+        raise SubmissionError(f"{label} is not a directory: {root}")
+    for parent, directories, files in os.walk(root, followlinks=False):
+        for name in (*directories, *files):
+            _strict_run_descendant(
+                run_dir,
+                Path(parent) / name,
+                label,
+                require_exists=True,
+            )
+
+
 @contextmanager
 def submission_lock(run_dir: Path, stage: str) -> Iterable[None]:
     """Serialize duplicate checking and submission for one run/stage."""
 
-    lock_path = run_dir / "submissions" / stage / ".submission.lock"
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
-    with lock_path.open("a+") as handle:
+    stage_root = _ensure_run_directory(
+        run_dir, Path("submissions") / stage, f"{stage} submission root"
+    )
+    lock_path = _strict_run_descendant(
+        run_dir, stage_root / ".submission.lock", f"{stage} submission lock"
+    )
+    flags = os.O_CREAT | os.O_RDWR
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    try:
+        descriptor = os.open(lock_path, flags, 0o600)
+    except OSError as exc:
+        raise SubmissionError(f"cannot safely open submission lock: {lock_path}") from exc
+    with os.fdopen(descriptor, "a+") as handle:
+        if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+            raise SubmissionError(f"submission lock is not a regular file: {lock_path}")
         try:
             fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as exc:
@@ -165,10 +281,20 @@ def resolve_context(config_path: Path, run_dir: Path, stage: str) -> SubmissionC
     if not run_dir.is_dir():
         raise SubmissionError(f"prepared run directory does not exist: {run_dir}")
     config, validation = validate_config(config_path)
-    policy_stage = "structure" if stage == "relax" else "preflight"
-    if stage == "relax":
+    if stage == "diagnostic":
+        from polish_recovery import verify_diagnostic_submission_ready
+
+        try:
+            manifest = verify_diagnostic_submission_ready(config_path, run_dir)
+        except (CampaignError, OSError, ValueError, KeyError) as exc:
+            raise SubmissionError(
+                f"reviewed diagnostic lineage is not submission-ready: {exc}"
+            ) from exc
+    elif stage == "relax":
+        policy_stage = "structure"
         manifest = verify_manifest(config, config_path, run_dir, stage=policy_stage)
     else:
+        policy_stage = "preflight"
         # Preflight consumes an already accepted structure.  Preserve the
         # upstream workflow hashes as provenance, but allow reviewed downstream
         # code fixes; each new submission/attempt records its current code hash.
@@ -236,22 +362,52 @@ def require_single_polish_release(context: SubmissionContext) -> None:
     relative_gate = pointer.get("diagnostic_gate")
     if not isinstance(relative_gate, str) or not relative_gate:
         raise SubmissionError("single-polish release lacks its diagnostic gate")
-    gate_path = (context.run_dir / relative_gate).resolve()
-    try:
-        gate_path.relative_to(context.run_dir)
-    except ValueError as exc:
-        raise SubmissionError("single-polish diagnostic gate escapes RUN_DIR") from exc
+    gate_path = _strict_run_descendant(
+        context.run_dir,
+        context.run_dir / relative_gate,
+        "single-polish diagnostic gate",
+        require_exists=True,
+    )
+    if not stat.S_ISREG(os.lstat(gate_path).st_mode):
+        raise SubmissionError("single-polish diagnostic gate is not a regular file")
     if sha256_path(gate_path) != pointer.get("diagnostic_gate_sha256"):
         raise SubmissionError("single-polish diagnostic gate hash mismatch")
     gate = require_passing_gate(gate_path, "force-consistency diagnostic gate")
     if gate.get("structure_accepted") is not False or gate.get("preflight_unlocked") is not False:
         raise SubmissionError("diagnostic gate must not accept a structure or unlock preflight")
     prior_attempts = context.run_dir / "slurm_attempts" / "relax"
-    if prior_attempts.is_dir() and any(path.is_dir() for path in prior_attempts.iterdir()):
-        raise SubmissionError("the single reviewed polish attempt has already been consumed")
+    if os.path.lexists(prior_attempts):
+        prior_attempts = _strict_run_descendant(
+            context.run_dir,
+            prior_attempts,
+            "single-polish Slurm attempts",
+            require_exists=True,
+        )
+        _reject_symlinks_below(
+            context.run_dir, prior_attempts, "single-polish Slurm attempts"
+        )
+        if any(prior_attempts.iterdir()):
+            raise SubmissionError(
+                "the single reviewed polish attempt has already been consumed"
+            )
     prior_submissions = context.run_dir / "submissions" / "relax"
-    if prior_submissions.is_dir() and any(path.is_dir() for path in prior_submissions.iterdir()):
-        raise SubmissionError("the single reviewed polish submission has already been consumed")
+    if os.path.lexists(prior_submissions):
+        prior_submissions = _strict_run_descendant(
+            context.run_dir,
+            prior_submissions,
+            "single-polish submissions",
+            require_exists=True,
+        )
+        _reject_symlinks_below(
+            context.run_dir, prior_submissions, "single-polish submissions"
+        )
+        if any(
+            path.name != ".submission.lock"
+            for path in prior_submissions.iterdir()
+        ):
+            raise SubmissionError(
+                "the single reviewed polish submission has already been consumed"
+            )
 
 
 def require_production_selection(config: Mapping[str, Any]) -> None:
@@ -556,6 +712,51 @@ def format_slurm_time(hours: Any) -> str:
     return f"{hours_part:02d}:{minutes:02d}:{seconds_part:02d}"
 
 
+def diagnostic_scheduler_options(config: Mapping[str, Any]) -> tuple[str, ...]:
+    """Render only the explicit, validated diagnostic allocation policy."""
+
+    resources = required(config, "scheduler.diagnostic_resources")
+    if not isinstance(resources, Mapping):
+        raise SubmissionError("scheduler.diagnostic_resources must be an object")
+    partition = resources.get("partition")
+    if (
+        not isinstance(partition, str)
+        or re.fullmatch(r"[A-Za-z0-9_.-]+", partition) is None
+    ):
+        raise SubmissionError("diagnostic partition is invalid")
+    integers: dict[str, int] = {}
+    for key in ("nodes", "ntasks", "cpus_per_task", "mem_per_cpu_mb"):
+        value = resources.get(key)
+        if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+            raise SubmissionError(f"diagnostic {key} must be a positive integer")
+        integers[key] = value
+    walltime = format_slurm_time(resources.get("walltime_hours"))
+    maximum_core_hours = resources.get("maximum_core_hours")
+    expected_core_hours = (
+        integers["ntasks"]
+        * integers["cpus_per_task"]
+        * float(resources["walltime_hours"])
+    )
+    if (
+        isinstance(maximum_core_hours, bool)
+        or not isinstance(maximum_core_hours, (int, float))
+        or not math.isclose(
+            float(maximum_core_hours), expected_core_hours, rel_tol=0, abs_tol=1e-12
+        )
+    ):
+        raise SubmissionError(
+            "diagnostic maximum_core_hours does not match the requested allocation"
+        )
+    return (
+        f"--partition={partition}",
+        f"--nodes={integers['nodes']}",
+        f"--ntasks={integers['ntasks']}",
+        f"--cpus-per-task={integers['cpus_per_task']}",
+        f"--mem-per-cpu={integers['mem_per_cpu_mb']}M",
+        f"--time={walltime}",
+    )
+
+
 def validate_force_bundle(
     context: SubmissionContext, task_map: Path
 ) -> tuple[Path, int, str, Path, dict[str, Any], Path, dict[str, Any]]:
@@ -785,6 +986,7 @@ def stage_plan(
     attempt_id: str,
     task_map: Path | None = None,
     max_in_flight: int | None = None,
+    candidate_ids: Sequence[str] | None = None,
 ) -> StagePlan:
     if stage not in STAGE_SCRIPTS:
         raise SubmissionError(f"unsupported stage: {stage}")
@@ -805,6 +1007,13 @@ def stage_plan(
         "RUN_DIR": safe_export_value("RUN_DIR", context.run_dir),
         "ATTEMPT_ID": safe_export_value("ATTEMPT_ID", attempt_id),
         "P3_SLURM_DIR": safe_export_value("P3_SLURM_DIR", SLURM_DIR),
+        "P3_EXPECTED_CONFIG_SHA256": context.config_sha256,
+        "P3_SUBMIT_SCRIPT_SHA256": sha256_path(Path(__file__).resolve()),
+        "P3_STAGE_SCRIPT_SHA256": sha256_path(script),
+        "P3_CLUSTER_ENV_SHA256": sha256_path(cluster_env),
+        "P3_CAMPAIGN_CLI_SHA256": sha256_path(
+            Path(__file__).resolve().with_name("campaign.py")
+        ),
     }
     array: str | None = None
     task_count: int | None = None
@@ -816,8 +1025,38 @@ def stage_plan(
     budget_receipt_sha: str | None = None
     force_mode: str | None = None
     scheduler_options: tuple[str, ...] = ()
+    selected_candidate_ids: tuple[str, ...] | None = None
+    candidate_subset_sha256: str | None = None
+    diagnostic_resource_sha256: str | None = None
 
-    if stage == "relax":
+    if candidate_ids is not None and stage != "preflight":
+        raise SubmissionError("--candidate-id is valid only for the preflight stage")
+
+    if stage == "diagnostic":
+        from polish_recovery import verify_diagnostic_submission_ready
+
+        try:
+            ready = verify_diagnostic_submission_ready(
+                context.config_path, context.run_dir
+            )
+        except (CampaignError, OSError, ValueError, KeyError) as exc:
+            raise SubmissionError(f"reviewed diagnostic is not ready: {exc}") from exc
+        if ready.get("config_sha256") != context.config_sha256:
+            raise SubmissionError("diagnostic lineage/config SHA256 mismatch")
+        scheduler_options = diagnostic_scheduler_options(context.config)
+        diagnostic_resource_sha256 = canonical_sha256(
+            required(context.config, "scheduler.diagnostic_resources")
+        )
+        exports["P3_DIAGNOSTIC_RESOURCE_SHA256"] = safe_export_value(
+            "P3_DIAGNOSTIC_RESOURCE_SHA256", diagnostic_resource_sha256
+        )
+        exports["P3_DIAGNOSTIC_LINEAGE_SHA256"] = safe_export_value(
+            "P3_DIAGNOSTIC_LINEAGE_SHA256", ready["lineage_sha256"]
+        )
+        exports["P3_DIAGNOSTIC_BACKEND_SHA256"] = sha256_path(
+            Path(__file__).resolve().with_name("polish_recovery.py")
+        )
+    elif stage == "relax":
         if context.manifest.get("accepted_structure_import") is not None:
             raise SubmissionError(
                 "an imported accepted-structure RUN_DIR cannot submit a relax stage"
@@ -826,6 +1065,21 @@ def stage_plan(
     elif stage == "preflight":
         require_imported_acceptance(context)
         require_relax_gate(context)
+        if candidate_ids is not None:
+            try:
+                _, selection = select_preflight_candidates(
+                    context.config, candidate_ids
+                )
+            except CampaignError as exc:
+                raise SubmissionError(str(exc)) from exc
+            selected_candidate_ids = tuple(selection["candidate_ids"])
+            candidate_subset_sha256 = selection["candidate_subset_sha256"]
+            exports["P3_PREFLIGHT_CANDIDATE_IDS"] = safe_export_value(
+                "P3_PREFLIGHT_CANDIDATE_IDS", ":".join(selected_candidate_ids)
+            )
+            exports["P3_PREFLIGHT_CANDIDATE_SHA256"] = safe_export_value(
+                "P3_PREFLIGHT_CANDIDATE_SHA256", candidate_subset_sha256
+            )
     elif stage == "force":
         require_imported_acceptance(context)
         require_relax_gate(context)
@@ -883,6 +1137,9 @@ def stage_plan(
         budget_receipt_sha256=budget_receipt_sha,
         force_mode=force_mode,
         scheduler_options=scheduler_options,
+        candidate_ids=selected_candidate_ids,
+        candidate_subset_sha256=candidate_subset_sha256,
+        diagnostic_resource_sha256=diagnostic_resource_sha256,
     )
 
 
@@ -892,22 +1149,43 @@ def export_argument(exports: Mapping[str, str]) -> str:
         "RUN_DIR",
         "ATTEMPT_ID",
         "P3_SLURM_DIR",
+        "P3_EXPECTED_CONFIG_SHA256",
+        "P3_SUBMIT_SCRIPT_SHA256",
+        "P3_STAGE_SCRIPT_SHA256",
+        "P3_CLUSTER_ENV_SHA256",
+        "P3_CAMPAIGN_CLI_SHA256",
+        "P3_PREFLIGHT_CANDIDATE_IDS",
+        "P3_PREFLIGHT_CANDIDATE_SHA256",
+        "P3_DIAGNOSTIC_RESOURCE_SHA256",
+        "P3_DIAGNOSTIC_LINEAGE_SHA256",
+        "P3_DIAGNOSTIC_BACKEND_SHA256",
         "PRIMARY_STAGE",
         "PRIMARY_ATTEMPT_ID",
         "PRIMARY_JOB_ID",
         "PRIMARY_TASK_MAP_SHA256",
         "PRIMARY_FORCE_MANIFEST_SHA256",
+        "PRIMARY_REQUEST_SHA256",
+        "PRIMARY_RESULT_SHA256",
+        "PRIMARY_STAGE_SCRIPT_SHA256",
         "TASK_MAP",
         "FORCE_MANIFEST",
         "FORCE_BUDGET_RECEIPT",
     )
-    missing = [name for name in ordered[:4] if name not in exports]
+    mandatory = ordered[:9]
+    missing = [name for name in mandatory if name not in exports]
     if missing:
         raise SubmissionError("missing mandatory Slurm exports: " + ", ".join(missing))
     pairs = [f"{name}={exports[name]}" for name in ordered if name in exports]
     extras = sorted(name for name in exports if name not in ordered)
-    pairs.extend(f"{name}={exports[name]}" for name in extras)
-    return "--export=ALL," + ",".join(pairs)
+    if extras:
+        raise SubmissionError(
+            "unsupported Slurm exports outside the explicit allow-list: "
+            + ", ".join(extras)
+        )
+    # Omitting ALL is deliberate: only these reviewed values (plus Slurm's own
+    # SLURM_* variables) enter the job.  In particular BASH_ENV, runner knobs,
+    # and stale candidate selectors from the login shell are never inherited.
+    return "--export=" + ",".join(pairs)
 
 
 def sbatch_command(plan: StagePlan, *, dependency: str | None = None) -> list[str]:
@@ -1007,9 +1285,27 @@ def scheduler_job_is_active(job_id: str) -> bool:
 
 def ensure_no_active_duplicate(run_dir: Path, stage: str) -> None:
     stage_root = run_dir / "submissions" / stage
-    if not stage_root.is_dir():
+    if not os.path.lexists(stage_root):
         return
-    for record_dir in sorted(path for path in stage_root.iterdir() if path.is_dir()):
+    stage_root = _strict_run_descendant(
+        run_dir, stage_root, f"{stage} submission root", require_exists=True
+    )
+    if not stage_root.is_dir():
+        raise SubmissionError(f"submission stage root is not a directory: {stage_root}")
+    record_dirs: list[Path] = []
+    for entry in sorted(stage_root.iterdir()):
+        if entry.name == ".submission.lock":
+            if entry.is_symlink() or not entry.is_file():
+                raise SubmissionError(f"submission lock is unsafe: {entry}")
+            continue
+        _strict_run_descendant(
+            run_dir, entry, f"{stage} submission record", require_exists=True
+        )
+        if entry.is_symlink() or not entry.is_dir():
+            raise SubmissionError(f"malformed submission record requires review: {entry}")
+        _reject_symlinks_below(run_dir, entry, f"{stage} submission record")
+        record_dirs.append(entry)
+    for record_dir in record_dirs:
         request = record_dir / "request.json"
         rejected = record_dir / "primary_rejected.json"
         uncertain = record_dir / "primary_uncertain.json"
@@ -1101,6 +1397,7 @@ def plan_report(
     *,
     task_map: Path | None,
     max_in_flight: int | None,
+    candidate_ids: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     preview = stage_plan(
         context,
@@ -1108,6 +1405,7 @@ def plan_report(
         attempt_id="GENERATED-ON-EXECUTE",
         task_map=task_map,
         max_in_flight=max_in_flight,
+        candidate_ids=candidate_ids,
     )
     preview_command = sbatch_command(preview)
     return {
@@ -1128,11 +1426,16 @@ def plan_report(
         "budget_receipt": str(preview.budget_receipt) if preview.budget_receipt else None,
         "budget_receipt_sha256": preview.budget_receipt_sha256,
         "scheduler_options": list(preview.scheduler_options),
+        "candidate_ids": list(preview.candidate_ids) if preview.candidate_ids else None,
+        "candidate_subset_sha256": preview.candidate_subset_sha256,
+        "diagnostic_resource_sha256": preview.diagnostic_resource_sha256,
         "primary_command_template": preview_command,
         "collector": stage in COLLECTED_STAGES,
         "execute_requirement": (
             "Run execute with --expect-config-sha exactly equal to config_sha256; "
-            "a new ATTEMPT_ID is generated for every sbatch call."
+            "an explicit preflight subset also requires --expect-candidate-subset-sha "
+            "exactly equal to candidate_subset_sha256; a new ATTEMPT_ID is generated "
+            "for every sbatch call."
         ),
     }
 
@@ -1140,6 +1443,17 @@ def plan_report(
 def _request_record(
     context: SubmissionContext, plan: StagePlan, command: Sequence[str]
 ) -> dict[str, Any]:
+    manifest_path = context.run_dir / "run_manifest.json"
+    workflow_sha256 = {
+        "submit.py": plan.exports["P3_SUBMIT_SCRIPT_SHA256"],
+        "campaign.py": plan.exports["P3_CAMPAIGN_CLI_SHA256"],
+        "cluster.env": plan.exports["P3_CLUSTER_ENV_SHA256"],
+        plan.script.name: plan.exports["P3_STAGE_SCRIPT_SHA256"],
+    }
+    if plan.stage == "diagnostic":
+        workflow_sha256["polish_recovery.py"] = plan.exports[
+            "P3_DIAGNOSTIC_BACKEND_SHA256"
+        ]
     return {
         "created_utc": utc_now(),
         "stage": plan.stage,
@@ -1148,10 +1462,18 @@ def _request_record(
         "config": str(context.config_path),
         "config_sha256": context.config_sha256,
         "run_dir": str(context.run_dir),
-        "run_manifest_sha256": sha256_path(context.run_dir / "run_manifest.json"),
+        "run_manifest_sha256": (
+            sha256_path(manifest_path) if manifest_path.is_file() else None
+        ),
+        "polish_lineage_sha256": (
+            context.manifest.get("lineage_sha256")
+            if plan.stage == "diagnostic"
+            else None
+        ),
         "submit_script_sha256": sha256_path(Path(__file__).resolve()),
         "stage_script_sha256": sha256_path(plan.script),
         "cluster_env_sha256": sha256_path(SLURM_DIR / "cluster.env"),
+        "workflow_sha256": workflow_sha256,
         "task_map": str(plan.task_map) if plan.task_map else None,
         "task_map_sha256": plan.task_map_sha256,
         "task_count": plan.task_count,
@@ -1162,6 +1484,12 @@ def _request_record(
         "budget_receipt": str(plan.budget_receipt) if plan.budget_receipt else None,
         "budget_receipt_sha256": plan.budget_receipt_sha256,
         "scheduler_options": list(plan.scheduler_options),
+        "candidate_ids": list(plan.candidate_ids) if plan.candidate_ids else None,
+        "candidate_subset_sha256": plan.candidate_subset_sha256,
+        "diagnostic_resource_sha256": plan.diagnostic_resource_sha256,
+        "diagnostic_lineage_sha256": plan.exports.get(
+            "P3_DIAGNOSTIC_LINEAGE_SHA256"
+        ),
         "command": list(command),
     }
 
@@ -1173,6 +1501,8 @@ def execute_submission(
     expected_config_sha: str,
     task_map: Path | None,
     max_in_flight: int | None,
+    candidate_ids: Sequence[str] | None = None,
+    expected_candidate_subset_sha: str | None = None,
 ) -> dict[str, Any]:
     require_nibi_login()
     expected = expected_config_sha
@@ -1185,12 +1515,44 @@ def execute_submission(
             "configuration SHA-256 changed or was not copied from the current plan; "
             "nothing submitted"
         )
+    if candidate_ids is None:
+        if expected_candidate_subset_sha is not None:
+            raise SubmissionError(
+                "--expect-candidate-subset-sha is forbidden without an explicit preflight subset"
+            )
+    else:
+        if stage != "preflight":
+            raise SubmissionError("--candidate-id is valid only for the preflight stage")
+        if (
+            not isinstance(expected_candidate_subset_sha, str)
+            or SHA256_RE.fullmatch(expected_candidate_subset_sha) is None
+        ):
+            raise SubmissionError(
+                "explicit preflight execute requires the exact 64-character "
+                "--expect-candidate-subset-sha printed by plan"
+            )
+        try:
+            _, reviewed_selection = select_preflight_candidates(
+                context.config, candidate_ids
+            )
+        except CampaignError as exc:
+            raise SubmissionError(str(exc)) from exc
+        if (
+            reviewed_selection["candidate_subset_sha256"]
+            != expected_candidate_subset_sha
+        ):
+            raise SubmissionError(
+                "preflight candidate subset SHA256 changed or was not copied "
+                "from the current plan; nothing submitted"
+            )
     with submission_lock(context.run_dir, stage):
         return _execute_locked(
             context,
             stage,
             task_map=task_map,
             max_in_flight=max_in_flight,
+            candidate_ids=candidate_ids,
+            expected_candidate_subset_sha=expected_candidate_subset_sha,
         )
 
 
@@ -1200,6 +1562,8 @@ def _execute_locked(
     *,
     task_map: Path | None,
     max_in_flight: int | None,
+    candidate_ids: Sequence[str] | None = None,
+    expected_candidate_subset_sha: str | None = None,
 ) -> dict[str, Any]:
     ensure_no_active_duplicate(context.run_dir, stage)
 
@@ -1210,11 +1574,25 @@ def _execute_locked(
         attempt_id=attempt_id,
         task_map=task_map,
         max_in_flight=max_in_flight,
+        candidate_ids=candidate_ids,
     )
+    if plan.candidate_subset_sha256 != expected_candidate_subset_sha:
+        raise SubmissionError(
+            "preflight candidate subset SHA256 changed or was not copied from the current plan; nothing submitted"
+        )
     command = sbatch_command(plan)
-    record_dir = context.run_dir / "submissions" / stage / attempt_id
-    if record_dir.exists():
+    record_dir = _strict_run_descendant(
+        context.run_dir,
+        context.run_dir / "submissions" / stage / attempt_id,
+        f"{stage} submission attempt",
+    )
+    if os.path.lexists(record_dir):
         raise SubmissionError(f"generated ATTEMPT_ID already exists: {record_dir}")
+    record_dir = _ensure_run_directory(
+        context.run_dir,
+        Path("submissions") / stage / attempt_id,
+        f"{stage} submission attempt",
+    )
     write_json_exclusive(record_dir / "request.json", _request_record(context, plan, command))
 
     try:
@@ -1255,7 +1633,13 @@ def _execute_locked(
         raise
     write_json_exclusive(
         record_dir / "primary_result.json",
-        {**primary_evidence, "job_id": primary_job_id},
+        {
+            **primary_evidence,
+            "stage": stage,
+            "attempt_id": attempt_id,
+            "job_id": primary_job_id,
+            "config_sha256": context.config_sha256,
+        },
     )
 
     collector: dict[str, Any] | None = None
@@ -1271,6 +1655,18 @@ def _execute_locked(
         )
         collector_exports["PRIMARY_JOB_ID"] = safe_export_value(
             "PRIMARY_JOB_ID", primary_job_id
+        )
+        collector_exports["PRIMARY_REQUEST_SHA256"] = sha256_path(
+            record_dir / "request.json"
+        )
+        collector_exports["PRIMARY_RESULT_SHA256"] = sha256_path(
+            record_dir / "primary_result.json"
+        )
+        collector_exports["PRIMARY_STAGE_SCRIPT_SHA256"] = plan.exports[
+            "P3_STAGE_SCRIPT_SHA256"
+        ]
+        collector_exports["P3_STAGE_SCRIPT_SHA256"] = sha256_path(
+            SLURM_DIR / "collect.sbatch"
         )
         if stage == "force":
             if plan.task_map_sha256 is None or plan.force_manifest_sha256 is None:
@@ -1300,10 +1696,37 @@ def _execute_locked(
             record_dir / "collector_request.json",
             {
                 "created_utc": utc_now(),
+                "stage": "collect",
                 "attempt_id": collector_attempt,
+                "slurm_account": plan.account,
+                "config_sha256": context.config_sha256,
                 "primary_stage": stage,
                 "primary_attempt_id": attempt_id,
                 "primary_job_id": primary_job_id,
+                "primary_request_sha256": collector_exports[
+                    "PRIMARY_REQUEST_SHA256"
+                ],
+                "primary_result_sha256": collector_exports[
+                    "PRIMARY_RESULT_SHA256"
+                ],
+                "primary_stage_script_sha256": collector_exports[
+                    "PRIMARY_STAGE_SCRIPT_SHA256"
+                ],
+                "collector_script_sha256": collector_exports[
+                    "P3_STAGE_SCRIPT_SHA256"
+                ],
+                "cluster_env_sha256": collector_exports[
+                    "P3_CLUSTER_ENV_SHA256"
+                ],
+                "campaign_cli_sha256": collector_exports[
+                    "P3_CAMPAIGN_CLI_SHA256"
+                ],
+                "diagnostic_lineage_sha256": collector_exports.get(
+                    "P3_DIAGNOSTIC_LINEAGE_SHA256"
+                ),
+                "diagnostic_resource_sha256": collector_exports.get(
+                    "P3_DIAGNOSTIC_RESOURCE_SHA256"
+                ),
                 "dependency": f"afterany:{primary_job_id}",
                 "command": collector_command,
             },
@@ -1326,7 +1749,16 @@ def _execute_locked(
             ) from exc
         write_json_exclusive(
             record_dir / "collector_result.json",
-            {**collector_evidence, "job_id": collector_job_id},
+            {
+                **collector_evidence,
+                "stage": "collect",
+                "attempt_id": collector_attempt,
+                "job_id": collector_job_id,
+                "primary_stage": stage,
+                "primary_attempt_id": attempt_id,
+                "primary_job_id": primary_job_id,
+                "config_sha256": context.config_sha256,
+            },
         )
         collector = {
             "attempt_id": collector_attempt,
@@ -1336,6 +1768,8 @@ def _execute_locked(
             "primary_job_id": primary_job_id,
             "dependency": f"afterany:{primary_job_id}",
             "command": collector_command,
+            "request_sha256": sha256_path(record_dir / "collector_request.json"),
+            "result_sha256": sha256_path(record_dir / "collector_result.json"),
         }
 
     summary = {
@@ -1348,6 +1782,13 @@ def _execute_locked(
         "primary_command": command,
         "collector": collector,
         "config_sha256": context.config_sha256,
+        "slurm_account": plan.account,
+        "polish_lineage_sha256": plan.exports.get(
+            "P3_DIAGNOSTIC_LINEAGE_SHA256"
+        ),
+        "workflow_sha256": load_json(record_dir / "request.json")[
+            "workflow_sha256"
+        ],
         "run_dir": str(context.run_dir),
         "task_map_sha256": plan.task_map_sha256,
         "task_count": plan.task_count,
@@ -1356,6 +1797,9 @@ def _execute_locked(
         "force_manifest_sha256": plan.force_manifest_sha256,
         "budget_receipt_sha256": plan.budget_receipt_sha256,
         "scheduler_options": list(plan.scheduler_options),
+        "candidate_ids": list(plan.candidate_ids) if plan.candidate_ids else None,
+        "candidate_subset_sha256": plan.candidate_subset_sha256,
+        "diagnostic_resource_sha256": plan.diagnostic_resource_sha256,
         "record_dir": str(record_dir),
     }
     write_json_exclusive(record_dir / "submission.json", summary)
@@ -1372,6 +1816,12 @@ def build_parser() -> argparse.ArgumentParser:
         subparser.add_argument("--run-dir", type=Path, required=True)
         subparser.add_argument("--task-map", type=Path)
         subparser.add_argument(
+            "--candidate-id",
+            action="append",
+            dest="candidate_ids",
+            help="preflight only: repeat for each explicitly reviewed candidate",
+        )
+        subparser.add_argument(
             "--max-in-flight",
             type=int,
             help=(
@@ -1381,6 +1831,7 @@ def build_parser() -> argparse.ArgumentParser:
         )
         if mode == "execute":
             subparser.add_argument("--expect-config-sha", required=True)
+            subparser.add_argument("--expect-candidate-subset-sha")
     return parser
 
 
@@ -1398,6 +1849,7 @@ def main(argv: Iterable[str] | None = None) -> int:
                 args.stage,
                 task_map=args.task_map,
                 max_in_flight=args.max_in_flight,
+                candidate_ids=args.candidate_ids,
             )
         else:
             result = execute_submission(
@@ -1406,6 +1858,8 @@ def main(argv: Iterable[str] | None = None) -> int:
                 expected_config_sha=args.expect_config_sha,
                 task_map=args.task_map,
                 max_in_flight=args.max_in_flight,
+                candidate_ids=args.candidate_ids,
+                expected_candidate_subset_sha=args.expect_candidate_subset_sha,
             )
         print_json(result)
         return 0

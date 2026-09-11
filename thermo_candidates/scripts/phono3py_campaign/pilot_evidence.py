@@ -94,7 +94,10 @@ def _target(config, config_path, run_dir, reference, selected, hashes):
     for name, digest in provenance.items():
         _match(_path(name, run_dir, "target provenance"), digest, hashes)
     inventory, result = core.load_json(inventory_path), core.load_json(folder / "preflight_result.json")
-    _require(inventory.get("preflight_complete") is True and result.get("selection_eligible") is True
+    _require(
+        inventory.get("preflight_complete") is True
+        and inventory.get("full_config_preflight_complete", True) is True
+        and result.get("selection_eligible") is True
              and result.get("pilot_only") is not True and result.get("count_only") is not True,
              "target must be an eligible complete full preflight, not a signed/count-only subset")
     settings = fb._settings(config, "pilot", {**selected, "rationale": "audit explicit target settings"})
