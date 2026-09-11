@@ -1126,3 +1126,13 @@ cutoff/supercell/resource choice is automatically authorized.
 PF/tau, electronic-only zT, or full-zT conclusion was made. Historical job IDs
 and low forces were not promoted to current or successful evidence, and frozen
 attachments remained untouched.
+
+### Session 15 reconciliation note
+
+Several hourly automation instances overlapped and appended separate Session 15
+descriptions of the same 04:16--04:18 UTC authentication attempt. Treat those
+entries as one monitoring event, not as independent scheduler checks: all reached
+the same expired-ControlMaster/Duo blocker, obtained no live Slurm or remote-file
+evidence, ran only local validation, and submitted no job. This note preserves
+the append-only history while preventing the duplicate prose from being counted
+as repeated scientific evidence.
