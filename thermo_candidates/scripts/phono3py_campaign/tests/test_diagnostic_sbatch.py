@@ -69,6 +69,7 @@ class SlurmStageContractTests(unittest.TestCase):
         self.assertIn('export QE_EXECUTABLE="pw.x"', text)
         self.assertIn('export QE_MPI_LAUNCHER="srun"', text)
         self.assertIn('export QE_NK="1"', text)
+        self.assertIn('export SLURM_EXPORT_ENV="ALL"', text)
         self.assertIn('export P3_VENV="$P3_ACCOUNT_HOME/venvs/p3"', text)
         self.assertIn(
             'export P3_PSEUDO_DIR="$P3_ACCOUNT_HOME/pseudos/SSSP-1.3.0-PBE-precision"',
@@ -87,6 +88,7 @@ class SlurmStageContractTests(unittest.TestCase):
             "${QE_MPI_LAUNCHER:-",
             "${QE_NK:-",
             "${OMP_NUM_THREADS:-",
+            "${SLURM_EXPORT_ENV:-",
         ):
             self.assertNotIn(forbidden, text)
 

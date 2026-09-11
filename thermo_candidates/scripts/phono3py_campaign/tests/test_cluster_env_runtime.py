@@ -29,10 +29,25 @@ class ClusterEnvModuleInitTests(unittest.TestCase):
             fake_bin.mkdir()
             account_home = root / "account-home"
             account_home.mkdir()
-            for command in ("pw.x", "srun"):
-                executable = fake_bin / command
-                executable.write_text("#!/usr/bin/env bash\nexit 0\n")
-                executable.chmod(0o755)
+            qe_executable = fake_bin / "pw.x"
+            qe_executable.write_text("#!/usr/bin/env bash\nexit 0\n")
+            qe_executable.chmod(0o755)
+            srun = fake_bin / "srun"
+            srun.write_text(
+                "#!/usr/bin/env bash\n"
+                "set -euo pipefail\n"
+                "[[ \"${SLURM_EXPORT_ENV:-}\" == \"ALL\" ]]\n"
+                "command -v \"$1\" >/dev/null\n"
+                "exec \"$@\"\n"
+            )
+            srun.chmod(0o755)
+            venv_bin = account_home / "venvs/p3/bin"
+            venv_bin.mkdir(parents=True)
+            activation = venv_bin / "activate"
+            activation.write_text(f'PATH="{venv_bin}:$PATH"\nexport PATH\n')
+            python = venv_bin / "python"
+            python.write_text("#!/usr/bin/env bash\nexit 0\n")
+            python.chmod(0o755)
 
             profile = root / "profile.sh"
             profile.write_text(profile_text)
@@ -56,7 +71,10 @@ class ClusterEnvModuleInitTests(unittest.TestCase):
             )
             runtime_copy.write_text(runtime)
             self.assertNotEqual(runtime, CLUSTER_ENV.read_text())
-            env = os.environ | {"P3_TEST_FAKE_BIN": str(fake_bin)}
+            env = os.environ | {
+                "P3_TEST_FAKE_BIN": str(fake_bin),
+                "SLURM_EXPORT_ENV": "CAMPAIGN_CONFIG,RUN_DIR",
+            }
             return subprocess.run(
                 [
                     "bash",
@@ -81,9 +99,29 @@ fi
 PATH="$P3_TEST_FAKE_BIN:$PATH"
 module() { return 0; }
 """,
-            'p3_load_qe\n[[ "$-" == *u* ]]',
+            'p3_load_qe\n[[ "$-" == *u* ]]\n[[ "$SLURM_EXPORT_ENV" == "ALL" ]]',
         )
         self.assertEqual(completed.returncode, 0, completed.stderr)
+
+    def test_runtime_overrides_restricted_sbatch_export_for_srun_steps(self) -> None:
+        completed = self._run_with_profile(
+            "PATH=\"$P3_TEST_FAKE_BIN:$PATH\"\nmodule() { return 0; }\n",
+            'p3_load_qe\np3_activate_python\n'
+            '[[ "$SLURM_EXPORT_ENV" == "ALL" ]]\n'
+            '[[ "$(declare -p SLURM_EXPORT_ENV)" == '
+            "'declare -rx SLURM_EXPORT_ENV=\"ALL\"' ]]\n"
+            '[[ "$(command -v pw.x)" == "$P3_TEST_FAKE_BIN/pw.x" ]]\n'
+            'srun pw.x',
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+
+    def test_runtime_still_fails_closed_when_module_lacks_qe(self) -> None:
+        completed = self._run_with_profile(
+            "PATH=\"/usr/bin:/bin\"\nmodule() { return 0; }\n",
+            "p3_load_qe",
+        )
+        self.assertEqual(completed.returncode, 2, completed.stderr)
+        self.assertIn("QE executable not found after module load", completed.stderr)
 
     def test_shell_options_are_restored_when_module_profile_fails(self) -> None:
         completed = self._run_with_profile(

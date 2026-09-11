@@ -4,6 +4,7 @@ import copy
 import hashlib
 import io
 import json
+import os
 import subprocess
 import tempfile
 import unittest
@@ -842,7 +843,9 @@ class SubmissionTests(unittest.TestCase):
         collector_completed = subprocess.CompletedProcess(
             [], 0, stdout="32346;nibi\n", stderr=""
         )
-        with patch("submit.require_nibi_login"), patch(
+        with patch.dict(os.environ, {"SLURM_EXPORT_ENV": "ALL"}), patch(
+            "submit.require_nibi_login"
+        ), patch(
             "submit.new_attempt_id",
             side_effect=("diagnostic-attempt", "diagnostic-collector"),
         ), patch(
@@ -864,6 +867,8 @@ class SubmissionTests(unittest.TestCase):
         self.assertIn("--partition=cpubase_bycore_b2", command)
         self.assertIn("--ntasks=32", command)
         export = next(item for item in command if item.startswith("--export="))
+        self.assertFalse(export.startswith("--export=ALL"))
+        self.assertNotIn("SLURM_EXPORT_ENV", export)
         self.assertIn(",P3_DIAGNOSTIC_RESOURCE_SHA256=", export)
         self.assertIn(",P3_DIAGNOSTIC_REQUESTED_WALLTIME_MINUTES=120", export)
         self.assertEqual(command[-1], str(SLURM_DIR / "diagnostic.sbatch"))
