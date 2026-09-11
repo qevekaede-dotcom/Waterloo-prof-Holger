@@ -1004,3 +1004,66 @@ exit and low force were not substituted for normal BFGS convergence. SrZrS3
 counts are preflight cost/geometry evidence only; they do not prove force,
 cutoff, supercell, q-mesh, or kappa convergence. All `READY_TO_ATTACH/`
 records remained unchanged.
+
+## 2026-09-11 — Session 15: hourly check blocked by renewed Nibi MFA
+
+At 04:18 UTC, a fresh fetch confirmed that local branch
+`codex/two-material-phonons` and its upstream both pointed to `c8dcb0b`.
+All four frozen `READY_TO_ATTACH/` directories had no staged, unstaged, or
+untracked changes. A noninteractive `ssh drac` query reached Nibi but was
+rejected because keyboard-interactive multifactor authentication was required;
+therefore this run obtained no current `squeue`, `sacct`, scheduler-log, or
+remote-product evidence. The authentication failure is not evidence of an
+empty queue or an unchanged remote state.
+
+No relax, preflight, pilot, force array, FC2/FC3 construction, or kappa
+postprocessing was submitted or rerun. The last verified scientific boundary
+remains the 2026-09-10 evidence: SrZrS3 passed its structure gate, but all five
+routine preflight candidates require 1379--3747 displacement supercells and
+exceed the 800-task cap; Rb2Cu2SnS4 exhausted the one reviewed recovery reset
+without normal BFGS convergence. An interactive `ssh drac` login is required
+before live evidence can be refreshed. Neither a second Rb ionic continuation
+nor a revised Sr cutoff/supercell/resource choice is authorized by this check.
+
+Local read-only validation used the project scientific Python environment:
+201/201 unit tests passed, both material configs validated as healthy while
+retaining `production_blocked_pending_selection=true`, Python compilation and
+all Slurm shell syntax checks passed, and `git diff --check` passed. This
+validates the current residual-force parser and pristine/`--cfz` gates at the
+test level only; it is not new force or thermal-conductivity evidence.
+
+**Scientific-rigor review.** No new material property, convergence, stability,
+NAC/SOC, PF/tau, electronic-only zT, or full-zT conclusion was made. Historical
+job IDs and low residual forces were not promoted to current or successful
+evidence, and all frozen attachments and raw research records remained
+untouched.
+
+## 2026-09-11 — Session 15: hourly live check blocked by expired Nibi MFA session
+
+The hourly task fetched all Git remotes and confirmed that
+`codex/two-material-phonons` and its upstream were both at `c8dcb0b`, with no
+pre-existing worktree changes. No path under any `READY_TO_ATTACH/` directory
+was modified.
+
+A first SSH query used the nonexistent local alias `nibi` and failed during
+hostname resolution; the configured alias was then verified as `drac` for
+`yuhansun@nibi.alliancecan.ca`. At 04:16 UTC, a batch-mode query through that
+correct alias reached Nibi but was rejected because the ControlMaster socket
+had expired and interactive keyboard MFA was required. `ssh -O check drac`
+independently confirmed that the socket did not exist. Therefore this session
+obtained no new live `squeue`, `sacct`, job-log, or run-directory evidence and
+did not assume that the previous empty-queue snapshot was still current.
+
+No relaxation, preflight, pilot, force array, FC2/FC3 build, or kappa
+postprocessing was prepared, submitted, or rerun. The last verified evidence
+remains the 2026-09-10 15:11 UTC snapshot: SrZrS3 has a passing structure gate
+but all five candidates exceed the 800-displacement cap; Rb2Cu2SnS4 exhausted
+the single reviewed reset path without normal BFGS convergence. An interactive
+`ssh drac` login is required before the next monitor can refresh Slurm and
+immutable attempt evidence. Neither a second Rb continuation nor a changed Sr
+cutoff/supercell/resource choice is automatically authorized.
+
+**Scientific-rigor review.** No new property, convergence, stability, NAC/SOC,
+PF/tau, electronic-only zT, or full-zT conclusion was made. Historical job IDs
+and low forces were not promoted to current or successful evidence, and frozen
+attachments remained untouched.
