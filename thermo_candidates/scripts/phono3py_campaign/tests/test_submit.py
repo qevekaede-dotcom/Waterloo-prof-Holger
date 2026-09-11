@@ -865,6 +865,7 @@ class SubmissionTests(unittest.TestCase):
         self.assertIn("--ntasks=32", command)
         export = next(item for item in command if item.startswith("--export="))
         self.assertIn(",P3_DIAGNOSTIC_RESOURCE_SHA256=", export)
+        self.assertIn(",P3_DIAGNOSTIC_REQUESTED_WALLTIME_MINUTES=120", export)
         self.assertEqual(command[-1], str(SLURM_DIR / "diagnostic.sbatch"))
         self.assertEqual(result["collector"]["job_id"], "32346")
         self.assertEqual(result["collector"]["dependency"], "afterany:32345")

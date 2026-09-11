@@ -757,6 +757,26 @@ def diagnostic_scheduler_options(config: Mapping[str, Any]) -> tuple[str, ...]:
     )
 
 
+def diagnostic_requested_walltime_minutes(config: Mapping[str, Any]) -> str:
+    """Return the reviewed diagnostic walltime as an integer-minute export."""
+
+    resources = required(config, "scheduler.diagnostic_resources")
+    if not isinstance(resources, Mapping):
+        raise SubmissionError("scheduler.diagnostic_resources must be an object")
+    walltime_hours = resources.get("walltime_hours")
+    if (
+        isinstance(walltime_hours, bool)
+        or not isinstance(walltime_hours, (int, float))
+        or not math.isfinite(float(walltime_hours))
+        or float(walltime_hours) <= 0
+    ):
+        raise SubmissionError("diagnostic walltime_hours must be positive")
+    minutes = float(walltime_hours) * 60
+    if not math.isclose(minutes, round(minutes), rel_tol=0, abs_tol=1e-12):
+        raise SubmissionError("diagnostic walltime_hours must be whole minutes")
+    return str(int(round(minutes)))
+
+
 def validate_force_bundle(
     context: SubmissionContext, task_map: Path
 ) -> tuple[Path, int, str, Path, dict[str, Any], Path, dict[str, Any]]:
@@ -1050,6 +1070,10 @@ def stage_plan(
         exports["P3_DIAGNOSTIC_RESOURCE_SHA256"] = safe_export_value(
             "P3_DIAGNOSTIC_RESOURCE_SHA256", diagnostic_resource_sha256
         )
+        exports["P3_DIAGNOSTIC_REQUESTED_WALLTIME_MINUTES"] = safe_export_value(
+            "P3_DIAGNOSTIC_REQUESTED_WALLTIME_MINUTES",
+            diagnostic_requested_walltime_minutes(context.config),
+        )
         exports["P3_DIAGNOSTIC_LINEAGE_SHA256"] = safe_export_value(
             "P3_DIAGNOSTIC_LINEAGE_SHA256", ready["lineage_sha256"]
         )
@@ -1157,6 +1181,7 @@ def export_argument(exports: Mapping[str, str]) -> str:
         "P3_PREFLIGHT_CANDIDATE_IDS",
         "P3_PREFLIGHT_CANDIDATE_SHA256",
         "P3_DIAGNOSTIC_RESOURCE_SHA256",
+        "P3_DIAGNOSTIC_REQUESTED_WALLTIME_MINUTES",
         "P3_DIAGNOSTIC_LINEAGE_SHA256",
         "P3_DIAGNOSTIC_BACKEND_SHA256",
         "PRIMARY_STAGE",
@@ -1429,6 +1454,9 @@ def plan_report(
         "candidate_ids": list(preview.candidate_ids) if preview.candidate_ids else None,
         "candidate_subset_sha256": preview.candidate_subset_sha256,
         "diagnostic_resource_sha256": preview.diagnostic_resource_sha256,
+        "diagnostic_requested_walltime_minutes": preview.exports.get(
+            "P3_DIAGNOSTIC_REQUESTED_WALLTIME_MINUTES"
+        ),
         "primary_command_template": preview_command,
         "collector": stage in COLLECTED_STAGES,
         "execute_requirement": (
@@ -1487,6 +1515,9 @@ def _request_record(
         "candidate_ids": list(plan.candidate_ids) if plan.candidate_ids else None,
         "candidate_subset_sha256": plan.candidate_subset_sha256,
         "diagnostic_resource_sha256": plan.diagnostic_resource_sha256,
+        "diagnostic_requested_walltime_minutes": plan.exports.get(
+            "P3_DIAGNOSTIC_REQUESTED_WALLTIME_MINUTES"
+        ),
         "diagnostic_lineage_sha256": plan.exports.get(
             "P3_DIAGNOSTIC_LINEAGE_SHA256"
         ),
@@ -1727,6 +1758,9 @@ def _execute_locked(
                 "diagnostic_resource_sha256": collector_exports.get(
                     "P3_DIAGNOSTIC_RESOURCE_SHA256"
                 ),
+                "diagnostic_requested_walltime_minutes": collector_exports.get(
+                    "P3_DIAGNOSTIC_REQUESTED_WALLTIME_MINUTES"
+                ),
                 "dependency": f"afterany:{primary_job_id}",
                 "command": collector_command,
             },
@@ -1800,6 +1834,9 @@ def _execute_locked(
         "candidate_ids": list(plan.candidate_ids) if plan.candidate_ids else None,
         "candidate_subset_sha256": plan.candidate_subset_sha256,
         "diagnostic_resource_sha256": plan.diagnostic_resource_sha256,
+        "diagnostic_requested_walltime_minutes": plan.exports.get(
+            "P3_DIAGNOSTIC_REQUESTED_WALLTIME_MINUTES"
+        ),
         "record_dir": str(record_dir),
     }
     write_json_exclusive(record_dir / "submission.json", summary)

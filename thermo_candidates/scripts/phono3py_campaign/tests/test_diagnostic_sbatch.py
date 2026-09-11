@@ -28,6 +28,7 @@ class SlurmStageContractTests(unittest.TestCase):
             self.assertNotIn(forbidden, text)
         self.assertIn('[[ ! -e "$RUN_DIR/run_manifest.json" ]]', text)
         self.assertIn("P3_DIAGNOSTIC_RESOURCE_SHA256", text)
+        self.assertIn("P3_DIAGNOSTIC_REQUESTED_WALLTIME_MINUTES", text)
         self.assertIn("p3_begin_attempt diagnostic", text)
         self.assertIn("polish_recovery.py\" run-diagnostic", text)
         self.assertIn('--attempt-id "$ATTEMPT_ID"', text)

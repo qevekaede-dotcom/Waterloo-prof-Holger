@@ -783,26 +783,31 @@ def _diagnostic_resource_record(config: Mapping[str, Any]) -> dict[str, Any]:
         )
     observed["mem_per_cpu_mb"] = memory_mb
 
-    raw_time = os.environ.get("SLURM_TIMELIMIT", "")
-    if re.fullmatch(r"[1-9][0-9]*", raw_time):
-        time_limit_minutes = int(raw_time)
-    else:
-        matched_time = re.fullmatch(r"(?:(\d+)-)?(\d{1,2}):(\d{2}):(\d{2})", raw_time)
-        if matched_time is None:
-            raise core.CampaignError(
-                "diagnostic allocation lacks a valid SLURM_TIMELIMIT"
-            )
-        days = int(matched_time.group(1) or 0)
-        hours, minutes, seconds = map(int, matched_time.groups()[1:])
-        if minutes >= 60 or seconds >= 60 or seconds != 0:
-            raise core.CampaignError("diagnostic SLURM_TIMELIMIT is not minute-exact")
-        time_limit_minutes = days * 24 * 60 + hours * 60 + minutes
     expected_minutes = int(float(resources.get("walltime_hours")) * 60)
+    requested_minutes = os.environ.get("P3_DIAGNOSTIC_REQUESTED_WALLTIME_MINUTES", "")
+    if (
+        re.fullmatch(r"[1-9][0-9]*", requested_minutes) is None
+        or int(requested_minutes) != expected_minutes
+    ):
+        raise core.CampaignError(
+            "diagnostic submitted walltime differs from configured walltime_hours"
+        )
+    raw_time = os.environ.get("SLURM_TIMELIMIT", "")
+    if raw_time:
+        time_limit_minutes = _slurm_time_minutes(raw_time, "diagnostic SLURM_TIMELIMIT")
+        time_limit_source = "native_slurm_timelimit"
+    else:
+        # Nibi does not always expose SLURM_TIMELIMIT inside an allocation.
+        # This signed, allow-listed request enables only the diagnostic to run;
+        # finalization still requires the authoritative sacct TimelimitRaw.
+        time_limit_minutes = int(requested_minutes)
+        time_limit_source = "submitted_request_export"
     if time_limit_minutes != expected_minutes:
         raise core.CampaignError(
             "diagnostic allocation differs from configured walltime_hours"
         )
     observed["time_limit_minutes"] = time_limit_minutes
+    observed["time_limit_source"] = time_limit_source
     return {
         "policy_sha256": expected_sha,
         "configured": dict(resources),
@@ -1027,7 +1032,17 @@ def _audit_diagnostic_attempt(
     expected_observed["time_limit_minutes"] = int(
         float(configured_resources["walltime_hours"]) * 60
     )
-    if observed_resources != expected_observed:
+    if (
+        not isinstance(observed_resources, Mapping)
+        or {
+            key: value
+            for key, value in observed_resources.items()
+            if key != "time_limit_source"
+        }
+        != expected_observed
+        or observed_resources.get("time_limit_source")
+        not in {"native_slurm_timelimit", "submitted_request_export"}
+    ):
         raise core.CampaignError("diagnostic execution/allocation mismatch")
     expected_workflow = {
         "submit.py": core.sha256_path(Path(__file__).with_name("submit.py")),
@@ -1333,6 +1348,7 @@ def _audit_diagnostic_dispatch_chain(
         "P3_CLUSTER_ENV_SHA256": workflow["cluster.env"],
         "P3_CAMPAIGN_CLI_SHA256": workflow["campaign.py"],
         "P3_DIAGNOSTIC_RESOURCE_SHA256": resource_sha,
+        "P3_DIAGNOSTIC_REQUESTED_WALLTIME_MINUTES": str(expected_minutes),
         "P3_DIAGNOSTIC_LINEAGE_SHA256": lineage_sha,
         "P3_DIAGNOSTIC_BACKEND_SHA256": workflow["polish_recovery.py"],
     }
@@ -1364,6 +1380,7 @@ def _audit_diagnostic_dispatch_chain(
         or request.get("polish_lineage_sha256") != lineage_sha
         or request.get("diagnostic_lineage_sha256") != lineage_sha
         or request.get("diagnostic_resource_sha256") != resource_sha
+        or request.get("diagnostic_requested_walltime_minutes") != str(expected_minutes)
         or request.get("scheduler_options") != scheduler_options
         or request.get("workflow_sha256") != workflow
         or request.get("submit_script_sha256") != workflow["submit.py"]
@@ -1402,6 +1419,7 @@ def _audit_diagnostic_dispatch_chain(
         or summary.get("slurm_account") != account
         or summary.get("polish_lineage_sha256") != lineage_sha
         or summary.get("diagnostic_resource_sha256") != resource_sha
+        or summary.get("diagnostic_requested_walltime_minutes") != str(expected_minutes)
         or summary.get("scheduler_options") != scheduler_options
         or summary.get("workflow_sha256") != workflow
         or summary.get("record_dir") != str(submission_dir)
@@ -1446,6 +1464,7 @@ def _audit_diagnostic_dispatch_chain(
         or collector_request.get("campaign_cli_sha256") != workflow["campaign.py"]
         or collector_request.get("diagnostic_lineage_sha256") != lineage_sha
         or collector_request.get("diagnostic_resource_sha256") != resource_sha
+        or collector_request.get("diagnostic_requested_walltime_minutes") != str(expected_minutes)
         or collector_request.get("dependency") != f"afterany:{primary_job_id}"
     ):
         raise core.CampaignError("diagnostic collector request evidence mismatch")
@@ -1523,6 +1542,7 @@ def _audit_diagnostic_dispatch_chain(
         "config_sha256": config_sha,
         "lineage_sha256": lineage_sha,
         "resource_sha256": resource_sha,
+        "requested_walltime_minutes": str(expected_minutes),
         "submit_script_sha256": workflow["submit.py"],
         "stage_script_sha256": workflow["diagnostic.sbatch"],
         "cluster_env_sha256": workflow["cluster.env"],
@@ -1549,6 +1569,7 @@ def _audit_diagnostic_dispatch_chain(
         "cluster_env_sha256": workflow["cluster.env"],
         "run_dir": str(run_dir),
         "diagnostic_resource_sha256": resource_sha,
+        "diagnostic_requested_walltime_minutes": str(expected_minutes),
         "diagnostic_lineage_sha256": lineage_sha,
         "diagnostic_backend_sha256": workflow["polish_recovery.py"],
     }
@@ -1588,10 +1609,21 @@ def _audit_diagnostic_dispatch_chain(
         f"{resources['mem_per_cpu_mb']}m",
     }:
         raise core.CampaignError("diagnostic wrapper memory allocation mismatch")
-    if _slurm_time_minutes(
-        wrapper_context.get("slurm_timelimit", ""), "diagnostic wrapper time limit"
-    ) != expected_minutes:
-        raise core.CampaignError("diagnostic wrapper walltime mismatch")
+    wrapper_native_time = str(wrapper_context.get("slurm_timelimit", ""))
+    wrapper_time_source = wrapper_context.get("diagnostic_time_limit_source")
+    if wrapper_native_time:
+        if (
+            wrapper_time_source != "native_slurm_timelimit"
+            or _slurm_time_minutes(wrapper_native_time, "diagnostic wrapper time limit")
+            != expected_minutes
+        ):
+            raise core.CampaignError("diagnostic wrapper walltime mismatch")
+    elif (
+        wrapper_time_source != "submitted_request_export"
+        or wrapper_context.get("diagnostic_requested_walltime_minutes")
+        != str(expected_minutes)
+    ):
+        raise core.CampaignError("diagnostic wrapper walltime fallback mismatch")
     exit_path, exit_text = _strict_text(
         run_dir, wrapper / "exit_code.txt", "diagnostic wrapper exit code"
     )

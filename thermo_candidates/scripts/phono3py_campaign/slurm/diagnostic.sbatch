@@ -18,10 +18,13 @@ source "$P3_SLURM_DIR/cluster.env"
 p3_require_compute_node
 p3_require_context
 : "${P3_DIAGNOSTIC_RESOURCE_SHA256:?submit.py must export the signed diagnostic resource policy}"
+: "${P3_DIAGNOSTIC_REQUESTED_WALLTIME_MINUTES:?submit.py must export the reviewed diagnostic walltime}"
 : "${P3_DIAGNOSTIC_LINEAGE_SHA256:?submit.py must export the prepared-lineage hash}"
 : "${P3_DIAGNOSTIC_BACKEND_SHA256:?submit.py must export the diagnostic backend hash}"
 [[ "$P3_DIAGNOSTIC_RESOURCE_SHA256" =~ ^[0-9a-f]{64}$ ]] \
     || p3_die "diagnostic resource-policy SHA256 is invalid"
+[[ "$P3_DIAGNOSTIC_REQUESTED_WALLTIME_MINUTES" =~ ^[1-9][0-9]*$ ]] \
+    || p3_die "diagnostic requested walltime is invalid"
 [[ "$P3_DIAGNOSTIC_LINEAGE_SHA256" =~ ^[0-9a-f]{64}$ \
     && "$P3_DIAGNOSTIC_BACKEND_SHA256" =~ ^[0-9a-f]{64}$ ]] \
     || p3_die "diagnostic lineage/backend SHA256 is invalid"
@@ -48,6 +51,7 @@ mkdir "$diagnostic_claim" \
     printf 'config_sha256\t%s\n' "$P3_EXPECTED_CONFIG_SHA256"
     printf 'lineage_sha256\t%s\n' "$P3_DIAGNOSTIC_LINEAGE_SHA256"
     printf 'resource_sha256\t%s\n' "$P3_DIAGNOSTIC_RESOURCE_SHA256"
+    printf 'requested_walltime_minutes\t%s\n' "$P3_DIAGNOSTIC_REQUESTED_WALLTIME_MINUTES"
     printf 'submit_script_sha256\t%s\n' "$P3_SUBMIT_SCRIPT_SHA256"
     printf 'stage_script_sha256\t%s\n' "$P3_STAGE_SCRIPT_SHA256"
     printf 'cluster_env_sha256\t%s\n' "$P3_CLUSTER_ENV_SHA256"

@@ -239,6 +239,9 @@ class PolishRecoveryTests(unittest.TestCase):
             "SLURM_JOB_PARTITION": resources["partition"],
             "SLURM_TIMELIMIT": str(int(resources["walltime_hours"] * 60)),
             "P3_DIAGNOSTIC_RESOURCE_SHA256": core.canonical_sha256(resources),
+            "P3_DIAGNOSTIC_REQUESTED_WALLTIME_MINUTES": str(
+                int(resources["walltime_hours"] * 60)
+            ),
             "P3_DIAGNOSTIC_LINEAGE_SHA256": core.sha256_path(
                 self.polish_run / polish.LINEAGE_RECEIPT
             ),
@@ -250,7 +253,11 @@ class PolishRecoveryTests(unittest.TestCase):
         }
 
     def _write_dispatch_evidence(
-        self, attempt_id: str = "diag-1", job_id: str = "123460"
+        self,
+        attempt_id: str = "diag-1",
+        job_id: str = "123460",
+        *,
+        native_timelimit: bool = True,
     ) -> Path:
         resources = self.config["scheduler"]["diagnostic_resources"]
         workflow = self._workflow_hashes()
@@ -264,6 +271,7 @@ class PolishRecoveryTests(unittest.TestCase):
             "config_sha256": core.sha256_path(CONFIG),
             "lineage_sha256": lineage_sha,
             "resource_sha256": resource_sha,
+            "requested_walltime_minutes": str(int(resources["walltime_hours"] * 60)),
             "submit_script_sha256": workflow["submit.py"],
             "stage_script_sha256": workflow["diagnostic.sbatch"],
             "cluster_env_sha256": workflow["cluster.env"],
@@ -286,7 +294,15 @@ class PolishRecoveryTests(unittest.TestCase):
             "slurm_ntasks": str(resources["ntasks"]),
             "slurm_cpus_per_task": str(resources["cpus_per_task"]),
             "slurm_mem_per_cpu": f"{resources['mem_per_cpu_mb']}M",
-            "slurm_timelimit": str(int(resources["walltime_hours"] * 60)),
+            "slurm_timelimit": (
+                str(int(resources["walltime_hours"] * 60)) if native_timelimit else ""
+            ),
+            "diagnostic_requested_walltime_minutes": str(int(resources["walltime_hours"] * 60)),
+            "diagnostic_time_limit_source": (
+                "native_slurm_timelimit"
+                if native_timelimit
+                else "submitted_request_export"
+            ),
             "config": str(CONFIG.resolve()),
             "config_sha256": core.sha256_path(CONFIG),
             "campaign_cli": str(Path(core.__file__).resolve()),
@@ -445,13 +461,13 @@ class PolishRecoveryTests(unittest.TestCase):
         )
 
     def _write_diagnostic_execution(
-        self, *, include_submission_chain: bool = True
+        self, *, include_submission_chain: bool = True, native_timelimit: bool = True
     ) -> Path:
         submission = (
             self._write_submission_evidence() if include_submission_chain else None
         )
         if include_submission_chain:
-            self._write_dispatch_evidence()
+            self._write_dispatch_evidence(native_timelimit=native_timelimit)
         attempt = self.polish_run / "diagnostic/attempts/diag-1"
         attempt.mkdir()
         resources = self.config["scheduler"]["diagnostic_resources"]
@@ -484,6 +500,11 @@ class PolishRecoveryTests(unittest.TestCase):
                     },
                     "account": self.config["scheduler"]["slurm_account"],
                     "time_limit_minutes": int(resources["walltime_hours"] * 60),
+                    "time_limit_source": (
+                        "native_slurm_timelimit"
+                        if native_timelimit
+                        else "submitted_request_export"
+                    ),
                 },
             },
             "workflow_sha256": self._workflow_hashes(),
@@ -866,6 +887,43 @@ class PolishRecoveryTests(unittest.TestCase):
             self.assertFalse(
                 (self.polish_run / "diagnostic/attempts/not-created").exists()
             )
+
+    def test_diagnostic_uses_signed_walltime_when_nibi_omits_native_variable(self) -> None:
+        self._prepare()
+        environment = self._diagnostic_environment()
+        environment.pop("SLURM_TIMELIMIT")
+        with patch.dict(os.environ, environment, clear=True):
+            record = polish._diagnostic_resource_record(self.config)
+        observed = record["observed_allocation"]
+        self.assertEqual(observed["time_limit_minutes"], 120)
+        self.assertEqual(observed["time_limit_source"], "submitted_request_export")
+
+    def test_diagnostic_rejects_mismatched_signed_walltime_before_attempt(self) -> None:
+        self._prepare()
+        environment = {
+            **self._diagnostic_environment(),
+            "P3_DIAGNOSTIC_REQUESTED_WALLTIME_MINUTES": "119",
+        }
+        with patch.dict(os.environ, environment, clear=True), self.assertRaisesRegex(
+            core.CampaignError, "submitted walltime"
+        ):
+            polish.run_diagnostic(CONFIG, self.polish_run, attempt_id="not-created")
+        self.assertFalse(
+            (self.polish_run / "diagnostic/attempts/not-created").exists()
+        )
+
+    def test_finalize_accepts_missing_native_walltime_only_with_sacct_confirmation(self) -> None:
+        self._prepare()
+        attempt = self._write_diagnostic_execution(native_timelimit=False)
+        report = polish.finalize_diagnostic(
+            CONFIG,
+            self.polish_run,
+            attempt_id="diag-1",
+            expected_execution_sha256=core.sha256_path(
+                attempt / polish.DIAGNOSTIC_EXECUTION
+            ),
+        )
+        self.assertTrue(report)
 
     def test_finalize_rejects_substituted_command_and_invalid_slurm_identity(self) -> None:
         for case in ("command", "slurm"):
