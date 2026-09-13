@@ -168,8 +168,23 @@ full planning, finalization, and preflight release remain hard-locked; the
 pilot plan exposes no runnable `sbatch` command.  The full local suite passed
 353 tests with one optional-spglib skip, both material configurations remained
 production-blocked, and a fresh independent review returned `SHIP` for this
-plan-only scope.  No new FIRE RUN_DIR, Slurm job, QE calculation, accepted
-structure, or scientific result has yet been produced from this implementation.
+plan-only scope.
+
+Exact commit `aab9290a66cc63058584c04ad39a091ff5d13284` then passed all
+353 tests in the Nibi phono3py environment from clean checkout
+`/scratch/yuhansun/codex-verify-aab9290`.  A replay that treated the real old
+lineage as read-only prepared the new plan record under
+`/scratch/yuhansun/phono3py-runs/20260914-rb-fire-plan-aab9290/Rb2Cu2SnS4`.
+Its receipt SHA-256 is
+`f1f4baabe1c4dee3da804eb60e14ba4cc8c23d7a33cf4914a2bcfe9a9b449e74`;
+the frozen seed retained SHA-256
+`b2f919f7af04a0fd93400e2e5cd021bb489947e245e3d834694167bf2ded714f`.
+The generated pilot plan says `execution_released=false` and
+`primary_command_template=null`.  The new directory has eight files, no
+symlinks, and no attempt/submission files; the old lineage remains at 963
+files with the checked hashes unchanged.  Nibi's queue was empty before and
+after.  No Slurm job or QE calculation ran, and no structure or scientific
+result was accepted.
 
 For SrZrS3, the prior 3.70-A count-only result remains 1003 supercells for
 both reviewed supercells and is over the hard cap of 800.  The narrower

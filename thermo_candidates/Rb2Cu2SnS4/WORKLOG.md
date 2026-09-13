@@ -290,3 +290,31 @@ was launched, and no scientific result was produced. Local validation passed
 353 tests (one optional spglib test skipped), configuration validation,
 Python compilation, shell syntax checks, and `git diff --check`. Production
 budget and selections remain null/blocked.
+
+---
+
+## 2026-09-14 — clean Nibi replay prepared the plan-only FIRE lineage
+
+Exact commit `aab9290a66cc63058584c04ad39a091ff5d13284` was checked out
+cleanly at `/scratch/yuhansun/codex-verify-aab9290`.  The Nibi phono3py
+environment passed all 353 tests, both material configurations validated, and
+the checkout stayed clean.
+
+The first evidence command stopped under `set -e` before preparation because
+it requested the wrong historical provenance filename
+`gate.provenance.json`; inspection showed the real file is `provenance.json`.
+The intended new RUN_DIR was still absent and the queue was empty.  With the
+corrected, inspected path, exact historical replay prepared
+`/scratch/yuhansun/phono3py-runs/20260914-rb-fire-plan-aab9290/Rb2Cu2SnS4`.
+The immutable receipt has SHA-256
+`f1f4baabe1c4dee3da804eb60e14ba4cc8c23d7a33cf4914a2bcfe9a9b449e74`;
+`fire_seed.in` retains the frozen reference SHA-256
+`b2f919f7af04a0fd93400e2e5cd021bb489947e245e3d834694167bf2ded714f`.
+
+The prepared lineage contains eight files, no symlinks, and no attempt or
+submission files.  Its pilot plan is explicitly non-runnable:
+`execution_released=false`, `primary_command_template=null`, and
+`collector=false`.  The old run still contains 963 files, and all eight
+rechecked gate/provenance/lineage/manifest/output/context hashes were identical
+before and after.  `squeue` returned zero rows both times.  No `sbatch`, QE,
+FIRE step, structure acceptance, or downstream release occurred.

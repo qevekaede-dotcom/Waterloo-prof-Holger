@@ -5,6 +5,13 @@ It does **not** contain a lattice-thermal-conductivity result yet. The machine
 readable source of truth is [`campaign.json`](campaign.json); every `null`
 production choice is an intentional stop gate.
 
+Current recovery status: the sole reviewed BFGS polish failed and remains
+terminal.  A separately reviewed FIRE hypothesis has prepared only a frozen
+lineage and a non-runnable pilot plan on Nibi from exact commit `aab9290`.
+That plan reports `execution_released=false` and exposes no `sbatch` command;
+there is still no accepted structure, pristine gate, preflight, force job,
+FC2/FC3, or kappa_L result.
+
 Heavy QE calculations, displacement generation, force-constant construction,
 and phono3py transport postprocessing belong on a DRAC compute node. This
 repository checkout is for preparation, versioned configuration, transfer,

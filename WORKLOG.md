@@ -145,3 +145,37 @@ bounded future hypothesis only.  Rb2Cu2SnS4 still has no accepted structure,
 pristine gate, preflight, force/FC2/FC3, or kappa_L result.  SrZrS3's 787-input
 record remains count-only and does not select a cutoff or release pilot or
 production work.  Both production budgets/selections remain null or blocked.
+
+## 2026-09-14 — plan-only Rb FIRE lineage prepared on Nibi
+
+1. Committed and pushed the reviewed implementation as exact commit
+   `aab9290a66cc63058584c04ad39a091ff5d13284`, then created clean Nibi
+   checkout `/scratch/yuhansun/codex-verify-aab9290`.  Its worktree was clean
+   and all 353 tests passed in the Nibi phono3py environment; both Rb and Sr
+   configurations validated healthy while retaining their production blocks.
+2. The first evidence command used the nonexistent name
+   `diagnostic/final/gate.provenance.json` instead of the verified
+   `diagnostic/final/provenance.json`.  `set -e` stopped before lineage
+   preparation.  A follow-up check confirmed the new RUN_DIR was absent and
+   the queue empty; the failed command caused no campaign or scheduler
+   mutation.
+3. Reran with the inspected filename.  Exact replay prepared
+   `/scratch/yuhansun/phono3py-runs/20260914-rb-fire-plan-aab9290/Rb2Cu2SnS4`
+   with receipt SHA-256
+   `f1f4baabe1c4dee3da804eb60e14ba4cc8c23d7a33cf4914a2bcfe9a9b449e74`
+   and seed SHA-256
+   `b2f919f7af04a0fd93400e2e5cd021bb489947e245e3d834694167bf2ded714f`.
+   The directory has eight files, zero symlinks, and zero files in its
+   attempt/submission trees.
+4. The read-only pilot plan returned `execution_released=false`,
+   `primary_command_template=null`, and `collector=false`.  The old Rb
+   lineage remained at 963 files, all eight rechecked old evidence hashes
+   were unchanged, the clean checkout stayed clean, and Nibi `squeue` had
+   zero rows before and after.  No `sbatch` or QE command was run.
+
+**Scientific review:** lineage preparation validates provenance and freezes a
+seed; it is not a relaxation result.  Rb2Cu2SnS4 still has no accepted
+structure, pristine gate, preflight, forces, FC2/FC3, or kappa_L.  FIRE pilot,
+collector, finalizer, and all downstream release paths remain deliberately
+unimplemented or hard-locked.  SrZrS3 is unchanged and remains at the
+count-only gate.
