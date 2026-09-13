@@ -227,3 +227,56 @@ the full configured preflight is not; `selection_eligible`, force-pilot
 authorization, and production eligibility all remain false.  The cutoff uses
 about 92.6% of the 2x1x1 inscribed radius, so explicit excluded-shell and
 larger-supercell tests remain mandatory before any production decision.
+
+---
+
+## 2026-09-14 — exact-six initial force pilot prepared, not submitted
+
+An independently reviewed release was prepared to test only timing,
+repeatability, and whether a small incremental force response is resolvable.
+It fixes the six task identities to `[0, 0, 1, 3, 1, 3]`: two pristine SCFs,
+one single-displacement SCF and its independent duplicate, and one
+double-displacement SCF and its duplicate.  The settings are 80/640 Ry,
+`conv_thr=1e-10`, 3x3x3, `nosym/noinv`, 32 MPI ranks, two hours, and at most
+two concurrent tasks.  The 768-core-hour reservation includes the one allowed
+technical retry for each task; it is a ceiling, not measured usage.
+
+The first clean-checkout preparation at `25a5869` exposed a real adapter bug
+before any one-time release consumption or force-budget reservation.  The
+accepted QE input lists `ATOMIC_SPECIES` as `S,Sr,Zr`, whereas phono3py's
+equivalent fragments list `Sr,Zr,S`.  QE binds species by label, so card-row
+order is not physical identity.  Existing code nevertheless compared an
+ordered list and failed with `generated species, pseudopotential, mass or atom
+count mismatch`.  The unconsumed release
+`initial-six-25a5869/release.json` is preserved with SHA-256
+`c0891eae24f32474e2a98de438eeb2d426e3d9d7b0eaa87dcfbfb3920446bc70`;
+that base has no dataset, consumption claim, or budget reservation.
+
+Commit `964eafc06a6f08507ae559c8fde78a0d9fe290db` corrected only this
+validation rule: `ATOMIC_SPECIES` row order may differ, while the unique label
+set and every label's exact mass and pseudopotential filename must still
+match.  Duplicate, missing/extra, mass-drifted, and pseudopotential-drifted
+species remain fail-closed.  The full local suite passed 415 tests with one
+pre-existing optional-spglib skip, and a fresh independent review returned
+`SHIP`.
+
+The corrected exact clean Nibi checkout then replayed all 787 archived
+count-only inputs successfully and prepared the one-time six-geometry bundle:
+
+- checkout: `/scratch/yuhansun/codex-run-sr-initial-964eafc`;
+- run: `/scratch/yuhansun/phono3py-runs/20260913-sr-count-5733f0c/SrZrS3`;
+- release SHA-256: `841a8e70cf72b6b3723b42a9ad53a2fb7deb85dd6984657d39ceca1db4c620a8`;
+- consumption identity: `3ce030de419a1a9f3e9921df9eac1da7ed21621bc2226c2e3edb444395866b04`;
+- consumption receipt SHA-256: `db2d857061c2c007d3c3685478290b901286df8e4995c6b85d07171d87153c89`;
+- pilot-dataset manifest SHA-256: `f4d2cf5ca0d220bfc30ea10a2bedb930351ce457f4c13df22fb839f38d1cf5d8`;
+- force manifest SHA-256: `fc4bff74ec59b19652ae3e44ac841ea8b15699879d708049376299ad17dc0cda`;
+- task-map SHA-256: `10315e26ea3f2f07a91d198efcaa710bb96ca90cdbb98163ae98153f54efc4dd`;
+- budget-receipt SHA-256: `7ca7f6726e5b078a7c35c3dea10ddd5483eece4f5882eb5e3b5280dc02c66389`.
+
+The read-only submission plan passed every reviewed gate: six task IDs
+`0..5`, array `0-5%2`, 32 ranks, two hours, concurrency two, held primary,
+and an `afterany` collector.  **No Sr Slurm job has been submitted or
+released at this snapshot.**  Execution remains ordered after the terminal Rb
+FIRE collector and requires a fresh Nibi MFA session.  Even a successful
+six-SCF result cannot establish D2, FC3, displacement-amplitude or pair-cutoff
+selection, supercell convergence, phonons, or kappa.
