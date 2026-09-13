@@ -75,3 +75,33 @@ supersedes the previous task's no-merge publication scope for PR #1 only.
 claims. The merged tree preserves the previously audited records, scripts,
 frozen attachments, numerical results, and documented limitations. The
 follow-up edits change only publication status and this log.
+
+## 2026-09-14 — remaining-phonons continuity update
+
+1. Recorded the completed SrZrS3 2x1x1 count-only boundary check without
+   upgrading it to a production selection: Nibi job `21850149` completed
+   `0:0`; raw YAML gives 787 inputs (25 singles + 762 seconds), 147 included
+   groups/122 nonzero, at `3.5541348625 A` (`6.71634150010947 bohr`).  The
+   40-atom supercell's inscribed radius is `3.8384532612 A`; clearance is
+   `0.284318 A` (92.5929%).  Archive validation passed.  The strict
+   dependency-free validator (current policy, raw YAML, checksums, no symlinks)
+   passed 333 tests with one skip; a fresh review passed.  This remains
+   count-only evidence: pilot and production are blocked.
+2. Recorded the completed local Rb2Cu2SnS4 replay-validator repair.  It pins
+   the approved `cf0b1d1` historical workflow snapshot by full hash set,
+   evaluates it under current config/policy at one checkout root, checks nested
+   collector schema and global Slurm-ID uniqueness, and permits relocation
+   across checkouts.  Local tests and reviews passed.
+3. Kept the material's scientific gate unchanged.  The only BFGS polish,
+   `21848175`, failed `2:0`; collector `21848176` completed but records an
+   incomplete lineage.  The repair has not been read-only replayed against the
+   real Nibi lineage using its final commit.  That replay is the next evidence
+   action; it neither accepts a structure nor authorizes a rerun, pilot, or
+   production campaign.
+
+**Scientific review:** all recorded numerical values are status/evidence
+metadata supplied by the archived validator and scheduler records; no QE,
+phono3py, force, FC2/FC3, or transport result was generated or altered.  Units
+are explicitly retained where applicable.  Count-only evidence and software
+tests do not establish an fc3 cutoff, convergence, a structure, kappa_L, or
+full thermoelectric zT.

@@ -195,3 +195,35 @@ an irrelevant 3.75-A shell remains outside that source-cutoff interval.  The
 final fresh review returned `SHIP`: 309 tests passed with one optional-spglib
 skip, both material configs validated healthy, all five raw hashes and byte
 comparisons passed, and no `READY_TO_ATTACH/` file changed.
+
+---
+
+## 2026-09-13 — targeted 3.5541348625-A count reproduced and archived
+
+The reviewed commit `5733f0cc486fa806ca2f6a1a653cd21541f70403` was deployed
+as an exact clean Nibi clone.  A fresh run imported the already accepted
+SrZrS3 structure with unchanged unit-cell SHA-256
+`fdae2066bdf829fbeeca6685880f25e6354ce94fa03e82e5de53bb05ab6f0db8`.
+Its signed preflight submitted only
+`sr_fc3_2x1x1__sr_cutoff_3p5541348625A` under attempt
+`20260913T144259Z-preflight-2f0ab287` and job `21850149`.  Slurm reports
+`COMPLETED/0:0` in 10 seconds; the wrapper and `phono3py-init` process both
+returned zero.
+
+The actual YAML and filesystem contain exactly 787 generated inputs: 25
+singles and 762 second-displacement IDs, with 147 included pair groups and 122
+nonzero groups.  The runtime comparison reproduced all 12 included positive
+shells, their multiplicities, and the complete newly excluded three-shell set
+without mismatch.  The 787 actual filenames equal the YAML included-ID set;
+their canonical ID-list SHA-256 is
+`95f8de9fb1df32992b09d2f723890fbca2bcbb20f5623d9287b7b93237720f0b`.
+
+The byte-preserved run/submission/result records, Slurm receipt, and a
+per-input checksum list are under
+`phono3py/evidence/3p5541348625A_count_only/`.  All 787 reproducible QE input
+files are deliberately not duplicated in Git.  Fresh scientific review
+returned `SHIP` only for the count gate.  The targeted scope is complete, but
+the full configured preflight is not; `selection_eligible`, force-pilot
+authorization, and production eligibility all remain false.  The cutoff uses
+about 92.6% of the 2x1x1 inscribed radius, so explicit excluded-shell and
+larger-supercell tests remain mandatory before any production decision.

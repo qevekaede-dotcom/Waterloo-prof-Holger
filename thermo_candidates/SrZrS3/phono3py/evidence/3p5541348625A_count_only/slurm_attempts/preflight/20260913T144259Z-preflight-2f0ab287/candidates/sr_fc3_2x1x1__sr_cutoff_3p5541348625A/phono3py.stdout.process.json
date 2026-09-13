@@ -1,0 +1,33 @@
+{
+  "command": [
+    "phono3py-init",
+    "--qe",
+    "-d",
+    "-c",
+    "unitcell.in",
+    "--pa",
+    "P",
+    "--tolerance",
+    "1.88972612462577e-05",
+    "--amplitude",
+    "0.0566917837388",
+    "--cutoff-pair",
+    "6.71634150010947",
+    "--dim",
+    "2",
+    "0",
+    "0",
+    "0",
+    "1",
+    "0",
+    "0",
+    "0",
+    "1"
+  ],
+  "cwd": "/scratch/yuhansun/phono3py-runs/20260913-sr-count-5733f0c/SrZrS3/slurm_attempts/preflight/20260913T144259Z-preflight-2f0ab287/candidates/sr_fc3_2x1x1__sr_cutoff_3p5541348625A",
+  "finished_utc": "2026-09-13T14:43:11Z",
+  "returncode": 0,
+  "started_utc": "2026-09-13T14:43:05Z",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stdout_sha256": "f2be7072fa9df8db244f8c21d33d22afae9031853ca37930ab8753b2bcb04eb1"
+}

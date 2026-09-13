@@ -241,7 +241,7 @@
         "cutoff_pair_distance_angstrom": 3.5541348625,
         "cutoff_pair_distance_cli_bohr": 6.71634150010947,
         "role": "exploratory_count_only_lower_cost_hypothesis",
-        "candidate_status": "predicted_from_verified_remote_3p70A_yaml_not_a_generated_result",
+        "candidate_status": "verified_remote_count_only_not_force_pilot_or_production_acceptance",
         "production_fc3_eligible_without_new_review": false,
         "count_only_prediction": {
           "source_supercell_id": "sr_fc3_2x1x1",
@@ -280,6 +280,42 @@
             {"shell_angstrom": 3.526178139, "pair_groups": 6, "second_ids": 36}
           ],
           "expected_newly_excluded_shells_angstrom": [3.582091586, 3.604263809, 3.616141604]
+        },
+        "verified_count_only_result": {
+          "evidence_status": "verified_remote_count_only_not_force_pilot_or_production_acceptance",
+          "manifest_path": "thermo_candidates/SrZrS3/phono3py/evidence/3p5541348625A_count_only/manifest.json",
+          "manifest_sha256": "8d09c6f7af559af24b23747ad2dbd6c1ec235a2a9ebcf9b9468ff8bda5c8ec95",
+          "job_id": "21850149",
+          "attempt_id": "20260913T144259Z-preflight-2f0ab287",
+          "git_commit": "5733f0cc486fa806ca2f6a1a653cd21541f70403",
+          "preflight_policy_sha256": "b8e4fff046f346babf938a794ffc890be819cb9fedb13825d03a8183a32e319d",
+          "candidate_subset_sha256": "03818d4d8a130f6ff6b8d8f0df6668f7bcd87cb01d995ae58acd36bed0e94504",
+          "candidate_selection": {
+            "schema_version": 1,
+            "mode": "explicit_subset",
+            "candidate_ids": [
+              "sr_fc3_2x1x1__sr_cutoff_3p5541348625A"
+            ],
+            "preflight_policy_sha256": "b8e4fff046f346babf938a794ffc890be819cb9fedb13825d03a8183a32e319d",
+            "candidate_subset_sha256": "03818d4d8a130f6ff6b8d8f0df6668f7bcd87cb01d995ae58acd36bed0e94504",
+            "configured_candidate_count": 10
+          },
+          "scheduler_receipt_sha256": "2a6e2264a79b64057a06f78944759d6c7a276c90e2f5d300fd1dbf509ac40662",
+          "phono3py_disp_yaml_sha256": "54de16296fad7c4afef2a5e9776f45a8aabf2b0eaba6e109c0edcdbc6c2d813d",
+          "preflight_inventory_sha256": "ab8c619bf7f8080e2c164f61e43d697c21d74b78a068efa15de43cbf6763dd99",
+          "preflight_result_sha256": "8db6ac801edb6c4ae130ca0ed567b12c9d444f605a691065b4d9dbd2af1a54f8",
+          "generated_displacement_supercells": 787,
+          "single_displacements": 25,
+          "second_displacement_ids": 762,
+          "included_pair_groups": 147,
+          "nonzero_included_pair_groups": 122,
+          "within_displacement_hard_cap": true,
+          "requested_scope_complete": true,
+          "preflight_complete": false,
+          "full_config_preflight_complete": false,
+          "selection_eligible": false,
+          "force_pilot_authorized": false,
+          "production_fc3_eligible": false
         }
       },
       {

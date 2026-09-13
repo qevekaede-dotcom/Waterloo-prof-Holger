@@ -1,0 +1,98 @@
+{
+  "checks": {
+    "bfgs_converged": true,
+    "position_shift_within_limit": true,
+    "pristine_force_within_acceptance": true,
+    "pristine_output_healthy": true,
+    "relax_force_within_acceptance": true,
+    "relax_output_healthy": true,
+    "spacegroup_at_strict_tolerance": true
+  },
+  "created_utc": "2026-09-10T14:50:11Z",
+  "final_unitcell_sha256": "fdae2066bdf829fbeeca6685880f25e6354ce94fa03e82e5de53bb05ab6f0db8",
+  "force_acceptance_ry_bohr": 5e-05,
+  "hard_stop_exceeded": false,
+  "hard_stop_force_ry_bohr": 0.0001,
+  "limitations": [
+    "This gate qualifies a structure for displacement preflight only.",
+    "Supercell-force, amplitude, cutoff, q-mesh, and NAC convergence remain untested."
+  ],
+  "material": "SrZrS3",
+  "max_position_shift_angstrom": 0.0018847720809859149,
+  "pass": true,
+  "per_atom_position_shift_angstrom": [
+    0.0012058388812969966,
+    0.0012058388812971159,
+    0.00120583888129759,
+    0.0012058388812969966,
+    0.0014769381930598876,
+    0.00147693819306056,
+    0.0014769381930607333,
+    0.001476938193060022,
+    0.001254548486537133,
+    0.0012545484865361396,
+    0.001254548486536323,
+    0.0012545484865361396,
+    0.001884772080984972,
+    0.0018847720809858821,
+    0.0018847720809851637,
+    0.0018847720809859149,
+    0.0018303090314506548,
+    0.0018303090314502554,
+    0.0018303090314499065,
+    0.0018303090314506548
+  ],
+  "position_shift_reference": "/scratch/yuhansun/phono3py-runs/20260910-recovery-20e079f/SrZrS3/slurm_attempts/relax/20260910T143146Z-relax-519dab1c/reference_unitcell.in",
+  "pristine_output": {
+    "atom_count": 20,
+    "errors": [],
+    "force_vector_sum_ry_bohr": [
+      1.0000000000000004e-08,
+      -1.999999999999981e-08,
+      -1.0000000000000328e-08
+    ],
+    "healthy": true,
+    "max_abs_force_ry_bohr": 1.046e-05,
+    "path": "/scratch/yuhansun/phono3py-runs/20260910-recovery-20e079f/SrZrS3/slurm_attempts/relax/20260910T143146Z-relax-519dab1c/pristine.out",
+    "rms_force_ry_bohr": 4.571951443311707e-06,
+    "scf_correction_ry_bohr": 9e-06,
+    "total_force_ry_bohr": 3.5e-05
+  },
+  "relax_output": {
+    "atom_count": 20,
+    "errors": [],
+    "force_vector_sum_ry_bohr": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "healthy": true,
+    "max_abs_force_ry_bohr": 9.87e-06,
+    "path": "/scratch/yuhansun/phono3py-runs/20260910-recovery-20e079f/SrZrS3/slurm_attempts/relax/20260910T143146Z-relax-519dab1c/relax.out",
+    "rms_force_ry_bohr": 3.7918350878345606e-06,
+    "scf_correction_ry_bohr": 2.2e-05,
+    "total_force_ry_bohr": 2.9e-05
+  },
+  "spacegroup_scan": [
+    {
+      "spacegroup_number": 62,
+      "spacegroup_symbol": "Pnma",
+      "symprec_angstrom": 1e-06
+    },
+    {
+      "spacegroup_number": 62,
+      "spacegroup_symbol": "Pnma",
+      "symprec_angstrom": 1e-05
+    },
+    {
+      "spacegroup_number": 62,
+      "spacegroup_symbol": "Pnma",
+      "symprec_angstrom": 0.0001
+    },
+    {
+      "spacegroup_number": 62,
+      "spacegroup_symbol": "Pnma",
+      "symprec_angstrom": 0.001
+    }
+  ]
+}

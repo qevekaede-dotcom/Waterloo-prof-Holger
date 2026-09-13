@@ -1,0 +1,18 @@
+{
+  "accepted_attempt": "/scratch/yuhansun/phono3py-runs/20260913-sr-count-5733f0c/SrZrS3/accepted_structure_source/source_run/slurm_attempts/relax/20260910T143146Z-relax-519dab1c",
+  "accepted_structure_import_receipt": "/scratch/yuhansun/phono3py-runs/20260913-sr-count-5733f0c/SrZrS3/accepted_structure_import.json",
+  "accepted_structure_import_receipt_sha256": "2dfea2f96bc5921d57eef17137e038ff9f5007dfd77ab00e7da664fb4f96cfbf",
+  "destination_preflight_policy_sha256": "b8e4fff046f346babf938a794ffc890be819cb9fedb13825d03a8183a32e319d",
+  "destination_structure_policy_sha256": "e1e11ba98656419cdee743f17d9cdab844358514c8cc4193e16fbe664650c55b",
+  "execution_manifest_sha256": "b7fcac8d3e29372af322d6e70b47a969cc0f263c2fe2952f11e0edab0b3cbfa9",
+  "external_source_paths_required": false,
+  "kind": "imported_accepted_structure",
+  "schema_version": 2,
+  "source_gate_sha256": "cac16a785bf26243fe45789c124b605d77756ec135ec824d530df2ef7e5ef87b",
+  "source_paths_archived": true,
+  "source_provenance_sha256": "c9c4d678d340bac867fc4a097d3fae8bcc14ee77aa734c3d9931d9b0e2ad597a",
+  "source_run_manifest_sha256": "c648c4ddf6eccb50deb9943cdc070ce0ab233e50c590d36561c70d87b3211738",
+  "source_structure_policy_sha256": "e1e11ba98656419cdee743f17d9cdab844358514c8cc4193e16fbe664650c55b",
+  "source_unitcell_sha256": "fdae2066bdf829fbeeca6685880f25e6354ce94fa03e82e5de53bb05ab6f0db8",
+  "starting_structure_audit_sha256": "5eee18596ebdf8cda2c95fff3ed7858b23d866b83dec6b7ac1fefcbc8ac8bdc0"
+}

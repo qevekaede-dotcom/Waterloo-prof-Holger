@@ -1,0 +1,5 @@
+queried_utc=2026-09-13T15:11:02Z
+command=sacct -j 21850149 --starttime 2026-09-13 --noheader --parsable2 --format=JobIDRaw,JobName,State,ExitCode,Elapsed,Start,End
+21850149|p3-preflight|COMPLETED|0:0|00:00:10|2026-09-13T10:43:01|2026-09-13T10:43:11
+21850149.batch|batch|COMPLETED|0:0|00:00:10|2026-09-13T10:43:01|2026-09-13T10:43:11
+21850149.extern|extern|COMPLETED|0:0|00:00:10|2026-09-13T10:43:01|2026-09-13T10:43:11

@@ -1,0 +1,104 @@
+{
+  "document_type": "srzrs3_3p5541348625A_remote_count_only_evidence_manifest",
+  "schema_version": 1,
+  "evidence_status": "verified_remote_count_only_not_force_pilot_or_production_acceptance",
+  "raw_bytes_unchanged": true,
+  "remote_run_root": "/scratch/yuhansun/phono3py-runs/20260913-sr-count-5733f0c/SrZrS3",
+  "remote_attempt_root": "/scratch/yuhansun/phono3py-runs/20260913-sr-count-5733f0c/SrZrS3/slurm_attempts/preflight/20260913T144259Z-preflight-2f0ab287",
+  "candidate": {
+    "id": "sr_fc3_2x1x1__sr_cutoff_3p5541348625A",
+    "supercell_id": "sr_fc3_2x1x1",
+    "cutoff_id": "sr_cutoff_3p5541348625A",
+    "cutoff_pair_distance_angstrom": 3.5541348625,
+    "cutoff_pair_distance_cli_bohr": 6.71634150010947,
+    "candidate_subset_sha256": "03818d4d8a130f6ff6b8d8f0df6668f7bcd87cb01d995ae58acd36bed0e94504"
+  },
+  "execution": {
+    "job_id": "21850149",
+    "attempt_id": "20260913T144259Z-preflight-2f0ab287",
+    "scheduler_receipt_path": "scheduler_receipt.txt",
+    "scheduler_receipt_sha256": "2a6e2264a79b64057a06f78944759d6c7a276c90e2f5d300fd1dbf509ac40662",
+    "scheduler_state": "COMPLETED",
+    "scheduler_exit_code": "0:0",
+    "scheduler_elapsed": "00:00:10",
+    "wrapper_exit_code": 0,
+    "phono3py_process_returncode": 0
+  },
+  "provenance": {
+    "git_commit": "5733f0cc486fa806ca2f6a1a653cd21541f70403",
+    "context_git_commit_field": "",
+    "context_git_commit_limitation": "The attempt context left git_commit blank; commit identity is instead bound by the run manifest and exact workflow/config hashes.",
+    "config_sha256": "709e32590bec41fd33780b9e6707bf0dcee6bf30b7c3e52eac9fbe09e2c6d853",
+    "run_manifest_sha256": "fdb4b503f99d6f210acd9b57a8ebb12acc3475dbb04eaf18ea1e611631ae1700",
+    "preflight_policy_sha256": "b8e4fff046f346babf938a794ffc890be819cb9fedb13825d03a8183a32e319d",
+    "accepted_structure_import_receipt_sha256": "2dfea2f96bc5921d57eef17137e038ff9f5007dfd77ab00e7da664fb4f96cfbf",
+    "accepted_unitcell_sha256": "fdae2066bdf829fbeeca6685880f25e6354ce94fa03e82e5de53bb05ab6f0db8",
+    "source_run_manifest_sha256": "c648c4ddf6eccb50deb9943cdc070ce0ab233e50c590d36561c70d87b3211738",
+    "source_gate_sha256": "cac16a785bf26243fe45789c124b605d77756ec135ec824d530df2ef7e5ef87b",
+    "source_provenance_sha256": "c9c4d678d340bac867fc4a097d3fae8bcc14ee77aa734c3d9931d9b0e2ad597a",
+    "workflow_sha256": {
+      "submit.py": "399b84585045bec75aa3d2a175ce8069afa8f06eeb4672b17fd14ca36b248d95",
+      "campaign.py": "6bbe3363875e57c9cfc21e73ff5288a5849571a5a316e7130c92121a4efbcd52",
+      "cluster.env": "037f859d802b79f56c71dcec6642601761f9cc75e0ae0881b58dfe2cf5d9ed11",
+      "preflight.sbatch": "e442d03b7d707cb2e0bfc50e49aa6717e6fce19fa08d229f11b665ae13122ee7"
+    },
+    "submission_sha256": {
+      "request.json": "e052ec315abb554bfbecc8743b0554fbea3d6e2f5171bfe47c8fdaa13ec85e6a",
+      "primary_result.json": "417455b1354fc05f8b35d0c0cfcf3d8b22e7ceaca8f329126802efb46a08abdd",
+      "submission.json": "9a80be00722cb5b79099f2d90bcc71428ef7a9e4156ca94eed6cc46d7114605b"
+    }
+  },
+  "result_artifacts": {
+    "preflight_inventory_path": "slurm_attempts/preflight/20260913T144259Z-preflight-2f0ab287/preflight_inventory.json",
+    "preflight_inventory_sha256": "ab8c619bf7f8080e2c164f61e43d697c21d74b78a068efa15de43cbf6763dd99",
+    "preflight_result_path": "slurm_attempts/preflight/20260913T144259Z-preflight-2f0ab287/candidates/sr_fc3_2x1x1__sr_cutoff_3p5541348625A/preflight_result.json",
+    "preflight_result_sha256": "8db6ac801edb6c4ae130ca0ed567b12c9d444f605a691065b4d9dbd2af1a54f8",
+    "phono3py_disp_yaml_path": "slurm_attempts/preflight/20260913T144259Z-preflight-2f0ab287/candidates/sr_fc3_2x1x1__sr_cutoff_3p5541348625A/phono3py_disp.yaml",
+    "phono3py_disp_yaml_sha256": "54de16296fad7c4afef2a5e9776f45a8aabf2b0eaba6e109c0edcdbc6c2d813d"
+  },
+  "observed": {
+    "yaml_length_unit": "au",
+    "supercell_matrix": [[2, 0, 0], [0, 1, 0], [0, 0, 1]],
+    "generated_atoms": 40,
+    "uncontracted_displacement_id_count": 4025,
+    "generated_displacement_supercells": 787,
+    "single_displacements": 25,
+    "second_displacement_ids": 762,
+    "included_pair_groups": 147,
+    "nonzero_included_pair_groups": 122,
+    "excluded_displacement_ids": 3238,
+    "canonical_generated_id_list_sha256": "95f8de9fb1df32992b09d2f723890fbca2bcbb20f5623d9287b7b93237720f0b",
+    "canonical_excluded_id_list_sha256": "258d3fa4f6562f8f80d82e8240761f25b87695b197d1981821887eec356bc9f4",
+    "count_only_prediction_audit_pass": true,
+    "prediction_audit_mismatches": [],
+    "cell_edge_lengths_angstrom": [7.676906522471478, 8.641205832811222, 14.002978848061957],
+    "inscribed_sphere_radius_angstrom": 3.838453261235739,
+    "cutoff_to_inscribed_radius_fraction": 0.925928914751,
+    "remaining_radius_clearance_angstrom": 0.284318398736,
+    "within_displacement_hard_cap": true
+  },
+  "generated_inputs": {
+    "raw_inputs_archived_in_git": false,
+    "reason": "The 787 reproducible QE inputs are not duplicated in Git; their byte checksums and ordered IDs are retained instead.",
+    "sha256sums_path": "generated_inputs.SHA256SUMS",
+    "sha256sums_sha256": "82e778374b61f13c373ad3909fef2022895e56b4b6ad8c9f97a9b4324919a819",
+    "file_count": 787,
+    "total_size_bytes": 2369657,
+    "remote_checksum_comparison": "All non-lock candidate files matched the remote directory in an rsync checksum dry run."
+  },
+  "archive": {
+    "raw_artifact_sha256sums_path": "SHA256SUMS",
+    "raw_artifact_sha256sums_sha256": "6a31d57fc7acce2136b0ea327aff0c22747c91b4237d28f63d2cbb346d7f27e8",
+    "raw_artifact_count": 31,
+    "raw_artifact_total_size_bytes": 622582
+  },
+  "scope_gates": {
+    "requested_scope_complete": true,
+    "preflight_complete": false,
+    "full_config_preflight_complete": false,
+    "selection_eligible": false,
+    "force_pilot_authorized": false,
+    "production_fc3_eligible": false,
+    "production_selection_required": true
+  }
+}

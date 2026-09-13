@@ -1,0 +1,105 @@
+{
+  "anchors": {
+    "source_final_gate_sha256": "cac16a785bf26243fe45789c124b605d77756ec135ec824d530df2ef7e5ef87b",
+    "source_final_provenance_sha256": "c9c4d678d340bac867fc4a097d3fae8bcc14ee77aa734c3d9931d9b0e2ad597a",
+    "source_final_unitcell_sha256": "fdae2066bdf829fbeeca6685880f25e6354ce94fa03e82e5de53bb05ab6f0db8",
+    "source_run_manifest_sha256": "c648c4ddf6eccb50deb9943cdc070ce0ab233e50c590d36561c70d87b3211738"
+  },
+  "backend_sha256": "0dacf05ce70c2d2e0bfce544f79e1b1fcf06659f68f9479cd050f12632b3c022",
+  "created_utc": "2026-09-13T14:42:26Z",
+  "destination_config_sha256": "709e32590bec41fd33780b9e6707bf0dcee6bf30b7c3e52eac9fbe09e2c6d853",
+  "destination_preflight_policy_sha256": "b8e4fff046f346babf938a794ffc890be819cb9fedb13825d03a8183a32e319d",
+  "destination_structure_policy_sha256": "e1e11ba98656419cdee743f17d9cdab844358514c8cc4193e16fbe664650c55b",
+  "excluded": [
+    "QE scratch",
+    "old preflight evidence",
+    "old submissions",
+    "collector evidence"
+  ],
+  "external_source_paths_required": false,
+  "kind": "imported_accepted_structure",
+  "limitations": [
+    "This import preserves an accepted structure for a new preflight policy only.",
+    "It is not new relaxation, force, cutoff, supercell, phonon, or kappa evidence."
+  ],
+  "material": "SrZrS3",
+  "pseudopotentials": {
+    "S": {
+      "filename": "s_pbe_v1.4.uspp.F.UPF",
+      "sha256": "84ad731864187f416f714e961c3ad2f04dcbf811618e724d277885c18cb470df"
+    },
+    "Sr": {
+      "filename": "Sr_pbe_v1.uspp.F.UPF",
+      "sha256": "292f7f1da5cae4b18da817ab2e82943ad90e74f267a06a6172db8dbcb6edf0ce"
+    },
+    "Zr": {
+      "filename": "Zr_pbe_v1.uspp.F.UPF",
+      "sha256": "d56e2997788a4b3d90bb829416161ff9eb6ccdfe377cb52acfbdd2175f4b4acf"
+    }
+  },
+  "schema_version": 1,
+  "source_acceptance_audit_sha256": "d06349c02aba029e4f0f395536ea2f4ff00fd29bacd5ef6d2087f89b8dacb546",
+  "source_attempt_id": "20260910T143146Z-relax-519dab1c",
+  "source_attempt_identity": "/scratch/yuhansun/phono3py-runs/20260910-recovery-20e079f/SrZrS3/slurm_attempts/relax/20260910T143146Z-relax-519dab1c",
+  "source_files": {
+    "pseudopotentials/Sr_pbe_v1.uspp.F.UPF": "292f7f1da5cae4b18da817ab2e82943ad90e74f267a06a6172db8dbcb6edf0ce",
+    "pseudopotentials/Zr_pbe_v1.uspp.F.UPF": "d56e2997788a4b3d90bb829416161ff9eb6ccdfe377cb52acfbdd2175f4b4acf",
+    "pseudopotentials/s_pbe_v1.4.uspp.F.UPF": "84ad731864187f416f714e961c3ad2f04dcbf811618e724d277885c18cb470df",
+    "source_run/config.snapshot.json": "f781942959f949889b1c5f64d4c674b647f9c8b504d276eec4ec35a10eed0f01",
+    "source_run/config_validation.json": "c8e7aed53e3f14bc26ce648619f028f41bc6759ac09f39b33a377581623c027f",
+    "source_run/recovery_reference.in": "e2f3cccc3882bf0e85c9e6644790ef511e1a8e515d2ccc3b0e4c7e7d1b8c5c8e",
+    "source_run/recovery_seed.in": "9f85b1f2c9e25203a45558f52580278ff1b0ecc5211266b4d74a4d457f721026",
+    "source_run/recovery_source/context.tsv": "d93db8e78af49e41774453f43fd6c4fbc0e0efe583f7a3fd333cc89ec64f0fd6",
+    "source_run/recovery_source/exit_code.txt": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
+    "source_run/recovery_source/finished_utc.txt": "129e1b04caa2dd8fa143f228bdae1beb7c40688a307ecdf0ade891ef5ff2da4e",
+    "source_run/recovery_source/relax.err": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "source_run/recovery_source/relax.in": "a7a548a8568266c1ce00cdc914b88632090aa967ed75e8f36816ed36be2bef8e",
+    "source_run/recovery_source/relax.out": "babf637f09371ced6838dd41e13baaff1e7002614243a5de2ac60c615e69f6f7",
+    "source_run/recovery_source/relax.process.json": "6fb9181c75835d65cbab493c6fd33e6ea11ff6bb8b845c59d5115ca0eb746f86",
+    "source_run/recovery_source/relax_launch.json": "ae498607b2efed58909bf22071a0beede930c05d767d1de1d2021236bcdb55cd",
+    "source_run/recovery_source/source_config.snapshot.json": "905b24363c1aa004c9a780a2e4445b43544fbbd73c794b3b49958d8c478f29cd",
+    "source_run/recovery_source/source_run_manifest.json": "0eb7c96aceb46c4232199afcebcabb708d21ee003c9e9bc954ac4f96688a1e4e",
+    "source_run/recovery_source/starting_structure_audit.json": "3b23e462d433b85ba07abf5ac05155999020ad522b222af3c6cd6a4a1d2d5707",
+    "source_run/recovery_source/starting_unitcell.in": "e2f3cccc3882bf0e85c9e6644790ef511e1a8e515d2ccc3b0e4c7e7d1b8c5c8e",
+    "source_run/relax/final/gate.json": "cac16a785bf26243fe45789c124b605d77756ec135ec824d530df2ef7e5ef87b",
+    "source_run/relax/final/provenance.json": "c9c4d678d340bac867fc4a097d3fae8bcc14ee77aa734c3d9931d9b0e2ad597a",
+    "source_run/relax/final/unitcell.in": "fdae2066bdf829fbeeca6685880f25e6354ce94fa03e82e5de53bb05ab6f0db8",
+    "source_run/relax_recovery.json": "34fbf5e8294e06f6776903b9fb355b5071f3ef0d4641d77f498a4351f45c20f1",
+    "source_run/run_manifest.json": "c648c4ddf6eccb50deb9943cdc070ce0ab233e50c590d36561c70d87b3211738",
+    "source_run/slurm_attempts/relax/20260910T143146Z-relax-519dab1c/context.tsv": "489add4b1106b6729d09b673af07ba0f67577bb1cd6cec512fb5ab1f68bb41b5",
+    "source_run/slurm_attempts/relax/20260910T143146Z-relax-519dab1c/execution_manifest.json": "b7fcac8d3e29372af322d6e70b47a969cc0f263c2fe2952f11e0edab0b3cbfa9",
+    "source_run/slurm_attempts/relax/20260910T143146Z-relax-519dab1c/exit_code.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "source_run/slurm_attempts/relax/20260910T143146Z-relax-519dab1c/finished_utc.txt": "ef984429b094e611dbf9324200a508169f1d34d2943bb555486f38709e9dbdb8",
+    "source_run/slurm_attempts/relax/20260910T143146Z-relax-519dab1c/pristine.err": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "source_run/slurm_attempts/relax/20260910T143146Z-relax-519dab1c/pristine.in": "fdae2066bdf829fbeeca6685880f25e6354ce94fa03e82e5de53bb05ab6f0db8",
+    "source_run/slurm_attempts/relax/20260910T143146Z-relax-519dab1c/pristine.out": "5c28f3203eade0122f6affa4ece19eecbc21b3e5dc2a5f7e48a5711714250cf6",
+    "source_run/slurm_attempts/relax/20260910T143146Z-relax-519dab1c/pristine.process.json": "62d6f46aceed0cacb188dc7478351c40874c9667fecbb6ed02e724c7fe497847",
+    "source_run/slurm_attempts/relax/20260910T143146Z-relax-519dab1c/pristine_launch.json": "b9ad883ff6907eacc7e0331c90a389949f828c89a5fbb97e0c1972da4598b395",
+    "source_run/slurm_attempts/relax/20260910T143146Z-relax-519dab1c/reference_unitcell.in": "e2f3cccc3882bf0e85c9e6644790ef511e1a8e515d2ccc3b0e4c7e7d1b8c5c8e",
+    "source_run/slurm_attempts/relax/20260910T143146Z-relax-519dab1c/relax.err": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "source_run/slurm_attempts/relax/20260910T143146Z-relax-519dab1c/relax.in": "6ffca4d09b55dfe45469c6c7220d6ac9555e2f10ee5dfd31b22f7a4267e3db27",
+    "source_run/slurm_attempts/relax/20260910T143146Z-relax-519dab1c/relax.out": "1bdd170b22fede54466a6ba7ef0a38306c9ed743b88da633f4629a1197e5eb3d",
+    "source_run/slurm_attempts/relax/20260910T143146Z-relax-519dab1c/relax.process.json": "6458aeb024f286600c1f28307084e29e6ff13a57069d9540bfa9c74e07e7506d",
+    "source_run/slurm_attempts/relax/20260910T143146Z-relax-519dab1c/relax_gate.json": "cac16a785bf26243fe45789c124b605d77756ec135ec824d530df2ef7e5ef87b",
+    "source_run/slurm_attempts/relax/20260910T143146Z-relax-519dab1c/relax_launch.json": "06ec0a4f230b851d23b2c717cce409daf201e12d8129e702ac2d56dfc7a54482",
+    "source_run/slurm_attempts/relax/20260910T143146Z-relax-519dab1c/starting_structure_audit.json": "5eee18596ebdf8cda2c95fff3ed7858b23d866b83dec6b7ac1fefcbc8ac8bdc0",
+    "source_run/slurm_attempts/relax/20260910T143146Z-relax-519dab1c/starting_unitcell.in": "9f85b1f2c9e25203a45558f52580278ff1b0ecc5211266b4d74a4d457f721026",
+    "source_run/slurm_attempts/relax/20260910T143146Z-relax-519dab1c/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "source_run/slurm_attempts/relax/20260910T143146Z-relax-519dab1c/stdout.log": "d6d0e46aae445906a807a688930c92d734a7ece3ba0e39af7ce861885bb3dddd",
+    "source_run/source_original_relax_output": "15fed5536eefab4db64208828383fed2e75dc6e9114f88803e985fcfbfc17060",
+    "source_run/source_qe_input": "9396ca05d7563e2e688b361ca11d095ca5ca613af5a86cde781a22a08c36d28b"
+  },
+  "source_paths_archived": true,
+  "source_preflight_policy_sha256": "93cef031b374991d5c50d9bac6e13f4e5c2a0c3bc0782e91c2b644b9a8ce4a60",
+  "source_run_identity": "/scratch/yuhansun/phono3py-runs/20260910-recovery-20e079f/SrZrS3",
+  "source_structure_policy_sha256": "e1e11ba98656419cdee743f17d9cdab844358514c8cc4193e16fbe664650c55b",
+  "workflow_files": {
+    "workflow/accepted_run/thermo_candidates/scripts/phono3py_campaign/campaign.py": "7ce00cd10ebdd0cad22bb67f4dfbc9caa4df74821640692997e082952d662f21",
+    "workflow/accepted_run/thermo_candidates/scripts/phono3py_campaign/qe_input.py": "38a3ef6d95ae15dd4959d8cbfddd7d3db261b2fc040b5ed105e15892fa8b34d1",
+    "workflow/accepted_run/thermo_candidates/scripts/phono3py_campaign/qe_output.py": "5476887222e8589ddeabdbfe9fb66fa9dbd7061b1f2ba559cb2fef3f40f3c5d5",
+    "workflow/recovery_backend/thermo_candidates/scripts/phono3py_campaign/relax_recovery.py": "223d2b897653f1ae9bc307c51f60ae450494df8216266d39630b4ce72fcacc61",
+    "workflow/recovery_source_run/thermo_candidates/scripts/phono3py_campaign/campaign.py": "5ce677d0832448ec1f5f4bf416c738b29f69f082a260275bb30d8637e1577a93",
+    "workflow/recovery_source_run/thermo_candidates/scripts/phono3py_campaign/qe_input.py": "38a3ef6d95ae15dd4959d8cbfddd7d3db261b2fc040b5ed105e15892fa8b34d1",
+    "workflow/recovery_source_run/thermo_candidates/scripts/phono3py_campaign/qe_output.py": "5476887222e8589ddeabdbfe9fb66fa9dbd7061b1f2ba559cb2fef3f40f3c5d5"
+  }
+}

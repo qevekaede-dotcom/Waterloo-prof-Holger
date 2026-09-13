@@ -1,0 +1,23 @@
+{
+  "config_path": "/scratch/yuhansun/Waterloo-prof-Holger-phonons-recovery-20e079f/thermo_candidates/SrZrS3/phono3py/campaign.json",
+  "config_sha256": "f2760648b03754753340b213851888f737d3887adf2800c9a4db655ea2fedcbf",
+  "created_utc": "2026-09-10T14:30:39Z",
+  "git_commit": "20e079f5f235ef3ac66441dca4a0d9dd41a95664",
+  "material": "SrZrS3",
+  "preflight_policy_sha256": "93cef031b374991d5c50d9bac6e13f4e5c2a0c3bc0782e91c2b644b9a8ce4a60",
+  "relax_recovery": {
+    "receipt": "relax_recovery.json",
+    "sha256": "34fbf5e8294e06f6776903b9fb355b5071f3ef0d4641d77f498a4351f45c20f1"
+  },
+  "schema_version": 2,
+  "source_qe_input": "/scratch/yuhansun/Waterloo-prof-Holger-phonons-recovery-20e079f/thermo_candidates/SrZrS3/qe/01_scf/SrZrS3.scf.in",
+  "source_qe_sha256": "9396ca05d7563e2e688b361ca11d095ca5ca613af5a86cde781a22a08c36d28b",
+  "source_relax_output": "/scratch/yuhansun/Waterloo-prof-Holger-phonons-recovery-20e079f/thermo_candidates/SrZrS3/logs/SrZrS3.relax.out",
+  "source_relax_sha256": "15fed5536eefab4db64208828383fed2e75dc6e9114f88803e985fcfbfc17060",
+  "structure_policy_sha256": "e1e11ba98656419cdee743f17d9cdab844358514c8cc4193e16fbe664650c55b",
+  "workflow_files": {
+    "thermo_candidates/scripts/phono3py_campaign/campaign.py": "7ce00cd10ebdd0cad22bb67f4dfbc9caa4df74821640692997e082952d662f21",
+    "thermo_candidates/scripts/phono3py_campaign/qe_input.py": "38a3ef6d95ae15dd4959d8cbfddd7d3db261b2fc040b5ed105e15892fa8b34d1",
+    "thermo_candidates/scripts/phono3py_campaign/qe_output.py": "5476887222e8589ddeabdbfe9fb66fa9dbd7061b1f2ba559cb2fef3f40f3c5d5"
+  }
+}

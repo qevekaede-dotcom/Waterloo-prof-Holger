@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -15,6 +16,7 @@ from campaign import (
     command_prepare_relax,
     derive_no_cutoff_preflight_results,
     load_json,
+    parse_phono3py_type1_yaml,
     policy_sha256,
     preflight_candidate_id,
     preflight_completion_fields,
@@ -22,6 +24,7 @@ from campaign import (
     select_preflight_candidates,
     supercell_lattices_match,
     validate_config,
+    validate_verified_count_only_result,
     verify_manifest,
     verify_upstream_manifest,
 )
@@ -33,6 +36,15 @@ RB_CONFIG = REPO_ROOT / "thermo_candidates/Rb2Cu2SnS4/phono3py/campaign.json"
 SR_COUNT_ONLY_EVIDENCE = (
     REPO_ROOT
     / "thermo_candidates/SrZrS3/phono3py/evidence/3p70A_count_only"
+)
+SR_VERIFIED_COUNT_ONLY_EVIDENCE = (
+    REPO_ROOT
+    / "thermo_candidates/SrZrS3/phono3py/evidence/3p5541348625A_count_only"
+)
+SR_VERIFIED_COUNT_ONLY_YAML = (
+    SR_VERIFIED_COUNT_ONLY_EVIDENCE
+    / "slurm_attempts/preflight/20260913T144259Z-preflight-2f0ab287"
+    / "candidates/sr_fc3_2x1x1__sr_cutoff_3p5541348625A/phono3py_disp.yaml"
 )
 
 
@@ -190,6 +202,71 @@ class CampaignConfigTests(unittest.TestCase):
         self.assertEqual(inventory["excluded_pair_second_id_counts"], [1, 1])
         self.assertEqual(inventory["nonzero_included_pair_groups"], 2)
 
+    def test_dependency_free_phono3py_type1_parser_reads_real_archive(self) -> None:
+        parsed = parse_phono3py_type1_yaml(
+            SR_VERIFIED_COUNT_ONLY_YAML.read_text()
+        )
+        inventory = analyze_displacement_yaml(parsed)
+        self.assertEqual(parsed["phono3py"]["version"], "4.4.0")
+        self.assertEqual(parsed["physical_unit"]["length"], "au")
+        self.assertEqual(
+            parsed["supercell_matrix"], [[2, 0, 0], [0, 1, 0], [0, 0, 1]]
+        )
+        self.assertEqual(len(parsed["supercell"]["points"]), 40)
+        self.assertEqual(
+            [item["displacement_id"] for item in parsed["displacement_pairs"]],
+            list(range(1, 26)),
+        )
+        self.assertEqual(len(inventory["all_displacement_ids"]), 4025)
+        self.assertEqual(len(inventory["included_displacement_ids"]), 787)
+        self.assertEqual(
+            {
+                key: parsed["displacement_pair_info"][key]
+                for key in (
+                    "number_of_singles",
+                    "number_of_pairs",
+                    "number_of_pairs_in_cutoff",
+                )
+            },
+            {
+                "number_of_singles": 25,
+                "number_of_pairs": 4000,
+                "number_of_pairs_in_cutoff": 762,
+            },
+        )
+
+    def test_dependency_free_phono3py_parser_rejects_malformed_field(self) -> None:
+        text = SR_VERIFIED_COUNT_ONLY_YAML.read_text().replace(
+            "  displacement_id: 1\n", "  displacement_id 1\n", 1
+        )
+        with self.assertRaisesRegex(CampaignError, "not a mapping entry"):
+            parse_phono3py_type1_yaml(text)
+
+    def test_dependency_free_phono3py_parser_rejects_duplicate_key(self) -> None:
+        text = SR_VERIFIED_COUNT_ONLY_YAML.read_text().replace(
+            '  length: "au"\n', '  length: "au"\n  length: "au"\n', 1
+        )
+        with self.assertRaisesRegex(CampaignError, "duplicate key: length"):
+            parse_phono3py_type1_yaml(text)
+
+    def test_dependency_free_phono3py_parser_rejects_unsupported_yaml(self) -> None:
+        text = SR_VERIFIED_COUNT_ONLY_YAML.read_text().replace(
+            '  version: "4.4.0"\n', '  version: &version "4.4.0"\n', 1
+        )
+        with self.assertRaisesRegex(CampaignError, "unsupported YAML syntax"):
+            parse_phono3py_type1_yaml(text)
+
+    def test_dependency_free_phono3py_parser_rejects_pair_total_drift(self) -> None:
+        text = SR_VERIFIED_COUNT_ONLY_YAML.read_text().replace(
+            "  number_of_pairs_in_cutoff: 762\n",
+            "  number_of_pairs_in_cutoff: 763\n",
+            1,
+        )
+        with self.assertRaisesRegex(
+            CampaignError, "number_of_pairs_in_cutoff differs from included IDs"
+        ):
+            parse_phono3py_type1_yaml(text)
+
     def test_material_configs_validate_and_remain_selection_gated(self) -> None:
         for config_path in (SR_CONFIG, RB_CONFIG):
             config, report = validate_config(config_path)
@@ -198,7 +275,7 @@ class CampaignConfigTests(unittest.TestCase):
             self.assertIsNone(config["production"]["selected_supercell"])
             self.assertIsNone(config["production"]["selected_cutoff"])
 
-    def test_sr_predicted_sub_cap_candidate_is_unique_count_only_and_blocked(self) -> None:
+    def test_sr_verified_sub_cap_count_only_result_preserves_prediction_and_blocks_production(self) -> None:
         config, report = validate_config(SR_CONFIG)
         self.assertTrue(report["healthy"])
         cutoff_id = "sr_cutoff_3p5541348625A"
@@ -209,6 +286,10 @@ class CampaignConfigTests(unittest.TestCase):
         )
         self.assertEqual(cutoff["cutoff_pair_distance_angstrom"], 3.5541348625)
         self.assertEqual(cutoff["cutoff_pair_distance_cli_bohr"], 6.71634150010947)
+        self.assertEqual(
+            cutoff["candidate_status"],
+            "verified_remote_count_only_not_force_pilot_or_production_acceptance",
+        )
         self.assertFalse(cutoff["production_fc3_eligible_without_new_review"])
         prediction = cutoff["count_only_prediction"]
         self.assertEqual(
@@ -259,6 +340,55 @@ class CampaignConfigTests(unittest.TestCase):
             prediction["expected_newly_excluded_shells_angstrom"],
             [3.582091586, 3.604263809, 3.616141604],
         )
+        verified = cutoff["verified_count_only_result"]
+        self.assertEqual(verified["job_id"], "21850149")
+        self.assertEqual(
+            verified["attempt_id"], "20260913T144259Z-preflight-2f0ab287"
+        )
+        self.assertEqual(
+            verified["git_commit"],
+            "5733f0cc486fa806ca2f6a1a653cd21541f70403",
+        )
+        self.assertEqual(
+            verified["candidate_subset_sha256"],
+            "03818d4d8a130f6ff6b8d8f0df6668f7bcd87cb01d995ae58acd36bed0e94504",
+        )
+        self.assertEqual(
+            verified["preflight_policy_sha256"],
+            "b8e4fff046f346babf938a794ffc890be819cb9fedb13825d03a8183a32e319d",
+        )
+        self.assertEqual(
+            verified["candidate_selection"],
+            {
+                "schema_version": 1,
+                "mode": "explicit_subset",
+                "candidate_ids": [
+                    "sr_fc3_2x1x1__sr_cutoff_3p5541348625A"
+                ],
+                "preflight_policy_sha256": "b8e4fff046f346babf938a794ffc890be819cb9fedb13825d03a8183a32e319d",
+                "candidate_subset_sha256": "03818d4d8a130f6ff6b8d8f0df6668f7bcd87cb01d995ae58acd36bed0e94504",
+                "configured_candidate_count": 10,
+            },
+        )
+        self.assertEqual(
+            (
+                verified["generated_displacement_supercells"],
+                verified["single_displacements"],
+                verified["second_displacement_ids"],
+                verified["included_pair_groups"],
+                verified["nonzero_included_pair_groups"],
+            ),
+            (787, 25, 762, 147, 122),
+        )
+        self.assertTrue(verified["requested_scope_complete"])
+        for field in (
+            "preflight_complete",
+            "full_config_preflight_complete",
+            "selection_eligible",
+            "force_pilot_authorized",
+            "production_fc3_eligible",
+        ):
+            self.assertFalse(verified[field])
         rows = [
             item
             for item in config["displacements"]["enumerate"]
@@ -542,6 +672,301 @@ class CampaignConfigTests(unittest.TestCase):
                 path.write_text(json.dumps(bad))
                 with self.assertRaisesRegex(CampaignError, message):
                     validate_config(path)
+
+    def test_sr_verified_count_only_manifest_is_path_hash_and_status_bound(self) -> None:
+        cases = (
+            ("manifest_sha256", "0" * 64, "manifest hash mismatch"),
+            ("manifest_path", "../outside.json", "escapes repository root"),
+        )
+        for field, value, message in cases:
+            bad = copy.deepcopy(load_json(SR_CONFIG))
+            cutoff = next(
+                item
+                for item in bad["displacements"]["cutoff_candidates"]
+                if item["id"] == "sr_cutoff_3p5541348625A"
+            )
+            cutoff["verified_count_only_result"][field] = value
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as temporary:
+                path = Path(temporary) / "bad-verified-evidence.json"
+                path.write_text(json.dumps(bad))
+                with self.assertRaisesRegex(CampaignError, message):
+                    validate_config(path)
+
+        bad_status = copy.deepcopy(load_json(SR_CONFIG))
+        cutoff = next(
+            item
+            for item in bad_status["displacements"]["cutoff_candidates"]
+            if item["id"] == "sr_cutoff_3p5541348625A"
+        )
+        cutoff["candidate_status"] = (
+            "predicted_from_verified_remote_3p70A_yaml_not_a_generated_result"
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "bad-status.json"
+            path.write_text(json.dumps(bad_status))
+            with self.assertRaisesRegex(CampaignError, "status is inconsistent"):
+                validate_config(path)
+
+    def test_sr_verified_count_only_manifest_rejects_rehashed_semantic_tamper(self) -> None:
+        config = copy.deepcopy(load_json(SR_CONFIG))
+        cutoff = next(
+            item
+            for item in config["displacements"]["cutoff_candidates"]
+            if item["id"] == "sr_cutoff_3p5541348625A"
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            temporary_root = Path(temporary)
+            relative_evidence = Path(
+                "thermo_candidates/SrZrS3/phono3py/evidence/3p5541348625A_count_only"
+            )
+            copied_evidence = temporary_root / relative_evidence
+            shutil.copytree(SR_VERIFIED_COUNT_ONLY_EVIDENCE, copied_evidence)
+            manifest_path = copied_evidence / "manifest.json"
+            manifest = load_json(manifest_path)
+            manifest["observed"]["generated_displacement_supercells"] = 788
+            manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
+            cutoff["verified_count_only_result"]["manifest_sha256"] = (
+                campaign_module.sha256_path(manifest_path)
+            )
+            with patch.object(campaign_module, "REPO_ROOT", temporary_root):
+                with self.assertRaisesRegex(
+                    CampaignError,
+                    "manifest.observed.generated_displacement_supercells",
+                ):
+                    validate_verified_count_only_result(config, cutoff)
+
+    def test_sr_verified_count_only_result_cannot_claim_promotion(self) -> None:
+        for field in (
+            "preflight_complete",
+            "full_config_preflight_complete",
+            "selection_eligible",
+            "force_pilot_authorized",
+            "production_fc3_eligible",
+        ):
+            bad = copy.deepcopy(load_json(SR_CONFIG))
+            cutoff = next(
+                item
+                for item in bad["displacements"]["cutoff_candidates"]
+                if item["id"] == "sr_cutoff_3p5541348625A"
+            )
+            cutoff["verified_count_only_result"][field] = True
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as temporary:
+                path = Path(temporary) / "bad-promotion.json"
+                path.write_text(json.dumps(bad))
+                with self.assertRaisesRegex(CampaignError, field):
+                    validate_config(path)
+
+    def test_sr_verified_result_does_not_rewrite_archived_preflight_policy(self) -> None:
+        current = load_json(SR_CONFIG)
+        archived = load_json(SR_VERIFIED_COUNT_ONLY_EVIDENCE / "config.snapshot.json")
+        expected = "b8e4fff046f346babf938a794ffc890be819cb9fedb13825d03a8183a32e319d"
+        self.assertEqual(policy_sha256(archived, "preflight"), expected)
+        self.assertEqual(policy_sha256(current, "preflight"), expected)
+
+    def test_sr_verified_count_only_rejects_current_hard_cap_drift(self) -> None:
+        config = copy.deepcopy(load_json(SR_CONFIG))
+        config["displacements"]["hard_cap"] = 801
+        cutoff = next(
+            item
+            for item in config["displacements"]["cutoff_candidates"]
+            if item["id"] == "sr_cutoff_3p5541348625A"
+        )
+        with self.assertRaisesRegex(CampaignError, "preflight_policy_sha256"):
+            validate_verified_count_only_result(config, cutoff)
+
+    def test_sr_verified_count_only_manifest_rejects_internal_symlink(self) -> None:
+        config = copy.deepcopy(load_json(SR_CONFIG))
+        cutoff = next(
+            item
+            for item in config["displacements"]["cutoff_candidates"]
+            if item["id"] == "sr_cutoff_3p5541348625A"
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            temporary_root = Path(temporary)
+            copied_evidence = temporary_root / "real-evidence"
+            shutil.copytree(SR_VERIFIED_COUNT_ONLY_EVIDENCE, copied_evidence)
+            (temporary_root / "linked-evidence").symlink_to(
+                copied_evidence, target_is_directory=True
+            )
+            cutoff["verified_count_only_result"]["manifest_path"] = (
+                "linked-evidence/manifest.json"
+            )
+            with patch.object(campaign_module, "REPO_ROOT", temporary_root):
+                with self.assertRaisesRegex(CampaignError, "contains a symlink"):
+                    validate_verified_count_only_result(config, cutoff)
+
+    def test_sr_verified_count_only_rejects_synchronized_id_rehash_without_yaml_change(
+        self,
+    ) -> None:
+        config = copy.deepcopy(load_json(SR_CONFIG))
+        cutoff = next(
+            item
+            for item in config["displacements"]["cutoff_candidates"]
+            if item["id"] == "sr_cutoff_3p5541348625A"
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            temporary_root = Path(temporary)
+            relative_evidence = Path(
+                "thermo_candidates/SrZrS3/phono3py/evidence/3p5541348625A_count_only"
+            )
+            copied_evidence = temporary_root / relative_evidence
+            shutil.copytree(SR_VERIFIED_COUNT_ONLY_EVIDENCE, copied_evidence)
+            manifest_path = copied_evidence / "manifest.json"
+            manifest = load_json(manifest_path)
+
+            generated_path = copied_evidence / "generated_inputs.SHA256SUMS"
+            generated_rows = generated_path.read_text().splitlines()
+            self.assertTrue(generated_rows[-1].endswith("  supercell-04011.in"))
+            generated_rows[-1] = generated_rows[-1].replace(
+                "supercell-04011.in", "supercell-04012.in"
+            )
+            generated_path.write_text("\n".join(generated_rows) + "\n")
+            manifest["generated_inputs"]["sha256sums_sha256"] = (
+                campaign_module.sha256_path(generated_path)
+            )
+
+            result_relative = manifest["result_artifacts"]["preflight_result_path"]
+            inventory_relative = manifest["result_artifacts"][
+                "preflight_inventory_path"
+            ]
+            result_path = copied_evidence / result_relative
+            inventory_path = copied_evidence / inventory_relative
+            preflight_result = load_json(result_path)
+            preflight_result["generated_displacement_ids"][-1] = 4012
+            result_path.write_text(json.dumps(preflight_result, indent=2) + "\n")
+            inventory = load_json(inventory_path)
+            inventory["results"] = [preflight_result]
+            inventory_path.write_text(json.dumps(inventory, indent=2) + "\n")
+
+            result_hash = campaign_module.sha256_path(result_path)
+            inventory_hash = campaign_module.sha256_path(inventory_path)
+            manifest["result_artifacts"]["preflight_result_sha256"] = result_hash
+            manifest["result_artifacts"]["preflight_inventory_sha256"] = inventory_hash
+            verified = cutoff["verified_count_only_result"]
+            verified["preflight_result_sha256"] = result_hash
+            verified["preflight_inventory_sha256"] = inventory_hash
+
+            changed_generated_ids = preflight_result["generated_displacement_ids"]
+            changed_excluded_ids = sorted(
+                set(range(1, preflight_result["uncontracted_displacements"] + 1))
+                - set(changed_generated_ids)
+            )
+            manifest["observed"]["canonical_generated_id_list_sha256"] = (
+                campaign_module.hashlib.sha256(
+                    ("\n".join(map(str, changed_generated_ids)) + "\n").encode()
+                ).hexdigest()
+            )
+            manifest["observed"]["canonical_excluded_id_list_sha256"] = (
+                campaign_module.hashlib.sha256(
+                    ("\n".join(map(str, changed_excluded_ids)) + "\n").encode()
+                ).hexdigest()
+            )
+
+            archive_path = copied_evidence / "SHA256SUMS"
+            replacements = {
+                result_relative: result_hash,
+                inventory_relative: inventory_hash,
+            }
+            archive_rows = archive_path.read_text().splitlines()
+            archive_path.write_text(
+                "\n".join(
+                    f"{replacements.get(name, digest)}  {name}"
+                    for digest, name in (row.split("  ", 1) for row in archive_rows)
+                )
+                + "\n"
+            )
+            manifest["archive"]["raw_artifact_sha256sums_sha256"] = (
+                campaign_module.sha256_path(archive_path)
+            )
+            manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
+            verified["manifest_sha256"] = campaign_module.sha256_path(manifest_path)
+
+            with patch.object(campaign_module, "REPO_ROOT", temporary_root):
+                with self.assertRaisesRegex(
+                    CampaignError, "versus phono3py YAML included IDs"
+                ):
+                    validate_verified_count_only_result(config, cutoff)
+
+    def test_sr_verified_count_only_rejects_rehashed_submission_tamper(self) -> None:
+        config = copy.deepcopy(load_json(SR_CONFIG))
+        cutoff = next(
+            item
+            for item in config["displacements"]["cutoff_candidates"]
+            if item["id"] == "sr_cutoff_3p5541348625A"
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            temporary_root = Path(temporary)
+            relative_evidence = Path(
+                "thermo_candidates/SrZrS3/phono3py/evidence/3p5541348625A_count_only"
+            )
+            copied_evidence = temporary_root / relative_evidence
+            shutil.copytree(SR_VERIFIED_COUNT_ONLY_EVIDENCE, copied_evidence)
+            manifest_path = copied_evidence / "manifest.json"
+            manifest = load_json(manifest_path)
+            request_relative = (
+                "submissions/preflight/20260913T144259Z-preflight-2f0ab287/request.json"
+            )
+            request_path = copied_evidence / request_relative
+            request = load_json(request_path)
+            request["candidate_subset_sha256"] = "0" * 64
+            request_path.write_text(json.dumps(request, indent=2) + "\n")
+            request_hash = campaign_module.sha256_path(request_path)
+            checksum_path = copied_evidence / "SHA256SUMS"
+            checksum_lines = checksum_path.read_text().splitlines()
+            checksum_path.write_text(
+                "\n".join(
+                    f"{request_hash}  {request_relative}"
+                    if line.endswith(f"  {request_relative}")
+                    else line
+                    for line in checksum_lines
+                )
+                + "\n"
+            )
+            manifest["provenance"]["submission_sha256"]["request.json"] = request_hash
+            manifest["archive"]["raw_artifact_sha256sums_sha256"] = (
+                campaign_module.sha256_path(checksum_path)
+            )
+            manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
+            cutoff["verified_count_only_result"]["manifest_sha256"] = (
+                campaign_module.sha256_path(manifest_path)
+            )
+            with patch.object(campaign_module, "REPO_ROOT", temporary_root):
+                with self.assertRaisesRegex(
+                    CampaignError, "request.candidate_subset_sha256"
+                ):
+                    validate_verified_count_only_result(config, cutoff)
+
+    def test_sr_verified_count_only_rejects_checksum_list_path_escape(self) -> None:
+        config = copy.deepcopy(load_json(SR_CONFIG))
+        cutoff = next(
+            item
+            for item in config["displacements"]["cutoff_candidates"]
+            if item["id"] == "sr_cutoff_3p5541348625A"
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            temporary_root = Path(temporary)
+            relative_evidence = Path(
+                "thermo_candidates/SrZrS3/phono3py/evidence/3p5541348625A_count_only"
+            )
+            copied_evidence = temporary_root / relative_evidence
+            shutil.copytree(SR_VERIFIED_COUNT_ONLY_EVIDENCE, copied_evidence)
+            manifest_path = copied_evidence / "manifest.json"
+            manifest = load_json(manifest_path)
+            checksum_path = copied_evidence / "SHA256SUMS"
+            checksum_lines = checksum_path.read_text().splitlines()
+            digest, _ = checksum_lines[0].split("  ", 1)
+            checksum_lines[0] = f"{digest}  ../escaped.json"
+            checksum_path.write_text("\n".join(checksum_lines) + "\n")
+            manifest["archive"]["raw_artifact_sha256sums_sha256"] = (
+                campaign_module.sha256_path(checksum_path)
+            )
+            manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
+            cutoff["verified_count_only_result"]["manifest_sha256"] = (
+                campaign_module.sha256_path(manifest_path)
+            )
+            with patch.object(campaign_module, "REPO_ROOT", temporary_root):
+                with self.assertRaisesRegex(CampaignError, "stay inside"):
+                    validate_verified_count_only_result(config, cutoff)
 
     def test_sr_durable_count_only_evidence_manifest_matches_files(self) -> None:
         manifest = load_json(SR_COUNT_ONLY_EVIDENCE / "manifest.json")

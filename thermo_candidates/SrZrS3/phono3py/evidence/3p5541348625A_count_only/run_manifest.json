@@ -1,0 +1,25 @@
+{
+  "accepted_structure_import": {
+    "receipt": "accepted_structure_import.json",
+    "sha256": "2dfea2f96bc5921d57eef17137e038ff9f5007dfd77ab00e7da664fb4f96cfbf",
+    "source_preflight_policy_sha256": "93cef031b374991d5c50d9bac6e13f4e5c2a0c3bc0782e91c2b644b9a8ce4a60",
+    "source_structure_policy_sha256": "e1e11ba98656419cdee743f17d9cdab844358514c8cc4193e16fbe664650c55b"
+  },
+  "config_path": "/scratch/yuhansun/Waterloo-prof-Holger-remaining-phonons-5733f0c/thermo_candidates/SrZrS3/phono3py/campaign.json",
+  "config_sha256": "709e32590bec41fd33780b9e6707bf0dcee6bf30b7c3e52eac9fbe09e2c6d853",
+  "created_utc": "2026-09-13T14:42:26Z",
+  "git_commit": "5733f0cc486fa806ca2f6a1a653cd21541f70403",
+  "material": "SrZrS3",
+  "preflight_policy_sha256": "b8e4fff046f346babf938a794ffc890be819cb9fedb13825d03a8183a32e319d",
+  "schema_version": 2,
+  "source_qe_input": "/scratch/yuhansun/phono3py-runs/20260913-sr-count-5733f0c/SrZrS3/accepted_structure_source/source_run/source_qe_input",
+  "source_qe_sha256": "9396ca05d7563e2e688b361ca11d095ca5ca613af5a86cde781a22a08c36d28b",
+  "source_relax_output": "/scratch/yuhansun/phono3py-runs/20260913-sr-count-5733f0c/SrZrS3/accepted_structure_source/source_run/source_original_relax_output",
+  "source_relax_sha256": "15fed5536eefab4db64208828383fed2e75dc6e9114f88803e985fcfbfc17060",
+  "structure_policy_sha256": "e1e11ba98656419cdee743f17d9cdab844358514c8cc4193e16fbe664650c55b",
+  "workflow_files": {
+    "thermo_candidates/scripts/phono3py_campaign/campaign.py": "6bbe3363875e57c9cfc21e73ff5288a5849571a5a316e7130c92121a4efbcd52",
+    "thermo_candidates/scripts/phono3py_campaign/qe_input.py": "f05199e34ffd93b0f5a1738abb7f8e2c50f035032fd91726115e98e63d0c1343",
+    "thermo_candidates/scripts/phono3py_campaign/qe_output.py": "5476887222e8589ddeabdbfe9fb66fa9dbd7061b1f2ba559cb2fef3f40f3c5d5"
+  }
+}

@@ -1,0 +1,67 @@
+&CONTROL
+  calculation = 'scf',
+  disk_io = 'low',
+  outdir = './tmp-pristine',
+  prefix = 'SrZrS3_p3_pristine',
+  pseudo_dir = '/home/yuhansun/pseudos/SSSP-1.3.0-PBE-precision',
+  restart_mode = 'from_scratch',
+  verbosity = 'high',
+  tprnfor = .true.,
+  tstress = .true.,
+  forc_conv_thr = 1.000000000000d-05,
+  etot_conv_thr = 1.000000000000d-08,
+/
+&SYSTEM
+  ecutrho = 640,
+  ecutwfc = 80,
+  occupations = 'fixed',
+  ibrav = 0,
+  nat = 20,
+  ntyp = 3,
+  nosym = .true.,
+  noinv = .true.,
+/
+&ELECTRONS
+  conv_thr = 1.000000000000d-10,
+  diagonalization = 'david',
+  electron_maxstep = 300,
+  mixing_beta = 0.3,
+  startingpot = 'atomic',
+  startingwfc = 'atomic+random',
+/
+&IONS
+  ion_dynamics = 'bfgs',
+/
+&CELL
+/
+ATOMIC_SPECIES
+  S  32.0650 s_pbe_v1.4.uspp.F.UPF
+  Sr  87.6200 Sr_pbe_v1.uspp.F.UPF
+  Zr  91.2240 Zr_pbe_v1.uspp.F.UPF
+ATOMIC_POSITIONS crystal
+  Sr 0.2500000000 0.0624528825 0.8194738686
+  Sr 0.7500000000 0.9375471175 0.1805261314
+  Sr 0.7500000000 0.4375471175 0.3194738686
+  Sr 0.2500000000 0.5624528825 0.6805261314
+  Zr 0.2500000000 0.3268570867 0.0557831747
+  Zr 0.7500000000 0.6731429133 0.9442168253
+  Zr 0.7500000000 0.1731429133 0.5557831747
+  Zr 0.2500000000 0.8268570867 0.4442168253
+  S 0.2500000000 0.2083391964 0.2154735335
+  S 0.7500000000 0.7916608036 0.7845264665
+  S 0.7500000000 0.2916608036 0.7154735335
+  S 0.2500000000 0.7083391964 0.2845264665
+  S 0.2500000000 0.3365922084 0.4841975851
+  S 0.7500000000 0.6634077916 0.5158024149
+  S 0.7500000000 0.1634077916 0.9841975851
+  S 0.2500000000 0.8365922084 0.0158024149
+  S 0.2500000000 0.4870576066 0.8946775526
+  S 0.7500000000 0.5129423934 0.1053224474
+  S 0.7500000000 0.0129423934 0.3946775526
+  S 0.2500000000 0.9870576066 0.6053224474
+K_POINTS automatic
+  10 5 3 0 0 0
+CELL_PARAMETERS angstrom
+  3.838453236 0.000000000 0.000000000
+  -0.000000000 8.641205776 0.000000000
+  0.000000000 0.000000000 14.002978756

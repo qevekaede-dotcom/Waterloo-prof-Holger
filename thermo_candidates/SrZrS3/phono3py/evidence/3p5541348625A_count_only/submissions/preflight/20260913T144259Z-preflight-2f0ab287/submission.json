@@ -1,0 +1,40 @@
+{
+  "array": null,
+  "attempt_id": "20260913T144259Z-preflight-2f0ab287",
+  "budget_receipt_sha256": null,
+  "candidate_ids": [
+    "sr_fc3_2x1x1__sr_cutoff_3p5541348625A"
+  ],
+  "candidate_subset_sha256": "03818d4d8a130f6ff6b8d8f0df6668f7bcd87cb01d995ae58acd36bed0e94504",
+  "collector": null,
+  "config_sha256": "709e32590bec41fd33780b9e6707bf0dcee6bf30b7c3e52eac9fbe09e2c6d853",
+  "diagnostic_requested_walltime_minutes": null,
+  "diagnostic_resource_sha256": null,
+  "force_manifest_sha256": null,
+  "force_mode": null,
+  "healthy": true,
+  "mode": "execute",
+  "polish_lineage_sha256": null,
+  "primary_command": [
+    "sbatch",
+    "--parsable",
+    "--account=def-kleinke_cpu",
+    "--export=CAMPAIGN_CONFIG=/scratch/yuhansun/Waterloo-prof-Holger-remaining-phonons-5733f0c/thermo_candidates/SrZrS3/phono3py/campaign.json,RUN_DIR=/scratch/yuhansun/phono3py-runs/20260913-sr-count-5733f0c/SrZrS3,ATTEMPT_ID=20260913T144259Z-preflight-2f0ab287,P3_SLURM_DIR=/scratch/yuhansun/Waterloo-prof-Holger-remaining-phonons-5733f0c/thermo_candidates/scripts/phono3py_campaign/slurm,P3_EXPECTED_CONFIG_SHA256=709e32590bec41fd33780b9e6707bf0dcee6bf30b7c3e52eac9fbe09e2c6d853,P3_SUBMIT_SCRIPT_SHA256=399b84585045bec75aa3d2a175ce8069afa8f06eeb4672b17fd14ca36b248d95,P3_STAGE_SCRIPT_SHA256=e442d03b7d707cb2e0bfc50e49aa6717e6fce19fa08d229f11b665ae13122ee7,P3_CLUSTER_ENV_SHA256=037f859d802b79f56c71dcec6642601761f9cc75e0ae0881b58dfe2cf5d9ed11,P3_CAMPAIGN_CLI_SHA256=6bbe3363875e57c9cfc21e73ff5288a5849571a5a316e7130c92121a4efbcd52,P3_PREFLIGHT_CANDIDATE_IDS=sr_fc3_2x1x1__sr_cutoff_3p5541348625A,P3_PREFLIGHT_CANDIDATE_SHA256=03818d4d8a130f6ff6b8d8f0df6668f7bcd87cb01d995ae58acd36bed0e94504",
+    "/scratch/yuhansun/Waterloo-prof-Holger-remaining-phonons-5733f0c/thermo_candidates/scripts/phono3py_campaign/slurm/preflight.sbatch"
+  ],
+  "primary_job_id": "21850149",
+  "record_dir": "/scratch/yuhansun/phono3py-runs/20260913-sr-count-5733f0c/SrZrS3/submissions/preflight/20260913T144259Z-preflight-2f0ab287",
+  "run_dir": "/scratch/yuhansun/phono3py-runs/20260913-sr-count-5733f0c/SrZrS3",
+  "scheduler_options": [],
+  "slurm_account": "def-kleinke_cpu",
+  "stage": "preflight",
+  "submitted_utc": "2026-09-13T14:43:00Z",
+  "task_count": null,
+  "task_map_sha256": null,
+  "workflow_sha256": {
+    "campaign.py": "6bbe3363875e57c9cfc21e73ff5288a5849571a5a316e7130c92121a4efbcd52",
+    "cluster.env": "037f859d802b79f56c71dcec6642601761f9cc75e0ae0881b58dfe2cf5d9ed11",
+    "preflight.sbatch": "e442d03b7d707cb2e0bfc50e49aa6717e6fce19fa08d229f11b665ae13122ee7",
+    "submit.py": "399b84585045bec75aa3d2a175ce8069afa8f06eeb4672b17fd14ca36b248d95"
+  }
+}

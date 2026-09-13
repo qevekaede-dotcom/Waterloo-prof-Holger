@@ -1,6 +1,6 @@
 # Research handoff — current state
 
-Last repository/evidence audit: 2026-09-13. Current continuation is in the
+Last repository/evidence audit: 2026-09-14. Current continuation is in the
 separate worktree `/Users/kaede/research/Waterloo-Holger-remaining-phonons`,
 branch `codex/remaining-two-phonons`. The submission workflow is fixed at
 implementation commit `cf0b1d1`; the evidence-preparation milestone began at
@@ -113,7 +113,7 @@ subtracted using `--cfz`.
 
 ## Active two-material phonon campaign
 
-### 2026-09-13 current superseding snapshot
+### 2026-09-14 current superseding snapshot
 
 This subsection is the authoritative campaign state. The dated subsections
 below are retained as historical snapshots; status words such as `RUNNING`,
@@ -144,23 +144,28 @@ there is no pristine calculation, relax gate, accepted unitcell, preflight, or
 force release.  Independent scientific review confirmed that low force and a
 zero `pw.x` exit code cannot override failed BFGS convergence.  Do not resubmit
 or accept this RUN_DIR.  A genuinely different optimization method would need
-a new lineage and its own prior review.  First repair the discovered diagnostic
-collector replay defect, which incorrectly assumes no later-stage collector is
-present; that software repair is not authorization to rerun relaxation.
+a new lineage and its own prior review.
 
-For SrZrS3, the previous 3.70-A count-only result remains 1003 supercells for
-both reviewed supercells and is over the hard cap of 800.  Independent parsing
-of the authoritative 2x1x1 YAML identified a count-only boundary candidate at
-`3.5541348625 A` (`6.71634150010947 bohr`): 787 predicted files, comprising 25
-single and 762 second displacements across exactly 12 included distance
-shells.  This is only a cost-feasible hypothesis; it has not yet been run or
-made production-eligible, and its fc3 cutoff convergence is unknown. A local
-patch now archives the immutable 3.70-A source evidence and adds exact
-included/newly-excluded shell, multiplicity, runtime, selection and backend
-fail-closed checks. It passed 309 local tests (one optional-spglib skip) and a
-fresh independent scientific review returned `SHIP`. It is ready to commit and
-deploy for only the signed count-only preflight; this does not approve a force
-pilot or production.
+The diagnostic replay-validator software repair is complete: it binds the
+approved historical workflow snapshot `cf0b1d1` by its full hash set; treats
+the current config/policy as authoritative; requires one historical checkout
+root; validates nested collectors against their exact schema; enforces global
+Slurm-ID uniqueness; and handles cross-checkout relocation.  Local tests and
+fresh reviews passed.  It has **not** yet been read-only replayed on the real
+Nibi lineage using the final commit, so it is not yet final lineage evidence
+and does not authorize another relaxation.
+
+For SrZrS3, the prior 3.70-A count-only result remains 1003 supercells for
+both reviewed supercells and is over the hard cap of 800.  The narrower
+2x1x1 count-only job `21850149` completed `0:0`: its raw YAML gives exactly
+787 inputs (25 singles + 762 seconds), 147 included groups (122 nonzero), and
+the archive validator passed.  The cutoff is `3.5541348625 A`
+(`6.71634150010947 bohr`) for a 2x1x1 40-atom supercell; its inscribed radius
+is `3.8384532612 A`, giving `0.284318 A` clearance (92.5929%).  The validator
+is now a strict, dependency-free system-Python parser of current policy, raw
+YAML, checksums, and symlink absence; 333 tests passed and one was skipped, and
+a fresh review passed.  This is still **count-only** evidence: the cutoff is
+not selected or convergence-qualified, and pilot and production remain blocked.
 
 Both materials still have null approved production core-hour budgets.  Count
 evidence cannot unlock force production, and a final submission package cannot
@@ -378,29 +383,22 @@ a separate clean checkout that consumes the original hashed evidence.
 
 ## Next research work, when requested
 
-1. Commit/deploy the independently reviewed SrZrS3 3.5541348625-A count-only
-   contract patch, then refresh the live scheduler and immutable source hashes
-   through the explicitly authorized `ssh drac` session.
-2. For SrZrS3, submit only
-   `sr_fc3_2x1x1__sr_cutoff_3p5541348625A` as count-only. Require its fresh
-   YAML to match the predicted 787 count, complete included/newly-excluded
-   shell sets, units, and multiplicities before a separate scientific review.
-   Count agreement alone must not select or pilot the cutoff.
-3. For Rb2Cu2SnS4, first repair and independently review the diagnostic
-   collector replay defect. The diagnostic already completed, while the sole
-   reviewed BFGS polish failed; do not replay the old diagnostic, resubmit that
-   polish, accept its RUN_DIR, or perform another automatic reset. Any genuinely
-   different optimization method requires a new lineage and prior review.
-4. After each material independently reaches its gates, run amplitude,
+1. For Rb2Cu2SnS4, use the final repair commit for a read-only replay against
+   the real Nibi lineage.  Do not treat the local repair as remote evidence,
+   resubmit the polish, accept its RUN_DIR, or perform another automatic reset.
+2. For SrZrS3, retain `21850149` as count-only contract evidence and obtain a
+   separate scientific decision before any pilot or production action.  Count
+   agreement alone cannot select the cutoff.
+3. After each material independently reaches its gates, run amplitude,
    basis/cutoff, force-k-mesh, supercell, q-mesh, and NAC-sensitivity decisions.
    Do not infer a production choice from cost alone.
-5. Re-preflight SrCu2SnS4 using explicitly converted Angstrom-to-bohr cutoffs
+4. Re-preflight SrCu2SnS4 using explicitly converted Angstrom-to-bohr cutoffs
    before estimating cost; the historical "5.0 A / 600 supercells" proposal
    was based on the same unit misunderstanding and is not a valid 5-A budget.
    Pair-cutoff, supercell, and tensor q-mesh convergence remain unperformed.
-6. Implement and review the explicit FC/postprocess policy before construction;
+5. Implement and review the explicit FC/postprocess policy before construction;
    do not invent ASR/permutation thresholds from old drift text or test fixtures.
-7. Assemble the full three-material phonon writeup/package when supported
+6. Assemble the full three-material phonon writeup/package when supported
    by results; keep interim attachments frozen.
 
 Use [DRAC_SETUP.md](DRAC_SETUP.md) and the campaign

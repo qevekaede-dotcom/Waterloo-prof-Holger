@@ -10,6 +10,7 @@ borrowing settings from SrCu2SnS4.
 from __future__ import annotations
 
 import argparse
+import copy
 import csv
 import fcntl
 import hashlib
@@ -57,6 +58,9 @@ SUPERCELL_LATTICE_REL_TOL = 1e-8
 SUPERCELL_LATTICE_ABS_TOL_BOHR = 2e-8
 COUNT_ONLY_SHELL_ABS_TOL_ANGSTROM = 5e-8
 FLOAT_REL_TOL = 2e-10
+VERIFIED_COUNT_ONLY_STATUS = (
+    "verified_remote_count_only_not_force_pilot_or_production_acceptance"
+)
 RUN_MANIFEST = "run_manifest.json"
 STRUCTURE_POLICY_FIELDS = (
     "document_type",
@@ -130,7 +134,7 @@ def select_preflight_candidates(
         candidate_id = preflight_candidate_id(enumeration)
         if candidate_id in configured:
             raise CampaignError(
-                f"preflight candidate is not unique in config enumerate: {candidate_id}"
+                f"duplicate preflight candidate id is not unique in config enumerate: {candidate_id}"
             )
         configured[candidate_id] = enumeration
         configured_order.append(candidate_id)
@@ -314,8 +318,1445 @@ def resolve_repo_relative_file(raw: Any, field: str) -> Path:
     return candidate
 
 
+def resolve_repo_relative_file_no_symlink(raw: Any, field: str) -> Path:
+    """Resolve a repository file while rejecting symlinks in every component."""
+
+    if not isinstance(raw, str) or not raw:
+        raise CampaignError(f"{field} must be a repository-relative path")
+    relative = Path(raw)
+    if relative.is_absolute() or ".." in relative.parts:
+        raise CampaignError(f"{field} escapes repository root: {raw}")
+    resolved_root = REPO_ROOT.resolve()
+    current = resolved_root
+    for component in relative.parts:
+        current = current / component
+        try:
+            mode = os.lstat(current).st_mode
+        except (FileNotFoundError, NotADirectoryError, OSError) as exc:
+            raise CampaignError(f"{field} does not exist: {current}") from exc
+        if stat.S_ISLNK(mode):
+            raise CampaignError(f"{field} contains a symlink: {current}")
+    candidate = (resolved_root / relative).resolve()
+    try:
+        candidate.relative_to(resolved_root)
+    except ValueError as exc:
+        raise CampaignError(f"{field} escapes repository root: {raw}") from exc
+    if not candidate.is_file():
+        raise CampaignError(f"{field} does not exist: {candidate}")
+    return candidate
+
+
 def resolve_repo_source(config: Mapping[str, Any], field: str) -> Path:
     return resolve_repo_relative_file(required(config, field), field)
+
+
+def resolve_evidence_relative_file(root: Path, raw: Any, field: str) -> Path:
+    """Resolve one manifest-owned artifact without permitting root changes."""
+
+    if not isinstance(raw, str) or not raw:
+        raise CampaignError(f"{field} must be an evidence-relative path")
+    relative = Path(raw)
+    if relative.is_absolute() or ".." in relative.parts:
+        raise CampaignError(f"{field} must stay inside its evidence directory: {raw}")
+    resolved_root = root.resolve()
+    lexical_candidate = resolved_root / relative
+    current = resolved_root
+    for component in relative.parts:
+        current = current / component
+        try:
+            mode = os.lstat(current).st_mode
+        except (FileNotFoundError, NotADirectoryError, OSError) as exc:
+            raise CampaignError(f"{field} does not exist: {current}") from exc
+        if stat.S_ISLNK(mode):
+            raise CampaignError(f"{field} contains a symlink: {current}")
+    candidate = lexical_candidate.resolve()
+    try:
+        candidate.relative_to(resolved_root)
+    except ValueError as exc:
+        raise CampaignError(
+            f"{field} escapes its evidence directory: {raw}"
+        ) from exc
+    if not candidate.is_file():
+        raise CampaignError(f"{field} does not exist: {candidate}")
+    return candidate
+
+
+def _exact_evidence_value(actual: Any, expected: Any, field: str) -> None:
+    if type(actual) is not type(expected) or actual != expected:
+        raise CampaignError(
+            f"verified count-only evidence mismatch for {field}: "
+            f"expected {expected!r}, got {actual!r}"
+        )
+
+
+def _evidence_digest(value: Any, field: str) -> str:
+    if not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{64}", value) is None:
+        raise CampaignError(f"verified count-only {field} is not a SHA-256 digest")
+    return value
+
+
+def _checksum_rows(path: Path, field: str) -> list[tuple[str, str]]:
+    rows: list[tuple[str, str]] = []
+    for line_number, line in enumerate(path.read_text().splitlines(), start=1):
+        match = re.fullmatch(r"([0-9a-f]{64})  ([^\r\n]+)", line)
+        if match is None:
+            raise CampaignError(
+                f"{field} has an invalid line {line_number}: expected SHA256, two spaces, path"
+            )
+        rows.append((match.group(1), match.group(2)))
+    if len({name for _, name in rows}) != len(rows):
+        raise CampaignError(f"{field} contains duplicate paths")
+    return rows
+
+
+_PHONO3PY_YAML_TOP_LEVEL = (
+    "phono3py",
+    "physical_unit",
+    "space_group",
+    "primitive_matrix",
+    "supercell_matrix",
+    "primitive_cell",
+    "unit_cell",
+    "supercell",
+    "displacement_pairs",
+    "displacement_pair_info",
+)
+_YAML_KEY_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+_YAML_INT_RE = re.compile(r"[+-]?(?:0|[1-9][0-9]*)")
+_YAML_NUMBER_RE = re.compile(
+    r"[+-]?(?:(?:0|[1-9][0-9]*)\.[0-9]+|\.[0-9]+|(?:0|[1-9][0-9]*))"
+    r"(?:[eE][+-]?[0-9]+)?"
+)
+_YAML_PLAIN_STRING_RE = re.compile(r"[A-Za-z][A-Za-z0-9._/+()-]*")
+_YamlLine = tuple[int, int, str]
+
+
+def _lex_phono3py_yaml(text: str) -> dict[str, list[_YamlLine]]:
+    """Tokenize the deliberately small YAML subset emitted by phono3py 4.4.
+
+    This is not a permissive YAML reader.  Anchors, aliases, tags, block
+    scalars, flow mappings, directives, tabs, odd indentation, duplicate
+    sections, and any non-v4.4 top-level layout are rejected before values are
+    interpreted.  Historical evidence therefore does not acquire an optional
+    install-time parser dependency or YAML implementation ambiguity.
+    """
+
+    if "\x00" in text:
+        raise CampaignError("phono3py YAML contains a NUL byte")
+    tokens: list[_YamlLine] = []
+    for line_number, raw in enumerate(text.splitlines(), start=1):
+        if "\t" in raw:
+            raise CampaignError(
+                f"phono3py YAML line {line_number} contains a tab"
+            )
+        quote = False
+        escaped = False
+        end = len(raw)
+        for index, character in enumerate(raw):
+            if quote:
+                if escaped:
+                    escaped = False
+                elif character == "\\":
+                    escaped = True
+                elif character == '"':
+                    quote = False
+                continue
+            if character == '"':
+                quote = True
+                continue
+            if character == "'":
+                raise CampaignError(
+                    f"phono3py YAML line {line_number} uses unsupported single quotes"
+                )
+            if character == "#" and (index == 0 or raw[index - 1].isspace()):
+                end = index
+                break
+            if character in "{}&*!|>":
+                raise CampaignError(
+                    f"phono3py YAML line {line_number} uses unsupported YAML syntax"
+                )
+        if quote or escaped:
+            raise CampaignError(
+                f"phono3py YAML line {line_number} has an unterminated string"
+            )
+        code = raw[:end].rstrip()
+        if not code.strip():
+            continue
+        content = code.lstrip(" ")
+        indent = len(code) - len(content)
+        if indent % 2:
+            raise CampaignError(
+                f"phono3py YAML line {line_number} has unsupported indentation"
+            )
+        if content in {"---", "..."} or content.startswith("%"):
+            raise CampaignError(
+                f"phono3py YAML line {line_number} uses a document directive"
+            )
+        tokens.append((line_number, indent, content))
+
+    sections: dict[str, list[_YamlLine]] = {}
+    section_order: list[str] = []
+    current: str | None = None
+    for token in tokens:
+        line_number, indent, content = token
+        header = re.fullmatch(r"([A-Za-z_][A-Za-z0-9_]*):", content)
+        if indent == 0 and header is not None:
+            name = header.group(1)
+            if name in sections:
+                raise CampaignError(
+                    f"phono3py YAML contains duplicate top-level section: {name}"
+                )
+            sections[name] = []
+            section_order.append(name)
+            current = name
+            continue
+        if current is None:
+            raise CampaignError(
+                f"phono3py YAML line {line_number} precedes a top-level section"
+            )
+        sections[current].append(token)
+    if tuple(section_order) != _PHONO3PY_YAML_TOP_LEVEL:
+        raise CampaignError(
+            "phono3py YAML top-level schema is not the exact v4.4 type-I layout"
+        )
+    return sections
+
+
+def _yaml_mapping_entry(token: _YamlLine, label: str) -> tuple[str, str]:
+    line_number, _, content = token
+    if ":" not in content:
+        raise CampaignError(
+            f"{label} line {line_number} is not a mapping entry"
+        )
+    key, remainder = content.split(":", 1)
+    if _YAML_KEY_RE.fullmatch(key) is None or (
+        remainder and not remainder.startswith(" ")
+    ):
+        raise CampaignError(
+            f"{label} line {line_number} is not a canonical mapping entry"
+        )
+    return key, remainder.strip()
+
+
+def _yaml_scalar(raw: str, label: str) -> Any:
+    if not raw:
+        raise CampaignError(f"{label} has no scalar value")
+    if raw.startswith('"'):
+        try:
+            value = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise CampaignError(f"{label} has an invalid quoted string") from exc
+        if not isinstance(value, str):
+            raise CampaignError(f"{label} quoted scalar is not a string")
+        return value
+    if raw == "true":
+        return True
+    if raw == "false":
+        return False
+    if _YAML_INT_RE.fullmatch(raw):
+        return int(raw)
+    if _YAML_NUMBER_RE.fullmatch(raw):
+        value = float(raw)
+        if not math.isfinite(value):
+            raise CampaignError(f"{label} must be finite")
+        return value
+    if _YAML_PLAIN_STRING_RE.fullmatch(raw) and raw.lower() not in {
+        "null", "true", "false", "yes", "no", "on", "off",
+    }:
+        return raw
+    raise CampaignError(f"{label} uses an unsupported or ambiguous scalar")
+
+
+def _yaml_number_list(raw: str, label: str) -> list[int | float]:
+    if not (raw.startswith("[") and raw.endswith("]")):
+        raise CampaignError(f"{label} must be a flow sequence")
+    body = raw[1:-1].strip()
+    if not body:
+        raise CampaignError(f"{label} must be nonempty")
+    values: list[int | float] = []
+    for index, item in enumerate(body.split(",")):
+        value = _yaml_scalar(item.strip(), f"{label}[{index}]")
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise CampaignError(f"{label}[{index}] must be numeric")
+        if not math.isfinite(float(value)):
+            raise CampaignError(f"{label}[{index}] must be finite")
+        values.append(value)
+    return values
+
+
+def _yaml_vector(raw: str, label: str) -> list[float]:
+    values = _yaml_number_list(raw, label)
+    if len(values) != 3:
+        raise CampaignError(f"{label} must contain exactly three numbers")
+    return [float(value) for value in values]
+
+
+def _yaml_positive_int(raw: str, label: str) -> int:
+    value = _yaml_scalar(raw, label)
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise CampaignError(f"{label} must be a positive integer")
+    return value
+
+
+def _yaml_nonnegative_int(raw: str, label: str) -> int:
+    value = _yaml_scalar(raw, label)
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise CampaignError(f"{label} must be a non-negative integer")
+    return value
+
+
+def _yaml_finite_number(raw: str, label: str) -> float:
+    value = _yaml_scalar(raw, label)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise CampaignError(f"{label} must be numeric")
+    result = float(value)
+    if not math.isfinite(result):
+        raise CampaignError(f"{label} must be finite")
+    return result
+
+
+def _yaml_simple_mapping(
+    lines: Sequence[_YamlLine], section: str, expected_keys: Sequence[str]
+) -> dict[str, Any]:
+    values: dict[str, Any] = {}
+    keys: list[str] = []
+    for token in lines:
+        line_number, indent, _ = token
+        if indent != 2:
+            raise CampaignError(
+                f"phono3py YAML {section} line {line_number} has invalid indentation"
+            )
+        key, raw = _yaml_mapping_entry(token, f"phono3py YAML {section}")
+        if key in values:
+            raise CampaignError(
+                f"phono3py YAML {section} contains duplicate key: {key}"
+            )
+        keys.append(key)
+        values[key] = _yaml_scalar(raw, f"phono3py YAML {section}.{key}")
+    if tuple(keys) != tuple(expected_keys):
+        raise CampaignError(
+            f"phono3py YAML {section} does not match its exact field schema"
+        )
+    return values
+
+
+def _yaml_matrix_section(
+    lines: Sequence[_YamlLine], section: str, *, integer: bool
+) -> list[list[int | float]]:
+    if len(lines) != 3:
+        raise CampaignError(f"phono3py YAML {section} must contain three rows")
+    matrix: list[list[int | float]] = []
+    for row_index, (line_number, indent, content) in enumerate(lines):
+        if indent != 0 or not content.startswith("- "):
+            raise CampaignError(
+                f"phono3py YAML {section} line {line_number} is not an indentless row"
+            )
+        values = _yaml_number_list(
+            content[2:].strip(), f"phono3py YAML {section}[{row_index}]"
+        )
+        if len(values) != 3 or (integer and any(
+            isinstance(value, bool) or not isinstance(value, int) for value in values
+        )):
+            raise CampaignError(
+                f"phono3py YAML {section}[{row_index}] has invalid matrix values"
+            )
+        matrix.append(
+            [int(value) for value in values]
+            if integer
+            else [float(value) for value in values]
+        )
+    return matrix
+
+
+def _yaml_expect_field(
+    lines: Sequence[_YamlLine],
+    index: int,
+    *,
+    indent: int,
+    key: str,
+    label: str,
+) -> tuple[str, int]:
+    if index >= len(lines):
+        raise CampaignError(f"{label} is missing required field {key}")
+    token = lines[index]
+    actual_key, raw = _yaml_mapping_entry(token, label)
+    if token[1] != indent or actual_key != key:
+        raise CampaignError(
+            f"{label} line {token[0]} expected field {key} at indent {indent}"
+        )
+    return raw, index + 1
+
+
+def _yaml_sequence_mapping_start(
+    token: _YamlLine, *, indent: int, key: str, label: str
+) -> str:
+    line_number, actual_indent, content = token
+    if actual_indent != indent or not content.startswith("- "):
+        raise CampaignError(f"{label} line {line_number} is not a sequence mapping")
+    synthetic = (line_number, actual_indent, content[2:])
+    actual_key, raw = _yaml_mapping_entry(synthetic, label)
+    if actual_key != key:
+        raise CampaignError(f"{label} line {line_number} expected field {key}")
+    return raw
+
+
+def _yaml_cell_section(
+    lines: Sequence[_YamlLine], section: str, *, reduced_to: bool,
+    reciprocal_lattice: bool,
+) -> dict[str, Any]:
+    label = f"phono3py YAML {section}"
+    index = 0
+    raw, index = _yaml_expect_field(
+        lines, index, indent=2, key="lattice", label=label
+    )
+    if raw:
+        raise CampaignError(f"{label}.lattice must be a block sequence")
+    lattice: list[list[float]] = []
+    for row in range(3):
+        if index >= len(lines):
+            raise CampaignError(f"{label}.lattice is incomplete")
+        line_number, indent, content = lines[index]
+        if indent != 2 or not content.startswith("- "):
+            raise CampaignError(f"{label}.lattice line {line_number} is invalid")
+        lattice.append(_yaml_vector(content[2:].strip(), f"{label}.lattice[{row}]"))
+        index += 1
+
+    raw, index = _yaml_expect_field(
+        lines, index, indent=2, key="points", label=label
+    )
+    if raw:
+        raise CampaignError(f"{label}.points must be a block sequence")
+    points: list[dict[str, Any]] = []
+    while index < len(lines) and lines[index][1] == 2 and lines[index][2].startswith(
+        "- symbol:"
+    ):
+        point_number = len(points) + 1
+        symbol_raw = _yaml_sequence_mapping_start(
+            lines[index], indent=2, key="symbol", label=f"{label}.points"
+        )
+        symbol = _yaml_scalar(symbol_raw, f"{label}.points[{point_number}].symbol")
+        if not isinstance(symbol, str) or re.fullmatch(r"[A-Z][a-z]?", symbol) is None:
+            raise CampaignError(f"{label}.points[{point_number}].symbol is invalid")
+        index += 1
+        coordinates_raw, index = _yaml_expect_field(
+            lines,
+            index,
+            indent=4,
+            key="coordinates",
+            label=f"{label}.points[{point_number}]",
+        )
+        mass_raw, index = _yaml_expect_field(
+            lines,
+            index,
+            indent=4,
+            key="mass",
+            label=f"{label}.points[{point_number}]",
+        )
+        point: dict[str, Any] = {
+            "symbol": symbol,
+            "coordinates": _yaml_vector(
+                coordinates_raw, f"{label}.points[{point_number}].coordinates"
+            ),
+            "mass": _yaml_finite_number(
+                mass_raw, f"{label}.points[{point_number}].mass"
+            ),
+        }
+        if point["mass"] <= 0:
+            raise CampaignError(f"{label}.points[{point_number}].mass must be positive")
+        if reduced_to:
+            reduced_raw, index = _yaml_expect_field(
+                lines,
+                index,
+                indent=4,
+                key="reduced_to",
+                label=f"{label}.points[{point_number}]",
+            )
+            point["reduced_to"] = _yaml_positive_int(
+                reduced_raw, f"{label}.points[{point_number}].reduced_to"
+            )
+        points.append(point)
+    if not points:
+        raise CampaignError(f"{label}.points must be nonempty")
+    if reduced_to and any(point["reduced_to"] > len(points) for point in points):
+        raise CampaignError(f"{label}.points reduced_to index is out of range")
+
+    result: dict[str, Any] = {"lattice": lattice, "points": points}
+    if reciprocal_lattice:
+        raw, index = _yaml_expect_field(
+            lines, index, indent=2, key="reciprocal_lattice", label=label
+        )
+        if raw:
+            raise CampaignError(f"{label}.reciprocal_lattice must be a block sequence")
+        reciprocal: list[list[float]] = []
+        for row in range(3):
+            if index >= len(lines):
+                raise CampaignError(f"{label}.reciprocal_lattice is incomplete")
+            line_number, indent, content = lines[index]
+            if indent != 2 or not content.startswith("- "):
+                raise CampaignError(
+                    f"{label}.reciprocal_lattice line {line_number} is invalid"
+                )
+            reciprocal.append(
+                _yaml_vector(
+                    content[2:].strip(), f"{label}.reciprocal_lattice[{row}]"
+                )
+            )
+            index += 1
+        result["reciprocal_lattice"] = reciprocal
+    if index != len(lines):
+        raise CampaignError(f"{label} contains unsupported or duplicate fields")
+    return result
+
+
+def _yaml_displacement_pairs(
+    lines: Sequence[_YamlLine], supercell_points: int
+) -> list[dict[str, Any]]:
+    label = "phono3py YAML displacement_pairs"
+    pairs: list[dict[str, Any]] = []
+    index = 0
+    while index < len(lines):
+        first_number = len(pairs) + 1
+        atom_raw = _yaml_sequence_mapping_start(
+            lines[index], indent=0, key="atom", label=label
+        )
+        atom = _yaml_positive_int(atom_raw, f"{label}[{first_number}].atom")
+        if atom > supercell_points:
+            raise CampaignError(f"{label}[{first_number}].atom is out of range")
+        index += 1
+        displacement_raw, index = _yaml_expect_field(
+            lines, index, indent=2, key="displacement", label=label
+        )
+        if displacement_raw or index >= len(lines) or lines[index][1] != 4:
+            raise CampaignError(f"{label}[{first_number}].displacement is invalid")
+        displacement = _yaml_vector(
+            lines[index][2], f"{label}[{first_number}].displacement"
+        )
+        index += 1
+        first_id_raw, index = _yaml_expect_field(
+            lines, index, indent=2, key="displacement_id", label=label
+        )
+        first_id = _yaml_positive_int(
+            first_id_raw, f"{label}[{first_number}].displacement_id"
+        )
+        paired_raw, index = _yaml_expect_field(
+            lines, index, indent=2, key="paired_with", label=label
+        )
+        if paired_raw:
+            raise CampaignError(f"{label}[{first_number}].paired_with must be a sequence")
+        paired_with: list[dict[str, Any]] = []
+        while index < len(lines) and lines[index][1] == 2 and lines[index][2].startswith(
+            "- atom:"
+        ):
+            group_number = len(paired_with) + 1
+            second_atom_raw = _yaml_sequence_mapping_start(
+                lines[index], indent=2, key="atom", label=label
+            )
+            second_atom = _yaml_positive_int(
+                second_atom_raw,
+                f"{label}[{first_number}].paired_with[{group_number}].atom",
+            )
+            if second_atom > supercell_points:
+                raise CampaignError(
+                    f"{label}[{first_number}].paired_with[{group_number}].atom is out of range"
+                )
+            index += 1
+            distance_raw, index = _yaml_expect_field(
+                lines, index, indent=4, key="pair_distance", label=label
+            )
+            included_raw, index = _yaml_expect_field(
+                lines, index, indent=4, key="included", label=label
+            )
+            included = _yaml_scalar(
+                included_raw,
+                f"{label}[{first_number}].paired_with[{group_number}].included",
+            )
+            if not isinstance(included, bool):
+                raise CampaignError(
+                    f"{label}[{first_number}].paired_with[{group_number}].included must be boolean"
+                )
+            displacements_raw, index = _yaml_expect_field(
+                lines, index, indent=4, key="displacements", label=label
+            )
+            if displacements_raw:
+                raise CampaignError(
+                    f"{label}[{first_number}].paired_with[{group_number}].displacements must be a sequence"
+                )
+            displacements: list[list[float]] = []
+            while index < len(lines) and lines[index][1] == 4 and lines[index][2].startswith(
+                "- ["
+            ):
+                displacements.append(
+                    _yaml_vector(
+                        lines[index][2][2:].strip(),
+                        f"{label}[{first_number}].paired_with[{group_number}].displacements",
+                    )
+                )
+                index += 1
+            if not displacements:
+                raise CampaignError(
+                    f"{label}[{first_number}].paired_with[{group_number}] has no displacement vectors"
+                )
+            ids_raw, index = _yaml_expect_field(
+                lines, index, indent=4, key="displacement_ids", label=label
+            )
+            ids_values = _yaml_number_list(
+                ids_raw,
+                f"{label}[{first_number}].paired_with[{group_number}].displacement_ids",
+            )
+            if not ids_values or any(
+                isinstance(value, bool) or not isinstance(value, int) or value <= 0
+                for value in ids_values
+            ):
+                raise CampaignError(
+                    f"{label}[{first_number}].paired_with[{group_number}].displacement_ids must be positive integers"
+                )
+            paired_with.append(
+                {
+                    "atom": second_atom,
+                    "pair_distance": _yaml_finite_number(
+                        distance_raw,
+                        f"{label}[{first_number}].paired_with[{group_number}].pair_distance",
+                    ),
+                    "included": included,
+                    "displacements": displacements,
+                    "displacement_ids": [int(value) for value in ids_values],
+                }
+            )
+        if not paired_with:
+            raise CampaignError(f"{label}[{first_number}].paired_with must be nonempty")
+        pairs.append(
+            {
+                "atom": atom,
+                "displacement": displacement,
+                "displacement_id": first_id,
+                "paired_with": paired_with,
+            }
+        )
+    if not pairs:
+        raise CampaignError("phono3py YAML displacement_pairs must be nonempty")
+    return pairs
+
+
+def _yaml_displacement_pair_info(lines: Sequence[_YamlLine]) -> dict[str, Any]:
+    label = "phono3py YAML displacement_pair_info"
+    index = 0
+    values: dict[str, Any] = {}
+    for key in (
+        "cutoff_pair_distance",
+        "number_of_singles",
+        "number_of_pairs",
+        "number_of_pairs_in_cutoff",
+        "duplicated_supercell_ids",
+    ):
+        raw, index = _yaml_expect_field(
+            lines, index, indent=2, key=key, label=label
+        )
+        if key == "cutoff_pair_distance":
+            values[key] = _yaml_finite_number(raw, f"{label}.{key}")
+        elif key == "duplicated_supercell_ids":
+            if raw:
+                raise CampaignError(f"{label}.{key} must be a block sequence")
+        else:
+            values[key] = _yaml_nonnegative_int(raw, f"{label}.{key}")
+    duplicates: list[list[int]] = []
+    while index < len(lines):
+        line_number, indent, content = lines[index]
+        if indent != 2 or not content.startswith("- "):
+            raise CampaignError(
+                f"{label} line {line_number} has an invalid duplicate-ID row"
+            )
+        row = _yaml_number_list(
+            content[2:].strip(), f"{label}.duplicated_supercell_ids"
+        )
+        if len(row) != 2 or any(
+            isinstance(value, bool) or not isinstance(value, int) or value < 0
+            for value in row
+        ):
+            raise CampaignError(
+                f"{label}.duplicated_supercell_ids rows must be integer pairs"
+            )
+        duplicates.append([int(value) for value in row])
+        index += 1
+    if not duplicates:
+        raise CampaignError(f"{label}.duplicated_supercell_ids must be nonempty")
+    values["duplicated_supercell_ids"] = duplicates
+    return values
+
+
+def parse_phono3py_type1_yaml(text: str) -> dict[str, Any]:
+    """Parse and validate the exact dependency-free phono3py 4.4 type-I schema."""
+
+    sections = _lex_phono3py_yaml(text)
+    phono3py = _yaml_simple_mapping(
+        sections["phono3py"],
+        "phono3py",
+        ("version", "calculator", "frequency_unit_conversion_factor", "symmetry_tolerance"),
+    )
+    if phono3py["version"] != "4.4.0" or phono3py["calculator"] != "qe":
+        raise CampaignError("phono3py YAML is not the required v4.4 QE schema")
+    for key in ("frequency_unit_conversion_factor", "symmetry_tolerance"):
+        value = phono3py[key]
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or float(value) <= 0
+        ):
+            raise CampaignError(f"phono3py YAML phono3py.{key} must be positive")
+
+    physical_unit = _yaml_simple_mapping(
+        sections["physical_unit"], "physical_unit", ("atomic_mass", "length")
+    )
+    if not all(isinstance(physical_unit[key], str) for key in physical_unit):
+        raise CampaignError("phono3py YAML physical_unit values must be strings")
+    space_group = _yaml_simple_mapping(
+        sections["space_group"], "space_group", ("type", "number", "Hall_symbol")
+    )
+    if (
+        not isinstance(space_group["type"], str)
+        or isinstance(space_group["number"], bool)
+        or not isinstance(space_group["number"], int)
+        or not isinstance(space_group["Hall_symbol"], str)
+    ):
+        raise CampaignError("phono3py YAML space_group scalar types are invalid")
+    primitive_matrix = _yaml_matrix_section(
+        sections["primitive_matrix"], "primitive_matrix", integer=False
+    )
+    supercell_matrix = _yaml_matrix_section(
+        sections["supercell_matrix"], "supercell_matrix", integer=True
+    )
+    primitive_cell = _yaml_cell_section(
+        sections["primitive_cell"],
+        "primitive_cell",
+        reduced_to=False,
+        reciprocal_lattice=True,
+    )
+    unit_cell = _yaml_cell_section(
+        sections["unit_cell"],
+        "unit_cell",
+        reduced_to=True,
+        reciprocal_lattice=False,
+    )
+    supercell = _yaml_cell_section(
+        sections["supercell"],
+        "supercell",
+        reduced_to=True,
+        reciprocal_lattice=False,
+    )
+    if len(primitive_cell["points"]) != len(unit_cell["points"]):
+        raise CampaignError("phono3py YAML primitive/unit-cell point counts differ")
+    expected_supercell_points = round(abs(determinant(supercell_matrix))) * len(
+        unit_cell["points"]
+    )
+    if expected_supercell_points <= 0 or len(supercell["points"]) != expected_supercell_points:
+        raise CampaignError(
+            "phono3py YAML supercell point count differs from matrix determinant"
+        )
+    displacement_pairs = _yaml_displacement_pairs(
+        sections["displacement_pairs"], len(supercell["points"])
+    )
+    pair_info = _yaml_displacement_pair_info(
+        sections["displacement_pair_info"]
+    )
+    first_ids = [item["displacement_id"] for item in displacement_pairs]
+    if first_ids != list(range(1, pair_info["number_of_singles"] + 1)):
+        raise CampaignError(
+            "phono3py YAML first-displacement IDs differ from number_of_singles"
+        )
+    all_second_ids = [
+        displacement_id
+        for first in displacement_pairs
+        for group in first["paired_with"]
+        for displacement_id in group["displacement_ids"]
+    ]
+    included_second_ids = [
+        displacement_id
+        for first in displacement_pairs
+        for group in first["paired_with"]
+        if group["included"]
+        for displacement_id in group["displacement_ids"]
+    ]
+    if len(all_second_ids) != pair_info["number_of_pairs"]:
+        raise CampaignError(
+            "phono3py YAML number_of_pairs differs from paired displacement IDs"
+        )
+    if len(included_second_ids) != pair_info["number_of_pairs_in_cutoff"]:
+        raise CampaignError(
+            "phono3py YAML number_of_pairs_in_cutoff differs from included IDs"
+        )
+    cutoff = pair_info["cutoff_pair_distance"]
+    if cutoff <= 0:
+        raise CampaignError("phono3py YAML cutoff_pair_distance must be positive")
+    for first_index, first in enumerate(displacement_pairs):
+        for group_index, group in enumerate(first["paired_with"]):
+            distance = group["pair_distance"]
+            if distance < 0 or group["included"] is not (distance <= cutoff):
+                raise CampaignError(
+                    "phono3py YAML paired-group cutoff semantics differ: "
+                    f"displacement_pairs[{first_index}].paired_with[{group_index}]"
+                )
+    return {
+        "phono3py": phono3py,
+        "physical_unit": physical_unit,
+        "space_group": space_group,
+        "primitive_matrix": primitive_matrix,
+        "supercell_matrix": supercell_matrix,
+        "primitive_cell": primitive_cell,
+        "unit_cell": unit_cell,
+        "supercell": supercell,
+        "displacement_pairs": displacement_pairs,
+        "displacement_pair_info": pair_info,
+    }
+
+
+def validate_verified_count_only_result(
+    config: Mapping[str, Any], cutoff: Mapping[str, Any]
+) -> dict[str, Any] | None:
+    """Rehash and semantically bind one archived remote count-only result."""
+
+    result = cutoff.get("verified_count_only_result")
+    if result is None:
+        return None
+    if not isinstance(result, Mapping):
+        raise CampaignError("verified_count_only_result must be an object")
+    cutoff_id = cutoff.get("id")
+    prediction = cutoff.get("count_only_prediction")
+    if not isinstance(prediction, Mapping):
+        raise CampaignError(
+            f"verified count-only result must retain its prediction provenance: {cutoff_id}"
+        )
+
+    _exact_evidence_value(
+        cutoff.get("candidate_status"),
+        VERIFIED_COUNT_ONLY_STATUS,
+        f"{cutoff_id}.candidate_status",
+    )
+    _exact_evidence_value(
+        result.get("evidence_status"),
+        VERIFIED_COUNT_ONLY_STATUS,
+        f"{cutoff_id}.verified_count_only_result.evidence_status",
+    )
+    _exact_evidence_value(
+        cutoff.get("production_fc3_eligible_without_new_review"),
+        False,
+        f"{cutoff_id}.production_fc3_eligible_without_new_review",
+    )
+
+    manifest_hash = _evidence_digest(
+        result.get("manifest_sha256"), "manifest_sha256"
+    )
+    manifest_path = resolve_repo_relative_file_no_symlink(
+        result.get("manifest_path"),
+        f"verified count-only manifest path for {cutoff_id}",
+    )
+    if sha256_path(manifest_path) != manifest_hash:
+        raise CampaignError(f"verified count-only manifest hash mismatch: {cutoff_id}")
+    manifest = load_json(manifest_path)
+    evidence_root = manifest_path.parent
+
+    for field, expected in (
+        (
+            "document_type",
+            "srzrs3_3p5541348625A_remote_count_only_evidence_manifest",
+        ),
+        ("schema_version", 1),
+        ("evidence_status", VERIFIED_COUNT_ONLY_STATUS),
+        ("raw_bytes_unchanged", True),
+    ):
+        _exact_evidence_value(manifest.get(field), expected, f"manifest.{field}")
+
+    candidate = manifest.get("candidate")
+    execution = manifest.get("execution")
+    provenance = manifest.get("provenance")
+    artifacts = manifest.get("result_artifacts")
+    observed = manifest.get("observed")
+    gates = manifest.get("scope_gates")
+    generated_inputs = manifest.get("generated_inputs")
+    archive = manifest.get("archive")
+    for value, field in (
+        (candidate, "candidate"),
+        (execution, "execution"),
+        (provenance, "provenance"),
+        (artifacts, "result_artifacts"),
+        (observed, "observed"),
+        (gates, "scope_gates"),
+        (generated_inputs, "generated_inputs"),
+        (archive, "archive"),
+    ):
+        if not isinstance(value, Mapping):
+            raise CampaignError(f"verified count-only manifest {field} must be an object")
+
+    supercell_id = prediction.get("source_supercell_id")
+    candidate_id = f"{supercell_id}__{cutoff_id}"
+    matching_enumerations = [
+        item
+        for item in required(config, "displacements.enumerate")
+        if isinstance(item, Mapping) and item.get("cutoff_pair_id") == cutoff_id
+    ]
+    if len(matching_enumerations) != 1:
+        raise CampaignError(
+            f"verified cutoff requires exactly one count-only enumeration: {cutoff_id}"
+        )
+    if matching_enumerations[0].get("count_only") is not True:
+        raise CampaignError(
+            f"verified cutoff enumeration must be count-only: {cutoff_id}"
+        )
+    _, current_selection = select_preflight_candidates(config, [candidate_id])
+    current_policy_hash = current_selection["preflight_policy_sha256"]
+    if result.get("preflight_policy_sha256") != current_policy_hash:
+        archived_run_manifest_path = resolve_evidence_relative_file(
+            evidence_root,
+            "run_manifest.json",
+            "verified count-only archived run manifest",
+        )
+        if sha256_path(archived_run_manifest_path) != provenance.get(
+            "run_manifest_sha256"
+        ):
+            raise CampaignError("verified count-only archived run manifest hash mismatch")
+        archived_run_manifest = load_json(archived_run_manifest_path)
+        if policy_sha256(config, "structure") != archived_run_manifest.get(
+            "structure_policy_sha256"
+        ):
+            raise CampaignError(
+                "source structure policy differs from the archived count-only run; "
+                "verified preflight_policy_sha256 is no longer current"
+            )
+    _exact_evidence_value(
+        result.get("preflight_policy_sha256"),
+        current_policy_hash,
+        f"{cutoff_id}.verified_count_only_result.preflight_policy_sha256",
+    )
+    _exact_evidence_value(
+        result.get("candidate_selection"),
+        current_selection,
+        f"{cutoff_id}.verified_count_only_result.candidate_selection",
+    )
+    _exact_evidence_value(
+        result.get("candidate_subset_sha256"),
+        current_selection["candidate_subset_sha256"],
+        f"{cutoff_id}.verified_count_only_result.candidate_subset_sha256",
+    )
+    candidate_expected = {
+        "id": candidate_id,
+        "supercell_id": supercell_id,
+        "cutoff_id": cutoff_id,
+        "cutoff_pair_distance_angstrom": cutoff.get(
+            "cutoff_pair_distance_angstrom"
+        ),
+        "cutoff_pair_distance_cli_bohr": cutoff.get(
+            "cutoff_pair_distance_cli_bohr"
+        ),
+        "candidate_subset_sha256": current_selection["candidate_subset_sha256"],
+    }
+    for field, expected in candidate_expected.items():
+        _exact_evidence_value(candidate.get(field), expected, f"manifest.candidate.{field}")
+
+    for field in (
+        "manifest_sha256",
+        "candidate_subset_sha256",
+        "scheduler_receipt_sha256",
+        "phono3py_disp_yaml_sha256",
+        "preflight_inventory_sha256",
+        "preflight_result_sha256",
+    ):
+        _evidence_digest(result.get(field), field)
+    git_commit = result.get("git_commit")
+    if not isinstance(git_commit, str) or re.fullmatch(r"[0-9a-f]{40}", git_commit) is None:
+        raise CampaignError("verified count-only git_commit is not a full commit digest")
+
+    execution_expected = {
+        "job_id": result.get("job_id"),
+        "attempt_id": result.get("attempt_id"),
+        "scheduler_receipt_sha256": result.get("scheduler_receipt_sha256"),
+        "scheduler_state": "COMPLETED",
+        "scheduler_exit_code": "0:0",
+        "wrapper_exit_code": 0,
+        "phono3py_process_returncode": 0,
+    }
+    for field, expected in execution_expected.items():
+        _exact_evidence_value(execution.get(field), expected, f"manifest.execution.{field}")
+    _exact_evidence_value(
+        provenance.get("git_commit"), git_commit, "manifest.provenance.git_commit"
+    )
+    _exact_evidence_value(
+        provenance.get("preflight_policy_sha256"),
+        current_policy_hash,
+        "manifest.provenance.preflight_policy_sha256",
+    )
+
+    receipt_path = resolve_evidence_relative_file(
+        evidence_root,
+        execution.get("scheduler_receipt_path"),
+        "manifest.execution.scheduler_receipt_path",
+    )
+    if sha256_path(receipt_path) != result.get("scheduler_receipt_sha256"):
+        raise CampaignError("verified count-only scheduler receipt hash mismatch")
+    allocation_rows = [
+        line.split("|")
+        for line in receipt_path.read_text().splitlines()
+        if line.startswith(f"{result.get('job_id')}|")
+    ]
+    if len(allocation_rows) != 1 or len(allocation_rows[0]) < 5:
+        raise CampaignError("verified count-only scheduler receipt has no unique job row")
+    _exact_evidence_value(allocation_rows[0][2], "COMPLETED", "scheduler state")
+    _exact_evidence_value(allocation_rows[0][3], "0:0", "scheduler exit code")
+    _exact_evidence_value(
+        allocation_rows[0][4], execution.get("scheduler_elapsed"), "scheduler elapsed"
+    )
+
+    artifact_specs = (
+        ("preflight_inventory", "preflight_inventory"),
+        ("preflight_result", "preflight_result"),
+        ("phono3py_disp_yaml", "phono3py_disp_yaml"),
+    )
+    resolved_artifacts: dict[str, Path] = {}
+    for manifest_prefix, result_prefix in artifact_specs:
+        configured_hash = result.get(f"{result_prefix}_sha256")
+        _exact_evidence_value(
+            artifacts.get(f"{manifest_prefix}_sha256"),
+            configured_hash,
+            f"manifest.result_artifacts.{manifest_prefix}_sha256",
+        )
+        artifact_path = resolve_evidence_relative_file(
+            evidence_root,
+            artifacts.get(f"{manifest_prefix}_path"),
+            f"manifest.result_artifacts.{manifest_prefix}_path",
+        )
+        if sha256_path(artifact_path) != configured_hash:
+            raise CampaignError(
+                f"verified count-only {manifest_prefix} artifact hash mismatch"
+            )
+        resolved_artifacts[manifest_prefix] = artifact_path
+
+    inventory = load_json(resolved_artifacts["preflight_inventory"])
+    preflight_result = load_json(resolved_artifacts["preflight_result"])
+    inventory_results = inventory.get("results")
+    if not isinstance(inventory_results, list) or inventory_results != [preflight_result]:
+        raise CampaignError(
+            "verified count-only inventory must contain exactly the bound preflight result"
+        )
+
+    archive_list_path = resolve_evidence_relative_file(
+        evidence_root,
+        archive.get("raw_artifact_sha256sums_path"),
+        "manifest.archive.raw_artifact_sha256sums_path",
+    )
+    archive_list_hash = _evidence_digest(
+        archive.get("raw_artifact_sha256sums_sha256"),
+        "archive.raw_artifact_sha256sums_sha256",
+    )
+    if sha256_path(archive_list_path) != archive_list_hash:
+        raise CampaignError("verified count-only raw artifact checksum-list hash mismatch")
+    archive_rows = _checksum_rows(archive_list_path, "raw artifact checksum list")
+    _exact_evidence_value(
+        archive.get("raw_artifact_count"), 31, "archive.raw_artifact_count"
+    )
+    _exact_evidence_value(
+        len(archive_rows), archive.get("raw_artifact_count"), "archive.raw_artifact_count"
+    )
+    archive_hashes: dict[str, str] = {}
+    archive_total_size = 0
+    for expected_hash, relative_path in archive_rows:
+        artifact_path = resolve_evidence_relative_file(
+            evidence_root, relative_path, "raw artifact checksum-list path"
+        )
+        if sha256_path(artifact_path) != expected_hash:
+            raise CampaignError(
+                f"verified count-only raw artifact hash mismatch: {relative_path}"
+            )
+        archive_hashes[relative_path] = expected_hash
+        archive_total_size += artifact_path.stat().st_size
+    _exact_evidence_value(
+        archive_total_size,
+        archive.get("raw_artifact_total_size_bytes"),
+        "archive.raw_artifact_total_size_bytes",
+    )
+
+    generated_list_path = resolve_evidence_relative_file(
+        evidence_root,
+        generated_inputs.get("sha256sums_path"),
+        "manifest.generated_inputs.sha256sums_path",
+    )
+    generated_list_hash = _evidence_digest(
+        generated_inputs.get("sha256sums_sha256"),
+        "generated_inputs.sha256sums_sha256",
+    )
+    if sha256_path(generated_list_path) != generated_list_hash:
+        raise CampaignError("verified count-only generated-input checksum-list hash mismatch")
+    generated_rows = _checksum_rows(
+        generated_list_path, "generated-input checksum list"
+    )
+    _exact_evidence_value(
+        generated_inputs.get("file_count"), 787, "generated_inputs.file_count"
+    )
+    _exact_evidence_value(
+        len(generated_rows), generated_inputs.get("file_count"), "generated_inputs.file_count"
+    )
+    generated_ids: list[int] = []
+    for _, name in generated_rows:
+        match = re.fullmatch(r"supercell-(\d{5})\.in", name)
+        if match is None:
+            raise CampaignError(
+                f"generated-input checksum path is not a canonical basename: {name}"
+            )
+        generated_ids.append(int(match.group(1)))
+    if generated_ids != sorted(set(generated_ids)):
+        raise CampaignError("generated-input checksum IDs must be unique and sorted")
+
+    yaml_path = resolved_artifacts["phono3py_disp_yaml"]
+    try:
+        yaml_data = parse_phono3py_type1_yaml(yaml_path.read_text())
+    except OSError as exc:
+        raise CampaignError(f"cannot parse verified count-only phono3py YAML: {exc}") from exc
+    yaml_inventory = analyze_displacement_yaml(yaml_data)
+    yaml_included_ids = yaml_inventory["included_displacement_ids"]
+    yaml_all_ids = yaml_inventory["all_displacement_ids"]
+    _exact_evidence_value(
+        generated_ids,
+        yaml_included_ids,
+        "generated-input checksum IDs versus phono3py YAML included IDs",
+    )
+    yaml_length_unit = required(yaml_data, "physical_unit.length")
+    _exact_evidence_value(yaml_length_unit, "au", "phono3py YAML length unit")
+    yaml_matrix = [
+        list(row)
+        for row in matrix3(
+            required(yaml_data, "supercell_matrix"),
+            "verified count-only YAML supercell_matrix",
+        )
+    ]
+    yaml_supercell_points = required(yaml_data, "supercell.points")
+    if not isinstance(yaml_supercell_points, list) or not yaml_supercell_points:
+        raise CampaignError("verified count-only YAML supercell.points must be nonempty")
+    yaml_generated_atoms = len(yaml_supercell_points)
+    pair_info = required(yaml_data, "displacement_pair_info")
+    yaml_cutoff = positive_number(
+        required(pair_info, "cutoff_pair_distance"),
+        "verified count-only YAML cutoff",
+    )
+    if not math.isclose(
+        yaml_cutoff,
+        float(required(cutoff, "cutoff_pair_distance_cli_bohr")),
+        rel_tol=2e-8,
+    ):
+        raise CampaignError("verified count-only YAML cutoff differs from current config")
+    first_ids = [
+        required(first, "displacement_id")
+        for first in required(yaml_data, "displacement_pairs")
+    ]
+    pair_info_singles = required(pair_info, "number_of_singles")
+    pair_info_pairs = required(pair_info, "number_of_pairs")
+    pair_info_in_cutoff = required(pair_info, "number_of_pairs_in_cutoff")
+    _exact_evidence_value(
+        first_ids,
+        list(range(1, pair_info_singles + 1)),
+        "phono3py YAML first-displacement IDs",
+    )
+    _exact_evidence_value(
+        pair_info_singles,
+        yaml_inventory["single_displacements"],
+        "phono3py YAML displacement_pair_info.number_of_singles",
+    )
+    _exact_evidence_value(
+        pair_info_pairs,
+        len(yaml_all_ids) - yaml_inventory["single_displacements"],
+        "phono3py YAML displacement_pair_info.number_of_pairs",
+    )
+    _exact_evidence_value(
+        pair_info_in_cutoff,
+        len(yaml_included_ids) - yaml_inventory["single_displacements"],
+        "phono3py YAML displacement_pair_info.number_of_pairs_in_cutoff",
+    )
+    for first_index, first in enumerate(required(yaml_data, "displacement_pairs")):
+        for group_index, group in enumerate(required(first, "paired_with")):
+            distance = float(required(group, "pair_distance"))
+            included = required(group, "included")
+            if included is not (distance <= yaml_cutoff):
+                raise CampaignError(
+                    "phono3py YAML paired-group inclusion differs from its cutoff: "
+                    f"displacement_pairs[{first_index}].paired_with[{group_index}]"
+                )
+    yaml_prediction_audit = audit_count_only_prediction(
+        cutoff, yaml_inventory, len(yaml_included_ids)
+    )
+
+    _exact_evidence_value(
+        generated_ids,
+        preflight_result.get("generated_displacement_ids"),
+        "generated-input checksum IDs",
+    )
+    canonical_generated_hash = hashlib.sha256(
+        ("\n".join(str(value) for value in generated_ids) + "\n").encode()
+    ).hexdigest()
+    _exact_evidence_value(
+        observed.get("canonical_generated_id_list_sha256"),
+        canonical_generated_hash,
+        "manifest.observed.canonical_generated_id_list_sha256",
+    )
+    uncontracted = preflight_result.get("uncontracted_displacements")
+    if not isinstance(uncontracted, int) or isinstance(uncontracted, bool):
+        raise CampaignError("verified count-only uncontracted displacement count is invalid")
+    excluded_ids = sorted(set(range(1, uncontracted + 1)) - set(generated_ids))
+    canonical_excluded_hash = hashlib.sha256(
+        ("\n".join(str(value) for value in excluded_ids) + "\n").encode()
+    ).hexdigest()
+    _exact_evidence_value(
+        observed.get("canonical_excluded_id_list_sha256"),
+        canonical_excluded_hash,
+        "manifest.observed.canonical_excluded_id_list_sha256",
+    )
+    _exact_evidence_value(
+        observed.get("excluded_displacement_ids"),
+        len(excluded_ids),
+        "manifest.observed.excluded_displacement_ids",
+    )
+
+    def archived_json(relative_path: str, expected_hash: Any) -> dict[str, Any]:
+        _exact_evidence_value(
+            archive_hashes.get(relative_path), expected_hash, f"SHA256SUMS[{relative_path}]"
+        )
+        return load_json(evidence_root / relative_path)
+
+    run_manifest = archived_json(
+        "run_manifest.json", provenance.get("run_manifest_sha256")
+    )
+    _exact_evidence_value(run_manifest.get("git_commit"), git_commit, "run_manifest.git_commit")
+    _exact_evidence_value(
+        run_manifest.get("config_sha256"), provenance.get("config_sha256"), "run_manifest.config_sha256"
+    )
+    _exact_evidence_value(
+        run_manifest.get("preflight_policy_sha256"),
+        current_policy_hash,
+        "run_manifest.preflight_policy_sha256",
+    )
+    accepted_import = run_manifest.get("accepted_structure_import")
+    if not isinstance(accepted_import, Mapping):
+        raise CampaignError("verified count-only run manifest lacks accepted import binding")
+    _exact_evidence_value(
+        accepted_import.get("sha256"),
+        provenance.get("accepted_structure_import_receipt_sha256"),
+        "run_manifest.accepted_structure_import.sha256",
+    )
+    for relative_path, provenance_field in (
+        ("accepted_structure_import.json", "accepted_structure_import_receipt_sha256"),
+        ("relax/final/unitcell.in", "accepted_unitcell_sha256"),
+        ("accepted_structure_source/source_run/run_manifest.json", "source_run_manifest_sha256"),
+        ("accepted_structure_source/source_run/relax/final/gate.json", "source_gate_sha256"),
+        ("accepted_structure_source/source_run/relax/final/provenance.json", "source_provenance_sha256"),
+    ):
+        _exact_evidence_value(
+            archive_hashes.get(relative_path),
+            provenance.get(provenance_field),
+            f"manifest.provenance.{provenance_field}",
+        )
+
+    submission_root = f"submissions/preflight/{result.get('attempt_id')}"
+    submission_hashes = provenance.get("submission_sha256")
+    workflow_hashes = provenance.get("workflow_sha256")
+    if not isinstance(submission_hashes, Mapping) or not isinstance(workflow_hashes, Mapping):
+        raise CampaignError("verified count-only submission/workflow hashes must be objects")
+    submission_records: dict[str, dict[str, Any]] = {}
+    for name in ("request.json", "primary_result.json", "submission.json"):
+        relative_path = f"{submission_root}/{name}"
+        submission_records[name] = archived_json(
+            relative_path, submission_hashes.get(name)
+        )
+    request = submission_records["request.json"]
+    primary = submission_records["primary_result.json"]
+    submission = submission_records["submission.json"]
+    for record_name, record in (("request", request), ("primary_result", primary), ("submission", submission)):
+        _exact_evidence_value(
+            record.get("attempt_id"), result.get("attempt_id"), f"{record_name}.attempt_id"
+        )
+        _exact_evidence_value(record.get("stage"), "preflight", f"{record_name}.stage")
+    for record_name, record in (("request", request), ("submission", submission)):
+        _exact_evidence_value(
+            record.get("candidate_subset_sha256"),
+            result.get("candidate_subset_sha256"),
+            f"{record_name}.candidate_subset_sha256",
+        )
+        _exact_evidence_value(
+            record.get("candidate_ids"), [candidate_id], f"{record_name}.candidate_ids"
+        )
+        _exact_evidence_value(
+            record.get("workflow_sha256"), workflow_hashes, f"{record_name}.workflow_sha256"
+        )
+        _exact_evidence_value(
+            record.get("config_sha256"), provenance.get("config_sha256"), f"{record_name}.config_sha256"
+        )
+    _exact_evidence_value(
+        request.get("run_manifest_sha256"),
+        provenance.get("run_manifest_sha256"),
+        "request.run_manifest_sha256",
+    )
+    _exact_evidence_value(primary.get("job_id"), result.get("job_id"), "primary_result.job_id")
+    _exact_evidence_value(primary.get("returncode"), 0, "primary_result.returncode")
+    _exact_evidence_value(submission.get("primary_job_id"), result.get("job_id"), "submission.primary_job_id")
+    _exact_evidence_value(submission.get("healthy"), True, "submission.healthy")
+
+    derived_result_expected = {
+        "generated_displacement_supercells": len(yaml_included_ids),
+        "single_displacements": yaml_inventory["single_displacements"],
+        "second_displacement_ids": len(yaml_included_ids)
+        - yaml_inventory["single_displacements"],
+        "included_pair_groups": yaml_inventory["included_pair_groups"],
+        "nonzero_included_pair_groups": yaml_inventory[
+            "nonzero_included_pair_groups"
+        ],
+        "within_displacement_hard_cap": len(yaml_included_ids)
+        <= required(config, "displacements.hard_cap"),
+    }
+    for field, expected in derived_result_expected.items():
+        _exact_evidence_value(result.get(field), expected, f"result.{field}")
+
+    observed_expected = {
+        "uncontracted_displacement_id_count": len(yaml_all_ids),
+        **derived_result_expected,
+    }
+    for field, expected in observed_expected.items():
+        _exact_evidence_value(observed.get(field), expected, f"manifest.observed.{field}")
+    _exact_evidence_value(
+        observed.get("yaml_length_unit"),
+        yaml_length_unit,
+        "manifest.observed.yaml_length_unit",
+    )
+    _exact_evidence_value(
+        observed.get("count_only_prediction_audit_pass"),
+        True,
+        "manifest.observed.count_only_prediction_audit_pass",
+    )
+    _exact_evidence_value(
+        observed.get("prediction_audit_mismatches"),
+        [],
+        "manifest.observed.prediction_audit_mismatches",
+    )
+
+    expected_matrix = next(
+        (
+            item.get("matrix")
+            for item in required(config, "displacements.supercell_candidates")
+            if isinstance(item, Mapping) and item.get("id") == supercell_id
+        ),
+        None,
+    )
+    _exact_evidence_value(
+        yaml_matrix, expected_matrix, "phono3py YAML supercell_matrix"
+    )
+    _exact_evidence_value(
+        observed.get("supercell_matrix"), yaml_matrix, "manifest.observed.supercell_matrix"
+    )
+    expected_atoms = next(
+        (
+            item.get("atoms")
+            for item in required(config, "displacements.supercell_candidates")
+            if isinstance(item, Mapping) and item.get("id") == supercell_id
+        ),
+        None,
+    )
+    _exact_evidence_value(yaml_generated_atoms, expected_atoms, "phono3py YAML generated atoms")
+    _exact_evidence_value(
+        observed.get("generated_atoms"),
+        yaml_generated_atoms,
+        "manifest.observed.generated_atoms",
+    )
+
+    gate_expected = {
+        "requested_scope_complete": result.get("requested_scope_complete"),
+        "preflight_complete": result.get("preflight_complete"),
+        "full_config_preflight_complete": result.get(
+            "full_config_preflight_complete"
+        ),
+        "selection_eligible": result.get("selection_eligible"),
+        "force_pilot_authorized": result.get("force_pilot_authorized"),
+        "production_fc3_eligible": result.get("production_fc3_eligible"),
+        "production_selection_required": True,
+    }
+    for field, expected in gate_expected.items():
+        _exact_evidence_value(gates.get(field), expected, f"manifest.scope_gates.{field}")
+    for field, expected in (
+        ("requested_scope_complete", True),
+        ("preflight_complete", False),
+        ("full_config_preflight_complete", False),
+        ("selection_eligible", False),
+        ("force_pilot_authorized", False),
+        ("production_fc3_eligible", False),
+    ):
+        _exact_evidence_value(result.get(field), expected, f"result.{field}")
+
+    inventory_expected = {
+        "material": required(config, "material.formula"),
+        "preflight_policy_sha256": current_policy_hash,
+        "candidate_subset_sha256": current_selection["candidate_subset_sha256"],
+        "requested_scope_complete": True,
+        "preflight_complete": False,
+        "full_config_preflight_complete": False,
+        "eligible_candidate_count": 0,
+        "production_selection_still_required": True,
+        "requires_budget_or_scientific_review": True,
+        "selected_candidate_ids": [candidate_id],
+    }
+    for field, expected in inventory_expected.items():
+        _exact_evidence_value(inventory.get(field), expected, f"preflight_inventory.{field}")
+    selection = inventory.get("candidate_selection")
+    if not isinstance(selection, Mapping):
+        raise CampaignError("verified count-only candidate_selection must be an object")
+    _exact_evidence_value(selection, current_selection, "candidate_selection")
+
+    preflight_expected = {
+        "candidate_id": candidate_id,
+        "supercell_id": supercell_id,
+        "cutoff_id": cutoff_id,
+        "cutoff_pair_distance_angstrom": cutoff.get(
+            "cutoff_pair_distance_angstrom"
+        ),
+        "cutoff_pair_distance_cli_bohr": cutoff.get(
+            "cutoff_pair_distance_cli_bohr"
+        ),
+        "count_only": True,
+        "uncontracted_displacements": len(yaml_all_ids),
+        "generated_displacement_supercells": result.get(
+            "generated_displacement_supercells"
+        ),
+        "single_displacements": yaml_inventory["single_displacements"],
+        "included_pair_groups": yaml_inventory["included_pair_groups"],
+        "excluded_pair_groups": yaml_inventory["excluded_pair_groups"],
+        "nonzero_included_pair_groups": yaml_inventory["nonzero_included_pair_groups"],
+        "generated_displacement_ids": yaml_included_ids,
+        "hard_cap": required(config, "displacements.hard_cap"),
+        "selection_eligible": False,
+        "requires_budget_or_scientific_review": True,
+        "within_hard_cap": len(yaml_included_ids)
+        <= required(config, "displacements.hard_cap"),
+        "generated_atoms": yaml_generated_atoms,
+        "yaml_length_unit": yaml_length_unit,
+        "yaml_sha256": result.get("phono3py_disp_yaml_sha256"),
+    }
+    for field, expected in preflight_expected.items():
+        _exact_evidence_value(preflight_result.get(field), expected, f"preflight_result.{field}")
+    _exact_evidence_value(
+        preflight_result.get("generated_displacement_supercells")
+        - preflight_result.get("single_displacements"),
+        result.get("second_displacement_ids"),
+        "preflight_result.second_displacement_ids",
+    )
+    prediction_audit = preflight_result.get("count_only_prediction_audit")
+    if not isinstance(prediction_audit, Mapping):
+        raise CampaignError("verified count-only prediction audit must be an object")
+    _exact_evidence_value(
+        prediction_audit,
+        yaml_prediction_audit,
+        "preflight_result.count_only_prediction_audit versus recomputed YAML audit",
+    )
+    for field, expected in (
+        ("pass", True),
+        ("mismatches", []),
+        ("source_yaml_sha256", prediction.get("source_yaml_sha256")),
+        (
+            "source_preflight_inventory_sha256",
+            prediction.get("source_preflight_inventory_sha256"),
+        ),
+    ):
+        _exact_evidence_value(prediction_audit.get(field), expected, f"prediction_audit.{field}")
+    return manifest
 
 
 def safe_run_dir(path: Path) -> Path:
@@ -456,8 +1897,12 @@ def validate_config(config_path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
                 )
                 check(
                     cutoff.get("candidate_status")
-                    == "predicted_from_verified_remote_3p70A_yaml_not_a_generated_result",
-                    f"predicted cutoff must remain labeled as a prediction: {cutoff_id}",
+                    == (
+                        VERIFIED_COUNT_ONLY_STATUS
+                        if cutoff.get("verified_count_only_result") is not None
+                        else "predicted_from_verified_remote_3p70A_yaml_not_a_generated_result"
+                    ),
+                    f"count-only cutoff status is inconsistent with its evidence: {cutoff_id}",
                 )
                 check(
                     cutoff.get("production_fc3_eligible_without_new_review") is False,
@@ -694,6 +2139,7 @@ def validate_config(config_path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
                     ),
                     f"predicted excluded-shell contract is invalid: {cutoff_id}",
                 )
+            validate_verified_count_only_result(config, cutoff)
 
         supercells: dict[str, dict[str, Any]] = {}
         for index, candidate in enumerate(required(config, "displacements.supercell_candidates")):
@@ -1243,7 +2689,25 @@ def policy_sha256(config: Mapping[str, Any], stage: str) -> str:
     missing = [field for field in fields if field not in config]
     if missing:
         raise CampaignError("config lacks policy fields: " + ", ".join(missing))
-    return canonical_sha256({field: config[field] for field in fields})
+    payload = {field: config[field] for field in fields}
+    if stage == "preflight":
+        payload = copy.deepcopy(payload)
+        displacements = payload.get("displacements")
+        if isinstance(displacements, dict):
+            candidates = displacements.get("cutoff_candidates")
+            if isinstance(candidates, list):
+                for cutoff in candidates:
+                    if (
+                        isinstance(cutoff, dict)
+                        and isinstance(cutoff.get("count_only_prediction"), Mapping)
+                        and cutoff.get("verified_count_only_result") is not None
+                    ):
+                        cutoff.pop("verified_count_only_result", None)
+                        if cutoff.get("candidate_status") == VERIFIED_COUNT_ONLY_STATUS:
+                            cutoff["candidate_status"] = (
+                                "predicted_from_verified_remote_3p70A_yaml_not_a_generated_result"
+                            )
+    return canonical_sha256(payload)
 
 
 def manifest_for(config: Mapping[str, Any], config_path: Path) -> dict[str, Any]:

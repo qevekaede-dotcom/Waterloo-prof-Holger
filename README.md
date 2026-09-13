@@ -22,7 +22,7 @@ Quantum ESPRESSO, BoltzTraP2, and phono3py.
 | Material | Electronic first pass | Lattice thermal conductivity |
 | --- | --- | --- |
 | SrCu2SnS4 | Complete | First pass complete; convergence limits remain |
-| SrZrS3 | Complete | Structure accepted; 3.70-A counts exceed cap; one 3.5541348625-A count-only prediction awaits a fresh run/review |
+| SrZrS3 | Complete | Structure accepted; targeted 3.5541348625-A count verified at 787; pilot and production remain blocked |
 | Rb2Cu2SnS4 | Complete | Diagnostic narrowly passed; sole reviewed BFGS polish failed and no structure is accepted |
 
 Each electronic workflow has independent convergence tests, relaxation,

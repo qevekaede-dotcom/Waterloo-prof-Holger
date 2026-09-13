@@ -138,17 +138,25 @@ directions are not identical. Lowering the cutoff to 3.60 angstrom would
 remove only the 3.604263809- and 3.616141604-angstrom S--S shells and predict
 859 files, so 3.60 angstrom is rejected as still above the hard cap.
 
-The next and only newly enumerated lower-cost hypothesis is 2x1x1 at
+The only newly enumerated lower-cost hypothesis was 2x1x1 at
 `3.5541348625` angstrom (`6.71634150010947` bohr), the midpoint of the
 accepted-structure shell gap from `3.526178139` to `3.582091586` angstrom.
-Thresholding the already generated 3.70-angstrom YAML predicts 787 files: 25
-single displacements plus 762 included second-displacement IDs, with 147
-included pair groups of which 122 are nonzero. This **787 is a prediction,
-not a phono3py result**. The candidate remains count-only and is explicitly
-ineligible for FC3 production without a fresh count run and separate
-scientific review. No 3x1x1 counterpart is enumerated because it had the same
-included count as 2x1x1 at 3.70 angstrom while increasing each force cell from
-40 to 60 atoms.
+Thresholding the 3.70-angstrom YAML predicted 787 files. A fresh targeted Nibi
+run has now reproduced that prediction exactly: 25 single displacements plus
+762 included second-displacement IDs, with 147 included pair groups of which
+122 are nonzero. Its generated YAML, exact shells, multiplicities, 787-file
+inventory, submission chain, process records, and scheduler receipt are frozen
+under [`evidence/3p5541348625A_count_only/`](evidence/3p5541348625A_count_only/).
+The independent review verdict was `SHIP` for the **count-only gate only**.
+
+This measured count replaces the former unrun prediction as the candidate's
+status, but it does not promote the candidate scientifically. The 2x1x1
+inscribed radius is `3.8384532612` angstrom, so the cutoff consumes about
+92.6% of it and leaves only `0.2843183987` angstrom of clearance. A larger-cell
+comparison and explicit probes of the newly excluded 3.582091586-,
+3.604263809-, and 3.616141604-angstrom shells are still required. No 3x1x1
+counterpart was newly enumerated because the earlier 3.70-angstrom pair had the
+same displacement count while increasing every force cell from 40 to 60 atoms.
 
 The previously declared routine FC3 pair-cutoff design values remain 4.0, 5.0,
 and 6.0 angstrom, with their converted bohr values in the JSON. The no-cutoff
@@ -157,24 +165,22 @@ Candidate status does not imply that any matrix or cutoff is scientifically
 adequate. All existing production selections remain null and every production
 gate remains closed pending explicit scientific, force, and resource review.
 
-The next remote count attempt is intentionally restricted to exactly this one
-signed candidate identity:
+The completed remote count attempt was restricted to exactly this one signed
+candidate identity:
 
 ```text
 sr_fc3_2x1x1__sr_cutoff_3p5541348625A
 ```
 
-Pass it as the sole `submit.py --candidate-id` argument in the read-only
-preflight plan and again in execute; execute must additionally receive the
-plan's exact `candidate_subset_sha256` via `--expect-candidate-subset-sha`.
-The frontend canonicalizes the IDs into config order, signs them together with
-the preflight-policy SHA256, and carries that signature through the Slurm
-exports, attempt context, campaign CLI, and final inventory. Therefore this
-targeted run cannot silently enumerate the older large candidates. Its
-inventory reports only the requested scope complete and remains ineligible as
-a full pilot/production preflight. Calling preflight without any candidate
-arguments is still the backwards-compatible full-enumeration mode and forbids
-the subset expectation option.
+The plan and execute records agree on candidate-subset SHA-256
+`03818d4d8a130f6ff6b8d8f0df6668f7bcd87cb01d995ae58acd36bed0e94504`.
+The frontend carried it through the Slurm exports, attempt context, campaign
+CLI, and final inventory, so the targeted run did not silently enumerate the
+older candidates. Its inventory correctly records only
+`requested_scope_complete=true`; `preflight_complete` and
+`full_config_preflight_complete` remain false, and `selection_eligible` remains
+false. Calling preflight without candidate arguments is still the full-
+enumeration mode and forbids the subset expectation option.
 
 ## Force and transport acceptance
 

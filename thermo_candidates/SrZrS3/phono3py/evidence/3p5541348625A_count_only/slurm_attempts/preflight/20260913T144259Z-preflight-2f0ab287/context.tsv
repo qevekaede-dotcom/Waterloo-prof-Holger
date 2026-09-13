@@ -1,0 +1,35 @@
+stage	preflight
+attempt_id	20260913T144259Z-preflight-2f0ab287
+slurm_job_id	21850149
+slurm_array_job_id	
+slurm_array_task_id	
+slurm_job_account	def-kleinke_cpu
+slurm_job_partition	cpubase_bycore_b2
+slurm_job_num_nodes	1
+slurm_ntasks	1
+slurm_cpus_per_task	4
+slurm_mem_per_cpu	
+slurm_timelimit	
+host	c428.nibi.sharcnet
+started_utc	2026-09-13T14:43:04Z
+config	/scratch/yuhansun/Waterloo-prof-Holger-remaining-phonons-5733f0c/thermo_candidates/SrZrS3/phono3py/campaign.json
+config_sha256	709e32590bec41fd33780b9e6707bf0dcee6bf30b7c3e52eac9fbe09e2c6d853
+campaign_cli	/scratch/yuhansun/Waterloo-prof-Holger-remaining-phonons-5733f0c/thermo_candidates/scripts/phono3py_campaign/campaign.py
+campaign_cli_sha256	6bbe3363875e57c9cfc21e73ff5288a5849571a5a316e7130c92121a4efbcd52
+submit_script_sha256	399b84585045bec75aa3d2a175ce8069afa8f06eeb4672b17fd14ca36b248d95
+stage_script_sha256	e442d03b7d707cb2e0bfc50e49aa6717e6fce19fa08d229f11b665ae13122ee7
+cluster_env_sha256	037f859d802b79f56c71dcec6642601761f9cc75e0ae0881b58dfe2cf5d9ed11
+p3_account_uid	3162786
+p3_account_home	/home/yuhansun
+stdenv_module	StdEnv/2023
+qe_module	quantumespresso/7.3.1
+p3_venv	/home/yuhansun/venvs/p3
+p3_pseudo_dir	/home/yuhansun/pseudos/SSSP-1.3.0-PBE-precision
+qe_executable	pw.x
+qe_mpi_launcher	srun
+qe_nk	1
+omp_num_threads	4
+run_dir	/scratch/yuhansun/phono3py-runs/20260913-sr-count-5733f0c/SrZrS3
+preflight_candidate_ids	sr_fc3_2x1x1__sr_cutoff_3p5541348625A
+preflight_candidate_subset_sha256	03818d4d8a130f6ff6b8d8f0df6668f7bcd87cb01d995ae58acd36bed0e94504
+git_commit	

@@ -1,0 +1,27 @@
+{
+  "checked_utc": "2026-09-13T14:42:25Z",
+  "checks": {
+    "cutoff_candidates": [
+      "sr_cutoff_3p5541348625A",
+      "sr_cutoff_3p70A",
+      "sr_cutoff_4A",
+      "sr_cutoff_5A",
+      "sr_cutoff_6A"
+    ],
+    "material": "SrZrS3",
+    "production_blocked_pending_selection": true,
+    "source_qe_sha256": "9396ca05d7563e2e688b361ca11d095ca5ca613af5a86cde781a22a08c36d28b",
+    "source_relax_sha256": "15fed5536eefab4db64208828383fed2e75dc6e9114f88803e985fcfbfc17060",
+    "supercell_candidates": [
+      "sr_fc3_2x1x1",
+      "sr_fc3_3x1x1",
+      "sr_fc3_3x2x1",
+      "sr_fc3_4x2x1"
+    ],
+    "unitcell_atoms": 20
+  },
+  "config": "/scratch/yuhansun/Waterloo-prof-Holger-remaining-phonons-5733f0c/thermo_candidates/SrZrS3/phono3py/campaign.json",
+  "config_sha256": "709e32590bec41fd33780b9e6707bf0dcee6bf30b7c3e52eac9fbe09e2c6d853",
+  "errors": [],
+  "healthy": true
+}
