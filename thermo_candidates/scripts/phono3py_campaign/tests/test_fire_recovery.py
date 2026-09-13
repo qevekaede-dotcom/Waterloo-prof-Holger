@@ -68,9 +68,82 @@ class FireRecoveryTests(unittest.TestCase):
                 "relative_path": f"lineage_source/pseudopotentials/{filename}",
                 "sha256": core.sha256_path(pseudo),
             }
-        (self.old / "polish_lineage_receipt.json").write_text(
-            json.dumps({"pseudopotential_archive": pseudo_inventory})
-        )
+        diagnostic_gate = self.old / "diagnostic/final/gate.json"
+        diagnostic_gate.parent.mkdir(parents=True, exist_ok=True)
+        diagnostic_gate.write_text(json.dumps({"fixture": "trusted diagnostic gate"}))
+        historical = dict(self.config)
+        historical.pop(fire.POLICY)
+        pseudo_review = {
+            species: {"filename": item["filename"], "sha256": item["sha256"]}
+            for species, item in pseudo_inventory.items()
+        }
+        polish_lineage = {
+            "schema_version": 1,
+            "kind": "reviewed_single_bfgs_polish_after_terminal_one_reset",
+            "created_utc": "2026-09-13T00:00:00Z",
+            "material": self.config["material"]["formula"],
+            "structure_policy_sha256": core.policy_sha256(historical, "structure"),
+            "polish_policy_sha256": core.canonical_sha256(historical["reviewed_bfgs_polish"]),
+            "config_canonical_sha256": fire._TRUSTED_HISTORICAL_CONFIG_CANONICAL_SHA256,
+            "source_run_dir": str(self.root / "one-reset-run"),
+            "source_attempt": str(self.root / "one-reset-run/slurm_attempts/relax/attempt"),
+            "source_manifest_sha256": "1" * 64,
+            "source_output_sha256": "2" * 64,
+            "source_files": {"one_reset_attempt/relax.out": "3" * 64},
+            "seed_unitcell_sha256": "4" * 64,
+            "reference_unitcell_sha256": hashlib.sha256(source).hexdigest(),
+            "backend_sha256": "5d72c59aaa2a773005c16ec3160745007890ca62d55bca22266b6bd56b852539",
+            "diagnostic_input_sha256": {
+                "baseline.in": "5" * 64,
+                "higher_ecutrho.in": "6" * 64,
+            },
+            "pseudopotential_archive": pseudo_inventory,
+            "review": {
+                "one_reset_job_id": "fixture",
+                "one_reset_qe_health": {"healthy": True},
+                "maximum_cumulative_shift_angstrom": 0.001,
+                "pseudopotentials": pseudo_review,
+                "original_recovery": {"fixture": True},
+            },
+            "automatic_reset": False,
+            "maximum_polish_attempts": 1,
+            "reuse_qe_scratch": False,
+            "acceptance": "diagnostic cannot accept structure; normal BFGS plus independent pristine SCF and ordinary final gate remain mandatory",
+        }
+        polish_lineage_path = self.old / "polish_lineage.json"
+        polish_lineage_path.write_text(json.dumps(polish_lineage))
+        polish_lineage_sha = core.sha256_path(polish_lineage_path)
+        run_manifest = {
+            "schema_version": 2,
+            "material": self.config["material"]["formula"],
+            "created_utc": "2026-09-13T00:00:01Z",
+            "config_path": "/home/yuhansun/repo/thermo_candidates/Rb2Cu2SnS4/phono3py/campaign.json",
+            "config_sha256": fire._TRUSTED_HISTORICAL_CONFIG_SHA256,
+            "structure_policy_sha256": core.policy_sha256(historical, "structure"),
+            "preflight_policy_sha256": core.policy_sha256(historical, "preflight"),
+            "source_qe_input": "/home/yuhansun/repo/source/Rb2Cu2SnS4.scf.in",
+            "source_qe_sha256": core.sha256_path(core.resolve_repo_source(historical, "source.qe_scf_input")),
+            "source_relax_output": "/home/yuhansun/repo/source/Rb2Cu2SnS4.relax.out",
+            "source_relax_sha256": core.sha256_path(core.resolve_repo_source(historical, "source.original_relax_output")),
+            "workflow_files": {
+                "thermo_candidates/scripts/phono3py_campaign/campaign.py": "eeabcfed82076d1718b96c1b67b12864693dd5938174face8d8764663797a79d",
+                "thermo_candidates/scripts/phono3py_campaign/qe_input.py": "7" * 64,
+                "thermo_candidates/scripts/phono3py_campaign/qe_output.py": "8" * 64,
+                "thermo_candidates/scripts/phono3py_campaign/polish_recovery.py": "5d72c59aaa2a773005c16ec3160745007890ca62d55bca22266b6bd56b852539",
+            },
+            "git_commit": fire._TRUSTED_HISTORICAL_COMMIT,
+            "relax_polish": {
+                "kind": "single_reviewed_bfgs_polish",
+                "lineage_receipt": "polish_lineage.json",
+                "lineage_sha256": polish_lineage_sha,
+                "diagnostic_gate": "diagnostic/final/gate.json",
+                "diagnostic_gate_sha256": core.sha256_path(diagnostic_gate),
+                "maximum_attempts": 1,
+                "automatic_submission_allowed": False,
+            },
+        }
+        run_manifest_path = self.old / "run_manifest.json"
+        run_manifest_path.write_text(json.dumps(run_manifest))
         binding = self.config["reviewed_fire_recovery"]["trusted_old_lineage"]
         binding["run_dir"] = str(self.old.resolve())
         binding["reference_sha256"] = hashlib.sha256(source).hexdigest()
@@ -79,6 +152,8 @@ class FireRecoveryTests(unittest.TestCase):
         binding["failed_relax_context_sha256"] = core.sha256_path(failed_context)
         binding["later_collector_collection_sha256"] = core.sha256_path(collection)
         binding["later_collector_context_sha256"] = core.sha256_path(collector_context)
+        binding["polish_lineage_sha256"] = polish_lineage_sha
+        binding["run_manifest_sha256"] = core.sha256_path(run_manifest_path)
         self.trust_patch = patch.object(fire, "TRUSTED_OLD_LINEAGE", dict(binding))
         self.trust_patch.start()
         self.audit_gate = {"submission_chain": {"primary_job_id": "21732222", "collector_job_id": "21732223"}}
@@ -96,6 +171,21 @@ class FireRecoveryTests(unittest.TestCase):
         registry = self.old.parent / fire.GLOBAL_CLAIM_DIRECTORY
         if registry.exists():
             shutil.rmtree(registry)
+
+    def _rebind_mutated_polish_release(self, *, update_pointer: bool = True):
+        """Test-only rebind so semantic checks run past whole-file anchors."""
+        lineage = self.old / "polish_lineage.json"
+        manifest_path = self.old / "run_manifest.json"
+        manifest = core.load_json(manifest_path)
+        lineage_sha = core.sha256_path(lineage)
+        if update_pointer:
+            manifest["relax_polish"]["lineage_sha256"] = lineage_sha
+        manifest_path.write_text(json.dumps(manifest))
+        binding = self.config["reviewed_fire_recovery"]["trusted_old_lineage"]
+        binding["polish_lineage_sha256"] = lineage_sha
+        binding["run_manifest_sha256"] = core.sha256_path(manifest_path)
+        self.config_path.write_text(json.dumps(self.config))
+        return patch.object(fire, "TRUSTED_OLD_LINEAGE", dict(binding))
 
     def _successful_sbatch(self, *job_ids: str):
         pending = iter(job_ids)
@@ -174,6 +264,144 @@ class FireRecoveryTests(unittest.TestCase):
         path.write_text(f"stage\trelax\nslurm_job_id\t999\nrun_dir\t{self.old.resolve()}\n")
         with self.assertRaises(core.CampaignError):
             fire.prepare_lineage(self.config_path, self.root / "bad-failed-context", self.old)
+
+    def test_real_polish_receipt_name_is_mandatory(self) -> None:
+        (self.old / "polish_lineage.json").rename(
+            self.old / "polish_lineage_receipt.json"
+        )
+        with self.assertRaisesRegex(core.CampaignError, "polish_lineage.json"):
+            fire.prepare_lineage(self.config_path, self.root / "wrong-polish-name", self.old)
+
+    def test_polish_lineage_and_run_manifest_raw_hash_tamper_fail(self) -> None:
+        for filename, expected in (
+            ("polish_lineage.json", "lineage receipt hash drift"),
+            ("run_manifest.json", "run manifest hash drift"),
+        ):
+            with self.subTest(filename=filename):
+                path = self.old / filename
+                original = path.read_text()
+                path.write_text(original + " \n")
+                with self.assertRaisesRegex(core.CampaignError, expected):
+                    fire.prepare_lineage(
+                        self.config_path, self.root / f"tampered-{filename}", self.old
+                    )
+                path.write_text(original)
+
+    def test_trusted_polish_json_hash_and_parse_share_one_open_snapshot(self) -> None:
+        targets = {
+            self.old / "polish_lineage.json",
+            self.old / "run_manifest.json",
+        }
+        open_counts = {path: 0 for path in targets}
+        real_open = os.open
+        real_sha256_path = core.sha256_path
+        real_load_json = core.load_json
+
+        def counted_open(path, flags, *args, **kwargs):
+            candidate = Path(path)
+            if candidate in open_counts:
+                open_counts[candidate] += 1
+            return real_open(path, flags, *args, **kwargs)
+
+        def reject_split_hash(path):
+            candidate = Path(path)
+            if candidate in targets:
+                raise AssertionError("trusted JSON must not be reopened for hashing")
+            return real_sha256_path(path)
+
+        def reject_split_parse(path):
+            candidate = Path(path)
+            if candidate in targets:
+                raise AssertionError("trusted JSON must not be reopened for parsing")
+            return real_load_json(path)
+
+        with patch("fire_recovery.os.open", side_effect=counted_open), patch(
+            "fire_recovery.core.sha256_path", side_effect=reject_split_hash
+        ), patch("fire_recovery.core.load_json", side_effect=reject_split_parse):
+            fire.prepare_lineage(
+                self.config_path, self.root / "single-snapshot", self.old
+            )
+        self.assertEqual(open_counts, {path: 1 for path in targets})
+
+    def test_trusted_polish_json_path_replacement_during_read_fails(self) -> None:
+        target = self.old / "polish_lineage.json"
+        replacement = self.old / "replacement-polish-lineage.json"
+        replacement.write_bytes(target.read_bytes())
+        target_identity = (os.lstat(target).st_dev, os.lstat(target).st_ino)
+        real_read = os.read
+        replaced = False
+
+        def replace_after_open(descriptor, size):
+            nonlocal replaced
+            descriptor_stat = os.fstat(descriptor)
+            if not replaced and (descriptor_stat.st_dev, descriptor_stat.st_ino) == target_identity:
+                os.replace(replacement, target)
+                replaced = True
+            return real_read(descriptor, size)
+
+        with patch("fire_recovery.os.read", side_effect=replace_after_open):
+            with self.assertRaisesRegex(core.CampaignError, "changed while reading"):
+                fire.prepare_lineage(
+                    self.config_path, self.root / "racing-polish-replacement", self.old
+                )
+        self.assertTrue(replaced)
+
+    def test_manifest_wrong_lineage_filename_fails_after_coherent_rehash(self) -> None:
+        manifest_path = self.old / "run_manifest.json"
+        manifest = core.load_json(manifest_path)
+        manifest["relax_polish"]["lineage_receipt"] = "polish_lineage_receipt.json"
+        manifest_path.write_text(json.dumps(manifest))
+        with self._rebind_mutated_polish_release():
+            with self.assertRaisesRegex(core.CampaignError, "manifest/lineage relation drift"):
+                fire.prepare_lineage(
+                    self.config_path, self.root / "wrong-pointer-name", self.old
+                )
+
+    def test_manifest_wrong_lineage_hash_fails_after_manifest_rehash(self) -> None:
+        manifest_path = self.old / "run_manifest.json"
+        manifest = core.load_json(manifest_path)
+        manifest["relax_polish"]["lineage_sha256"] = "0" * 64
+        manifest_path.write_text(json.dumps(manifest))
+        with self._rebind_mutated_polish_release(update_pointer=False):
+            with self.assertRaisesRegex(core.CampaignError, "manifest/lineage relation drift"):
+                fire.prepare_lineage(
+                    self.config_path, self.root / "wrong-pointer-hash", self.old
+                )
+
+    def test_polish_schema_material_and_commit_are_semantically_validated(self) -> None:
+        cases = (
+            ("lineage-extra", "lineage", "extra", True),
+            ("lineage-material", "lineage", "material", "SrCu2SnS4"),
+            ("manifest-commit", "manifest", "git_commit", "0" * 40),
+        )
+        for label, document, field, value in cases:
+            with self.subTest(label=label):
+                lineage_path = self.old / "polish_lineage.json"
+                manifest_path = self.old / "run_manifest.json"
+                original_lineage = lineage_path.read_text()
+                original_manifest = manifest_path.read_text()
+                path = lineage_path if document == "lineage" else manifest_path
+                payload = core.load_json(path)
+                payload[field] = value
+                path.write_text(json.dumps(payload))
+                with self._rebind_mutated_polish_release():
+                    with self.assertRaises(core.CampaignError):
+                        fire.prepare_lineage(
+                            self.config_path, self.root / f"bad-{label}", self.old
+                        )
+                lineage_path.write_text(original_lineage)
+                manifest_path.write_text(original_manifest)
+                binding = self.config["reviewed_fire_recovery"]["trusted_old_lineage"]
+                binding["polish_lineage_sha256"] = core.sha256_path(lineage_path)
+                binding["run_manifest_sha256"] = core.sha256_path(manifest_path)
+                self.config_path.write_text(json.dumps(self.config))
+
+    def test_old_polish_pseudopotential_bytes_tamper_fails(self) -> None:
+        filename = next(iter(self.config["pseudopotentials"]["files"].values()))
+        pseudo = self.old / "lineage_source/pseudopotentials" / filename
+        pseudo.write_bytes(b"changed old archive bytes under the same name\n")
+        with self.assertRaisesRegex(core.CampaignError, "pseudopotential bytes drifted"):
+            fire.prepare_lineage(self.config_path, self.root / "old-pseudo-drift", self.old)
 
     def test_historical_context_identity_and_git_commit_drift_fail_closed(self) -> None:
         cases = (

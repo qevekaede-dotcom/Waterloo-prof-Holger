@@ -223,6 +223,8 @@
       "failed_relax_context_sha256": "1a9559670e04d43e0555b966698e34e93918a302b867e1711900bb80f4eab8d7",
       "later_collector_collection_sha256": "d5b4e87c8c69dddb5f1ba484d0a6d2f2dc618be6ec55f8d3e7b8d4611f4d2c83",
       "later_collector_context_sha256": "fa4690608472e086c8d76a5aa249c312505b8aa01fca3a80a7d1fe2bbd645ed6",
+      "polish_lineage_sha256": "c28d1f118fbbb16b54c0d341e0796441e4b1414ad30a71ba6e46e1cf503ed34d",
+      "run_manifest_sha256": "84dc0fcf47b719f12738a77dc7ff0903458e82dfcb10d894ef3ed51f2ea48de3",
       "diagnostic_primary_job_id": "21732222",
       "diagnostic_collector_job_id": "21732223",
       "failed_relax_job_id": "21848175",

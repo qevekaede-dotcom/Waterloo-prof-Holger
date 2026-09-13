@@ -49,6 +49,9 @@ PWSCF_VERSION_HEADER = re.compile(
 _FORBIDDEN_BFGS = {"bfgs_ndim", "trust_radius_ini", "trust_radius_min", "trust_radius_max"}
 _TRUSTED_HISTORICAL_CONFIG_SHA256 = "1e6f09fd5cbd26308143ed2f095bbfcadb76ff2d1b114b6b13c3edb5627a33a1"
 _TRUSTED_HISTORICAL_CONFIG_CANONICAL_SHA256 = "655cfa0efd216faf5a0ce35e73cf271d32a9fb64d3aac4807a965d71f9921bad"
+_TRUSTED_HISTORICAL_COMMIT = "cf0b1d1be318725015ed5d05f4ee3fb63d0fb89d"
+_POLISH_LINEAGE_RECEIPT = "polish_lineage.json"
+_OLD_RUN_MANIFEST = "run_manifest.json"
 
 # Code-owned trust root for the one real Rb lineage already replayed on Nibi.
 # A mutable campaign file may not redefine which historical run or evidence
@@ -61,6 +64,8 @@ TRUSTED_OLD_LINEAGE: dict[str, str] = {
     "failed_relax_context_sha256": "1a9559670e04d43e0555b966698e34e93918a302b867e1711900bb80f4eab8d7",
     "later_collector_collection_sha256": "d5b4e87c8c69dddb5f1ba484d0a6d2f2dc618be6ec55f8d3e7b8d4611f4d2c83",
     "later_collector_context_sha256": "fa4690608472e086c8d76a5aa249c312505b8aa01fca3a80a7d1fe2bbd645ed6",
+    "polish_lineage_sha256": "c28d1f118fbbb16b54c0d341e0796441e4b1414ad30a71ba6e46e1cf503ed34d",
+    "run_manifest_sha256": "84dc0fcf47b719f12738a77dc7ff0903458e82dfcb10d894ef3ed51f2ea48de3",
     "diagnostic_primary_job_id": "21732222",
     "diagnostic_collector_job_id": "21732223",
     "failed_relax_job_id": "21848175",
@@ -121,6 +126,69 @@ def _strict_regular(root: Path, relative: str) -> Path:
     if stat.S_ISLNK(os.lstat(path).st_mode) or not stat.S_ISREG(os.lstat(path).st_mode):
         raise core.CampaignError(f"FIRE lineage receipt/source is unsafe: {path}")
     return path
+
+
+def _load_strict_json_snapshot(
+    root: Path, relative: str, label: str
+) -> tuple[dict[str, Any], str]:
+    """Hash and parse one immutable byte snapshot from one no-follow fd."""
+    path = _strict_regular(root, relative)
+    try:
+        path_before = os.lstat(path)
+        flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0)
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        descriptor = os.open(path, flags)
+    except OSError as exc:
+        raise core.CampaignError(f"cannot open trusted {label} safely: {path}") from exc
+    try:
+        before = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or (before.st_dev, before.st_ino) != (path_before.st_dev, path_before.st_ino)
+        ):
+            raise core.CampaignError(f"trusted {label} changed while opening: {path}")
+        chunks: list[bytes] = []
+        while True:
+            chunk = os.read(descriptor, 1024 * 1024)
+            if not chunk:
+                break
+            chunks.append(chunk)
+        after = os.fstat(descriptor)
+        before_identity = (
+            before.st_dev, before.st_ino, before.st_size,
+            before.st_mtime_ns, before.st_ctime_ns,
+        )
+        after_identity = (
+            after.st_dev, after.st_ino, after.st_size,
+            after.st_mtime_ns, after.st_ctime_ns,
+        )
+        if before_identity != after_identity:
+            raise core.CampaignError(f"trusted {label} changed while reading: {path}")
+    except OSError as exc:
+        raise core.CampaignError(f"cannot read trusted {label} safely: {path}") from exc
+    finally:
+        os.close(descriptor)
+    # Re-run the component-wise no-symlink check and prove the pathname still
+    # names the inode whose bytes were read.  Hashing and parsing below never
+    # reopen the pathname.
+    _strict_regular(root, relative)
+    try:
+        path_after = os.lstat(path)
+    except OSError as exc:
+        raise core.CampaignError(f"trusted {label} disappeared after reading: {path}") from exc
+    if (path_after.st_dev, path_after.st_ino) != (after.st_dev, after.st_ino):
+        raise core.CampaignError(f"trusted {label} path changed while reading: {path}")
+    data = b"".join(chunks)
+    if len(data) != after.st_size:
+        raise core.CampaignError(f"trusted {label} byte count changed while reading: {path}")
+    try:
+        value = json.loads(data.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise core.CampaignError(f"trusted {label} is not valid UTF-8 JSON: {path}") from exc
+    if not isinstance(value, dict):
+        raise core.CampaignError(f"trusted {label} JSON root is not an object: {path}")
+    return value, hashlib.sha256(data).hexdigest()
 
 
 def _write_json(path: Path, value: object) -> None:
@@ -228,7 +296,7 @@ def validate_fire_policy(config: Mapping[str, Any]) -> None:
     }:
         raise core.CampaignError("FIRE seed-contract value drift")
     binding = policy.get("trusted_old_lineage")
-    if not isinstance(binding, Mapping) or set(binding) != {"run_dir", "reference_sha256", "standardization_audit_sha256", "failed_relax_output_sha256", "failed_relax_context_sha256", "later_collector_collection_sha256", "later_collector_context_sha256", "diagnostic_primary_job_id", "diagnostic_collector_job_id", "failed_relax_job_id", "failed_relax_collector_job_id"}:
+    if not isinstance(binding, Mapping) or set(binding) != {"run_dir", "reference_sha256", "standardization_audit_sha256", "failed_relax_output_sha256", "failed_relax_context_sha256", "later_collector_collection_sha256", "later_collector_context_sha256", "polish_lineage_sha256", "run_manifest_sha256", "diagnostic_primary_job_id", "diagnostic_collector_job_id", "failed_relax_job_id", "failed_relax_collector_job_id"}:
         raise core.CampaignError("FIRE trusted-old-lineage schema drift")
     if dict(binding) != TRUSTED_OLD_LINEAGE:
         raise core.CampaignError("FIRE trusted-old-lineage trust root drift")
@@ -531,15 +599,165 @@ def _reject_existing_ancestor_symlinks(raw_path: Path, label: str) -> None:
             raise core.CampaignError(f"FIRE {label} has a non-directory ancestor: {current}")
 
 
-def _trusted_pseudopotential_archive(
-    config: Mapping[str, Any], old_lineage_run: Path
+def _trusted_polish_release(
+    config: Mapping[str, Any],
+    old_lineage_run: Path,
+    binding: Mapping[str, Any],
 ) -> tuple[dict[str, dict[str, str]], dict[str, bytes]]:
-    """Rehash the exact UPF archive already authenticated by polish replay."""
-    receipt = core.load_json(_strict(old_lineage_run, "polish_lineage_receipt.json"))
+    """Replay the real polish receipt/manifest relation and return its UPFs.
+
+    The filenames and both whole-file digests are code/config-owned trust roots.
+    This deliberately does not accept a caller-selected JSON object or the
+    never-created ``polish_lineage_receipt.json`` spelling.
+    """
+    from polish_recovery import TRUSTED_EXECUTED_WORKFLOW_SNAPSHOTS
+
+    historical = _historical_config_view(config)
+    receipt, lineage_sha256 = _load_strict_json_snapshot(
+        old_lineage_run, _POLISH_LINEAGE_RECEIPT, "polish lineage receipt"
+    )
+    manifest, manifest_sha256 = _load_strict_json_snapshot(
+        old_lineage_run, _OLD_RUN_MANIFEST, "polish run manifest"
+    )
+    if lineage_sha256 != binding["polish_lineage_sha256"]:
+        raise core.CampaignError("trusted polish lineage receipt hash drift")
+    if manifest_sha256 != binding["run_manifest_sha256"]:
+        raise core.CampaignError("trusted polish run manifest hash drift")
+    expected_lineage_fields = {
+        "schema_version", "kind", "created_utc", "material",
+        "structure_policy_sha256", "polish_policy_sha256",
+        "config_canonical_sha256", "source_run_dir", "source_attempt",
+        "source_manifest_sha256", "source_output_sha256", "source_files",
+        "seed_unitcell_sha256", "reference_unitcell_sha256",
+        "backend_sha256", "diagnostic_input_sha256",
+        "pseudopotential_archive", "review", "automatic_reset",
+        "maximum_polish_attempts", "reuse_qe_scratch", "acceptance",
+    }
+    snapshot = TRUSTED_EXECUTED_WORKFLOW_SNAPSHOTS[_TRUSTED_HISTORICAL_COMMIT]
+    if set(receipt) != expected_lineage_fields:
+        raise core.CampaignError("trusted polish lineage receipt schema drift")
+    if (
+        receipt.get("schema_version") != 1
+        or receipt.get("kind") != "reviewed_single_bfgs_polish_after_terminal_one_reset"
+        or receipt.get("material") != core.required(config, "material.formula")
+        or receipt.get("structure_policy_sha256") != core.policy_sha256(historical, "structure")
+        or receipt.get("polish_policy_sha256")
+        != core.canonical_sha256(core.required(historical, "reviewed_bfgs_polish"))
+        or receipt.get("config_canonical_sha256")
+        != _TRUSTED_HISTORICAL_CONFIG_CANONICAL_SHA256
+        or receipt.get("reference_unitcell_sha256") != binding["reference_sha256"]
+        or receipt.get("backend_sha256") != snapshot["polish_recovery.py"]
+        or receipt.get("automatic_reset") is not False
+        or receipt.get("maximum_polish_attempts") != 1
+        or receipt.get("reuse_qe_scratch") is not False
+        or receipt.get("acceptance")
+        != "diagnostic cannot accept structure; normal BFGS plus independent pristine SCF and ordinary final gate remain mandatory"
+    ):
+        raise core.CampaignError("trusted polish lineage identity/policy drift")
+    if not isinstance(receipt.get("created_utc"), str):
+        raise core.CampaignError("trusted polish lineage timestamp is invalid")
+    for field in ("source_run_dir", "source_attempt"):
+        value = receipt.get(field)
+        if not isinstance(value, str) or not Path(value).is_absolute():
+            raise core.CampaignError(f"trusted polish lineage {field} is invalid")
+    for field in (
+        "source_manifest_sha256", "source_output_sha256",
+        "seed_unitcell_sha256",
+    ):
+        if re.fullmatch(r"[0-9a-f]{64}", str(receipt.get(field, ""))) is None:
+            raise core.CampaignError(f"trusted polish lineage {field} is invalid")
+    source_files = receipt.get("source_files")
+    if not isinstance(source_files, Mapping) or not source_files:
+        raise core.CampaignError("trusted polish lineage source inventory is invalid")
+    for name, digest in source_files.items():
+        relative = Path(str(name))
+        if relative.is_absolute() or ".." in relative.parts or re.fullmatch(
+            r"[0-9a-f]{64}", str(digest)
+        ) is None:
+            raise core.CampaignError("trusted polish lineage source inventory is invalid")
+    diagnostic_inputs = receipt.get("diagnostic_input_sha256")
+    if not isinstance(diagnostic_inputs, Mapping) or set(diagnostic_inputs) != {
+        "baseline.in", "higher_ecutrho.in"
+    } or any(
+        re.fullmatch(r"[0-9a-f]{64}", str(value)) is None
+        for value in diagnostic_inputs.values()
+    ):
+        raise core.CampaignError("trusted polish diagnostic-input schema drift")
+
+    expected_manifest_fields = {
+        "schema_version", "material", "created_utc", "config_path",
+        "config_sha256", "structure_policy_sha256",
+        "preflight_policy_sha256", "source_qe_input", "source_qe_sha256",
+        "source_relax_output", "source_relax_sha256", "workflow_files",
+        "git_commit", "relax_polish",
+    }
+    if set(manifest) != expected_manifest_fields:
+        raise core.CampaignError("trusted polish run manifest schema drift")
+    if (
+        manifest.get("schema_version") != 2
+        or manifest.get("material") != core.required(config, "material.formula")
+        or manifest.get("config_sha256") != _TRUSTED_HISTORICAL_CONFIG_SHA256
+        or manifest.get("git_commit") != _TRUSTED_HISTORICAL_COMMIT
+        or manifest.get("structure_policy_sha256") != core.policy_sha256(historical, "structure")
+        or manifest.get("preflight_policy_sha256") != core.policy_sha256(historical, "preflight")
+    ):
+        raise core.CampaignError("trusted polish run manifest identity/config drift")
+    for path_field, hash_field, source_key in (
+        ("source_qe_input", "source_qe_sha256", "source.qe_scf_input"),
+        ("source_relax_output", "source_relax_sha256", "source.original_relax_output"),
+    ):
+        if not isinstance(manifest.get(path_field), str) or not Path(str(manifest[path_field])).is_absolute():
+            raise core.CampaignError(f"trusted polish manifest {path_field} is invalid")
+        if manifest.get(hash_field) != core.sha256_path(core.resolve_repo_source(historical, source_key)):
+            raise core.CampaignError(f"trusted polish manifest {hash_field} drift")
+    workflow = manifest.get("workflow_files")
+    expected_workflow_names = {
+        "thermo_candidates/scripts/phono3py_campaign/campaign.py",
+        "thermo_candidates/scripts/phono3py_campaign/qe_input.py",
+        "thermo_candidates/scripts/phono3py_campaign/qe_output.py",
+        "thermo_candidates/scripts/phono3py_campaign/polish_recovery.py",
+    }
+    if not isinstance(workflow, Mapping) or set(workflow) != expected_workflow_names:
+        raise core.CampaignError("trusted polish manifest workflow schema drift")
+    if (
+        workflow["thermo_candidates/scripts/phono3py_campaign/campaign.py"] != snapshot["campaign.py"]
+        or workflow["thermo_candidates/scripts/phono3py_campaign/polish_recovery.py"] != snapshot["polish_recovery.py"]
+        or any(re.fullmatch(r"[0-9a-f]{64}", str(value)) is None for value in workflow.values())
+    ):
+        raise core.CampaignError("trusted polish manifest workflow trust-root drift")
+    pointer = manifest.get("relax_polish")
+    expected_pointer_fields = {
+        "kind", "lineage_receipt", "lineage_sha256", "diagnostic_gate",
+        "diagnostic_gate_sha256", "maximum_attempts",
+        "automatic_submission_allowed",
+    }
+    if not isinstance(pointer, Mapping) or set(pointer) != expected_pointer_fields:
+        raise core.CampaignError("trusted polish manifest pointer schema drift")
+    if (
+        pointer.get("kind") != "single_reviewed_bfgs_polish"
+        or pointer.get("lineage_receipt") != _POLISH_LINEAGE_RECEIPT
+        or pointer.get("lineage_sha256") != binding["polish_lineage_sha256"]
+        or pointer.get("maximum_attempts") != 1
+        or pointer.get("automatic_submission_allowed") is not False
+        or pointer.get("diagnostic_gate") != "diagnostic/final/gate.json"
+    ):
+        raise core.CampaignError("trusted polish manifest/lineage relation drift")
+    diagnostic_gate = _strict_regular(old_lineage_run, "diagnostic/final/gate.json")
+    if pointer.get("diagnostic_gate_sha256") != core.sha256_path(diagnostic_gate):
+        raise core.CampaignError("trusted polish manifest diagnostic-gate hash drift")
+
     inventory = receipt.get("pseudopotential_archive")
     configured = core.required(config, "pseudopotentials.files")
     if not isinstance(inventory, Mapping) or set(inventory) != set(configured):
         raise core.CampaignError("trusted polish lineage pseudopotential inventory is invalid")
+    review = receipt.get("review")
+    if not isinstance(review, Mapping) or set(review) != {
+        "one_reset_job_id", "one_reset_qe_health",
+        "maximum_cumulative_shift_angstrom", "pseudopotentials",
+        "original_recovery",
+    }:
+        raise core.CampaignError("trusted polish review schema drift")
+    review_pseudos = review.get("pseudopotentials")
     frozen: dict[str, dict[str, str]] = {}
     blobs: dict[str, bytes] = {}
     for species, filename_value in configured.items():
@@ -562,8 +780,15 @@ def _trusted_pseudopotential_archive(
             raise core.CampaignError(
                 f"trusted polish pseudopotential bytes drifted: {species}"
             )
+        expected_review_item = {"filename": filename, "sha256": item["sha256"]}
+        if not isinstance(review_pseudos, Mapping) or review_pseudos.get(species) != expected_review_item:
+            raise core.CampaignError(
+                f"trusted polish review pseudopotential drift: {species}"
+            )
         frozen[str(species)] = dict(item)
         blobs[filename] = data
+    if not isinstance(review_pseudos, Mapping) or set(review_pseudos) != set(configured):
+        raise core.CampaignError("trusted polish review pseudopotential schema drift")
     return frozen, blobs
 
 
@@ -622,8 +847,8 @@ def prepare_lineage(config_path: Path, run_dir: Path, old_lineage_run: Path) -> 
     replayed_old, _, failed_output, later_collection = _replay_trusted_old_lineage(config, config_path, binding)
     if replayed_old != old_lineage_run:
         raise core.CampaignError("trusted old lineage replay root differs from requested root")
-    pseudo_inventory, pseudo_blobs = _trusted_pseudopotential_archive(
-        config, old_lineage_run
+    pseudo_inventory, pseudo_blobs = _trusted_polish_release(
+        config, old_lineage_run, binding
     )
     seed_files = {name: _strict(old_lineage_run, name) for name in REQUIRED_SEED_FILES}
     audit_path = _strict(old_lineage_run, STANDARDIZATION_AUDIT)
@@ -786,6 +1011,7 @@ def verify_fire_submission_ready(
     if receipt.get("trusted_old_lineage") != dict(binding):
         raise core.CampaignError("FIRE lineage receipt trusted historical anchor drift")
     replayed_old, _, failed_output, later_collection = _replay_trusted_old_lineage(config, config_path, binding)
+    _trusted_polish_release(config, replayed_old, binding)
     if receipt.get("trusted_failed_output") != str(failed_output.relative_to(replayed_old)) or receipt.get("trusted_later_collection") != str(later_collection.relative_to(replayed_old)):
         raise core.CampaignError("FIRE lineage receipt does not bind replayed old failed/collector evidence")
     if receipt.get("policy_sha256") != core.canonical_sha256(_policy(config)):
