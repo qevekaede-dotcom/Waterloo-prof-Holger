@@ -128,6 +128,7 @@ TRUSTED_STARTUP_INCIDENT: dict[str, Any] = {
         "collector_scheduler_log": "b069c620b3e6c6a883e5cebd0b43ceb5649be63a84d2a37837a9f4f46222ebf9",
     },
     "primary_allocation": "21864180|FAILED|2:0|4|32||def-kleinke_cpu|cpubase_bycore_b2|1|32|62.50G|120",
+    "primary_collector_allocation": "21864180|21864180|FAILED|2:0|4|32||def-kleinke_cpu|cpubase_bycore_b2|1|32|62.50G|120",
     "collector_allocation": "21864181|FAILED|2:0|5|1||def-kleinke_cpu|cpubase_bycore_b2|1|1|4G|30",
     "primary_scheduler_text": "/var/spool/slurmd/job21864180/slurm_script: line 32: git: command not found\nERROR: FIRE pilot checkout commit differs from the released lineage\n",
 }
@@ -878,7 +879,7 @@ def _authenticate_startup_incident(
         raise core.CampaignError(
             "trusted FIRE primary sacct evidence is not UTF-8"
         ) from exc
-    if str(incident["primary_allocation"]) not in sacct_text.splitlines():
+    if str(incident["primary_collector_allocation"]) not in sacct_text.splitlines():
         raise core.CampaignError(
             "trusted FIRE primary scheduler allocation row drift"
         )

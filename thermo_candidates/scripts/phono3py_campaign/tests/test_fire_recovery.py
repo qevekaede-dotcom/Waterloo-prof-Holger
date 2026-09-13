@@ -262,14 +262,32 @@ class FireRecoveryTests(unittest.TestCase):
             "101|FAILED|2:0|4|32||def-kleinke_cpu|cpubase_bycore_b2|"
             "1|32|62.50G|120"
         )
+        primary_collector_row = (
+            "101|101|FAILED|2:0|4|32||def-kleinke_cpu|cpubase_bycore_b2|"
+            "1|32|62.50G|120"
+        )
+        collector_accounting_header = (
+            "JobID|JobIDRaw|State|ExitCode|ElapsedRaw|AllocCPUS|MaxRSS|"
+            "Account|Partition|NNodes|NCPUS|ReqMem|TimelimitRaw"
+        )
+        collector_accounting_text = (
+            collector_accounting_header
+            + "\n"
+            + primary_collector_row
+            + "\n"
+            + "101.batch|101.batch|FAILED|2:0|4|32|4848K|"
+            "def-kleinke_cpu||1|32||\n"
+            + "101.extern|101.extern|COMPLETED|0:0|4|32||"
+            "def-kleinke_cpu||1|32||\n"
+        )
         raw = {
             "context.tsv": collector_context.encode(),
             "stdout.log": b'{"command":"collect","error":"git missing","healthy":false}\n',
             "stderr.log": b"",
             "exit_code.txt": b"2\n",
             "finished_utc.txt": b"2026-09-14T00:00:00Z\n",
-            "primary_sacct.psv": ("header\n" + primary_row + "\n").encode(),
-            "primary_sacct-query-01.psv": ("header\n" + primary_row + "\n").encode(),
+            "primary_sacct.psv": collector_accounting_text.encode(),
+            "primary_sacct-query-01.psv": collector_accounting_text.encode(),
             "primary_sacct.err": b"",
             "primary_sacct-query-01.err": b"",
             "primary_sacct_exit_code.txt": b"0\n",
@@ -294,6 +312,7 @@ class FireRecoveryTests(unittest.TestCase):
             "primary_attempt_id": primary_attempt, "primary_job_id": "101",
             "collector_attempt_id": collector_attempt, "collector_job_id": "102",
             "primary_allocation": primary_row,
+            "primary_collector_allocation": primary_collector_row,
             "collector_allocation": (
                 "102|FAILED|2:0|5|1||def-kleinke_cpu|cpubase_bycore_b2|1|1|4G|30"
             ),
@@ -576,6 +595,23 @@ class FireRecoveryTests(unittest.TestCase):
                 fire.create_infrastructure_replacement_authorization(
                     self.config_path, run
                 )
+
+    def test_startup_incident_keeps_live_and_archived_sacct_rows_distinct(self) -> None:
+        incident = fire.TRUSTED_STARTUP_INCIDENT
+        self.assertEqual(
+            incident["primary_allocation"],
+            "21864180|FAILED|2:0|4|32||def-kleinke_cpu|"
+            "cpubase_bycore_b2|1|32|62.50G|120",
+        )
+        self.assertEqual(
+            incident["primary_collector_allocation"],
+            "21864180|21864180|FAILED|2:0|4|32||def-kleinke_cpu|"
+            "cpubase_bycore_b2|1|32|62.50G|120",
+        )
+        self.assertNotEqual(
+            incident["primary_allocation"],
+            incident["primary_collector_allocation"],
+        )
 
     def test_startup_incident_any_raw_hash_or_scheduler_row_drift_fails(self) -> None:
         run, incident = self._startup_incident_fixture()
