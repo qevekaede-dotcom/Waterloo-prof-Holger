@@ -666,6 +666,16 @@ def _inverse(a: list[list[float]]) -> list[list[float]]:
              for j in range(3)] for i in range(3)]
 
 
+def _species_identity(rows: Any) -> dict[str, tuple[float, str]]:
+    """Return the exact QE species identity independent of card row order."""
+    identity: dict[str, tuple[float, str]] = {}
+    for row in rows:
+        if row.label in identity:
+            raise ForceError(f"duplicate ATOMIC_SPECIES label: {row.label}")
+        identity[row.label] = (row.mass_amu, row.pseudopotential)
+    return identity
+
+
 def _fragment(path: Path, settings: Mapping[str, Any], pseudo_dir: Path) -> str:
     """Convert the documented QE fragment to a full, narrowly scoped SCF."""
     raw = path.read_text()
@@ -893,15 +903,15 @@ def _dataset_inputs(dataset: Path, settings: Mapping[str, Any], pseudo_dir: Path
         if not math.isclose(core.vector_norm(vector), settings["amplitude_bohr"], rel_tol=1e-8):
             raise ForceError("YAML displacement amplitude differs from selected bohr value")
     source = parse_qe_input((dataset / "unitcell.in").read_text())
-    species = [(x.label, x.mass_amu, x.pseudopotential) for x in source.atomic_species]
-    if {x[0]: x[2] for x in species} != config["pseudopotentials"]["files"]:
+    species = _species_identity(source.atomic_species)
+    if {label: value[1] for label, value in species.items()} != config["pseudopotentials"]["files"]:
         raise ForceError("accepted unitcell pseudopotential names differ from policy")
     output: dict[int, str] = {}
     for index in [0] + ids:
         filename = "supercell.in" if index == 0 else f"supercell-{index:05d}.in"
         text = _fragment(dataset / filename, settings, pseudo_dir)
         parsed = parse_qe_input(text)
-        if parsed.nat != nat or [(x.label, x.mass_amu, x.pseudopotential) for x in parsed.atomic_species] != species:
+        if parsed.nat != nat or _species_identity(parsed.atomic_species) != species:
             raise ForceError("generated species, pseudopotential, mass or atom count mismatch")
         for row, expected in zip(parsed.cell_parameters, lattice):
             if any(abs(x / core.BOHR_TO_ANGSTROM - y) > 2e-8 for x, y in zip(row, expected)):

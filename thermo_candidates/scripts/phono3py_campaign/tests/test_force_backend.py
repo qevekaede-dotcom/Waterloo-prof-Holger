@@ -302,6 +302,55 @@ class ForceBackendTests(unittest.TestCase):
         with self.assertRaisesRegex(fb.ForceError, "does not reproduce"):
             self.prepare()
 
+    def _install_reordered_species_fixture(self):
+        (self.pseudo / "Y.upf").write_text("synthetic Y pseudopotential, never execute")
+        self.config["pseudopotentials"]["files"] = {"X": "X.upf", "Y": "Y.upf"}
+        self.data["supercell"]["points"][1]["symbol"] = "Y"
+        self.dump(self.dataset / "phono3py_disp.yaml", self.data)
+        settings = fb._settings(self.config, "pilot", self.spec)
+
+        def fragment(path, species_rows, *, first_x=0, second_y=0.5):
+            path.write_text(
+                "! ibrav = 0, nat = 2, ntyp = 2\n"
+                "CELL_PARAMETERS bohr\n10 0 0\n0 10 0\n0 0 10\n"
+                "ATOMIC_SPECIES\n" + species_rows +
+                f"ATOMIC_POSITIONS crystal\nX {first_x} 0 0\nY 0.5 {second_y} 0.5\n"
+            )
+
+        source_fragment = self.root / "accepted-fragment.in"
+        fragment(source_fragment, "X 10 X.upf\nY 20 Y.upf\n")
+        (self.dataset / "unitcell.in").write_text(
+            fb._fragment(source_fragment, settings, self.pseudo)
+        )
+        fragment(self.dataset / "supercell.in", "Y 20 Y.upf\nX 10 X.upf\n")
+        fragment(self.dataset / "supercell-00001.in", "Y 20 Y.upf\nX 10 X.upf\n",
+                 first_x=0.006)
+        fragment(self.dataset / "supercell-00002.in", "Y 20 Y.upf\nX 10 X.upf\n",
+                 first_x=0.006, second_y=0.506)
+        return settings, fragment
+
+    def test_dataset_species_card_reordering_preserves_exact_identity(self):
+        settings, _ = self._install_reordered_species_fixture()
+        texts, _ = fb._dataset_inputs(self.dataset, settings, self.pseudo, self.config)
+        self.assertEqual(sorted(texts), [0, 1, 2])
+        self.assertEqual(
+            [item.label for item in fb.parse_qe_input(texts[0]).atomic_species],
+            ["Y", "X"],
+        )
+
+    def test_dataset_species_identity_drift_fails_closed(self):
+        for mutation, rows, message in (
+            ("duplicate label", "X 10 X.upf\nX 20 Y.upf\n", "duplicate ATOMIC_SPECIES"),
+            ("missing and extra label", "Y 20 Y.upf\nZ 10 X.upf\n", "species do not match"),
+            ("mass drift", "Y 21 Y.upf\nX 10 X.upf\n", "species, pseudopotential, mass"),
+            ("pseudopotential drift", "Y 20 X.upf\nX 10 X.upf\n", "species, pseudopotential, mass"),
+        ):
+            with self.subTest(mutation=mutation):
+                settings, fragment = self._install_reordered_species_fixture()
+                fragment(self.dataset / "supercell.in", rows)
+                with self.assertRaisesRegex((fb.ForceError, ValueError), message):
+                    fb._dataset_inputs(self.dataset, settings, self.pseudo, self.config)
+
     def test_missing_included_file_rejected(self):
         (self.dataset / "supercell-00002.in").unlink()
         self.signed_fixture()
