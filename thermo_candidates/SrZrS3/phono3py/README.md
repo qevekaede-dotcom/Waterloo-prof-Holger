@@ -109,11 +109,11 @@ and [QE workflow](https://phonopy.github.io/phono3py/qe.html).
 | FC2 range check | 5x2x1 | 200 | generated value must be recorded |
 | FC2 escalation only | 4x2x2 | 320 | generated value must be recorded |
 
-The 2x1x1 and 3x1x1 rows are deliberately limited to count-only preflight
-with the new 3.70-angstrom cutoff. They are hypotheses awaiting remote
-phono3py validation of the displacement count, `physical_unit.length`, and
-included/excluded nonzero pair groups; they are not accepted settings and
-cannot become selection-eligible from count evidence alone. Their stored
+The 2x1x1 and 3x1x1 rows record the historical 3.70-angstrom count-only
+screen that was planned here and has now completed remotely: each generated
+1003 displacement supercells and therefore exceeded the 800-file hard cap.
+They remain audit history, not accepted settings, and cannot become
+selection-eligible from count evidence alone. Their stored
 edge lengths are planned/reference calculations, not generated measurements:
 they come from applying the diagonal replication matrices to the versioned
 reference cell `(3.838453236, 8.641205776, 14.002978756)` angstrom. This gives
@@ -130,6 +130,26 @@ that necessary check does not establish interaction-range convergence or
 eliminate finite-size effects. Using the config's conversion constant,
 `3.70 / 0.529177210903 = 6.99198666111535` bohr (the stored binary64 value).
 
+The remote count-only run has now resolved that hypothesis: both 2x1x1 and
+3x1x1 produced 1003 displacement supercells. Read-only inspection of their
+accepted-structure YAMLs showed the same shell/species/site multiplicities,
+although their raw displacement IDs and some symmetry-selected displacement
+directions are not identical. Lowering the cutoff to 3.60 angstrom would
+remove only the 3.604263809- and 3.616141604-angstrom S--S shells and predict
+859 files, so 3.60 angstrom is rejected as still above the hard cap.
+
+The next and only newly enumerated lower-cost hypothesis is 2x1x1 at
+`3.5541348625` angstrom (`6.71634150010947` bohr), the midpoint of the
+accepted-structure shell gap from `3.526178139` to `3.582091586` angstrom.
+Thresholding the already generated 3.70-angstrom YAML predicts 787 files: 25
+single displacements plus 762 included second-displacement IDs, with 147
+included pair groups of which 122 are nonzero. This **787 is a prediction,
+not a phono3py result**. The candidate remains count-only and is explicitly
+ineligible for FC3 production without a fresh count run and separate
+scientific review. No 3x1x1 counterpart is enumerated because it had the same
+included count as 2x1x1 at 3.70 angstrom while increasing each force cell from
+40 to 60 atoms.
+
 The previously declared routine FC3 pair-cutoff design values remain 4.0, 5.0,
 and 6.0 angstrom, with their converted bohr values in the JSON. The no-cutoff
 variants are count-only cost bounds and must never be submitted automatically.
@@ -137,15 +157,14 @@ Candidate status does not imply that any matrix or cutoff is scientifically
 adequate. All existing production selections remain null and every production
 gate remains closed pending explicit scientific, force, and resource review.
 
-The next remote count attempt is intentionally restricted to exactly these two
-signed candidate identities:
+The next remote count attempt is intentionally restricted to exactly this one
+signed candidate identity:
 
 ```text
-sr_fc3_2x1x1__sr_cutoff_3p70A
-sr_fc3_3x1x1__sr_cutoff_3p70A
+sr_fc3_2x1x1__sr_cutoff_3p5541348625A
 ```
 
-Pass both as repeated `submit.py --candidate-id` arguments in the read-only
+Pass it as the sole `submit.py --candidate-id` argument in the read-only
 preflight plan and again in execute; execute must additionally receive the
 plan's exact `candidate_subset_sha256` via `--expect-candidate-subset-sha`.
 The frontend canonicalizes the IDs into config order, signs them together with

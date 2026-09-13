@@ -1,6 +1,6 @@
 # Research handoff — current state
 
-Last repository/evidence audit: 2026-09-11. Current continuation is in the
+Last repository/evidence audit: 2026-09-13. Current continuation is in the
 separate worktree `/Users/kaede/research/Waterloo-Holger-remaining-phonons`,
 branch `codex/remaining-two-phonons`. The submission workflow is fixed at
 implementation commit `cf0b1d1`; the evidence-preparation milestone began at
@@ -113,7 +113,62 @@ subtracted using `--cfz`.
 
 ## Active two-material phonon campaign
 
-### 2026-09-11 13:32 UTC superseding Nibi snapshot
+### 2026-09-13 current superseding snapshot
+
+This subsection is the authoritative campaign state. The dated subsections
+below are retained as historical snapshots; status words such as `RUNNING`,
+pending, or awaiting apply only at their recorded timestamps and are not live
+instructions. The authoritative next actions are in `Next research work,
+when requested` below.
+
+No phonon or lattice-thermal-conductivity result yet exists for either
+remaining material, and no production force job is running.  The queue is
+manually monitored; there is no hourly automation.
+
+Rb2Cu2SnS4's fixed-geometry diagnostic completed and passed only its narrow
+repeatability/ecutrho-robustness gate.  Primary job `21732222` and collector
+`21732223` both completed `0:0`; duplicate RMS force difference was
+`1.9245008973e-09 Ry/bohr`, and the 800-to-1000-Ry ecutrho comparison was
+`3.5007935608e-07 Ry/bohr` RMS with `1.01e-06 Ry/bohr` maximum-component
+difference.  A fresh independent review allowed the single configured BFGS
+polish but did not accept a structure.
+
+That unique polish is now terminally blocked.  Primary job `21848175` ended
+`FAILED/2:0`; collector `21848176` completed `0:0`.  QE printed `JOB DONE` but
+also explicitly reported BFGS nonconvergence after four SCF cycles and three
+BFGS steps.  Its final maximum force component, `1.37e-05 Ry/bohr`, remains
+above the `1e-05 Ry/bohr` BFGS threshold.  The collector correctly records an
+incomplete lineage (collection SHA-256
+`d5b4e87c8c69dddb5f1ba484d0a6d2f2dc618be6ec55f8d3e7b8d4611f4d2c83`);
+there is no pristine calculation, relax gate, accepted unitcell, preflight, or
+force release.  Independent scientific review confirmed that low force and a
+zero `pw.x` exit code cannot override failed BFGS convergence.  Do not resubmit
+or accept this RUN_DIR.  A genuinely different optimization method would need
+a new lineage and its own prior review.  First repair the discovered diagnostic
+collector replay defect, which incorrectly assumes no later-stage collector is
+present; that software repair is not authorization to rerun relaxation.
+
+For SrZrS3, the previous 3.70-A count-only result remains 1003 supercells for
+both reviewed supercells and is over the hard cap of 800.  Independent parsing
+of the authoritative 2x1x1 YAML identified a count-only boundary candidate at
+`3.5541348625 A` (`6.71634150010947 bohr`): 787 predicted files, comprising 25
+single and 762 second displacements across exactly 12 included distance
+shells.  This is only a cost-feasible hypothesis; it has not yet been run or
+made production-eligible, and its fc3 cutoff convergence is unknown. A local
+patch now archives the immutable 3.70-A source evidence and adds exact
+included/newly-excluded shell, multiplicity, runtime, selection and backend
+fail-closed checks. It passed 309 local tests (one optional-spglib skip) and a
+fresh independent scientific review returned `SHIP`. It is ready to commit and
+deploy for only the signed count-only preflight; this does not approve a force
+pilot or production.
+
+Both materials still have null approved production core-hour budgets.  Count
+evidence cannot unlock force production, and a final submission package cannot
+be claimed until each material has an accepted structure, reviewed production
+selection, complete force/FC2/FC3 evidence, and convergence-qualified results
+or is explicitly reported as scientifically blocked.
+
+### Historical snapshot — 2026-09-11 13:32 UTC
 
 SrZrS3 remains blocked at selection: count-only job `21730034` found exactly
 1003 generated displacement supercells for each of the two newly reviewed
@@ -153,7 +208,7 @@ required.
 
 No hourly automation exists; future checks are manual and user-directed.
 
-### 2026-09-11 13:06 UTC Nibi gate-submission snapshot
+### Historical snapshot — 2026-09-11 13:06 UTC
 
 The user explicitly authorized Nibi submission. The reviewed code was pushed
 on `codex/remaining-two-phonons`, deployed in clean exact-commit clones, and
@@ -197,7 +252,7 @@ submitted.
 The former hourly automation remains absent. Future status checks are manual
 and user-directed.
 
-### 2026-09-11 local continuation milestone
+### Historical milestone — 2026-09-11 local continuation
 
 The user's completed SrCu2SnS4 calculation was audited as the experience
 baseline, not as a numerical template. Its retained result is only a historical
@@ -248,14 +303,14 @@ structure evidence was frozen, that checkout was fast-forwarded to `0586c6b`
 for two reviewed preflight/submission fixes; each attempt records its exact
 campaign-code hash and Git commit.
 
-Live scheduler/evidence state last checked 2026-09-10 15:11 UTC; the user's
-queue was empty:
+The following recovery-state block is historical. At 2026-09-10 15:11 UTC,
+the user's queue was empty:
 
 A fresh read-only SSH query was attempted on 2026-09-11 at 04:18 UTC, but the
 eight-hour ControlMaster socket no longer existed and Nibi required interactive
 MFA.  That failed authentication produced no newer scheduler, log, or artifact
-evidence, so the 2026-09-10 15:11 UTC snapshot below remains the latest verified
-remote state rather than a claim about the current queue.
+evidence. At that time, the 2026-09-10 15:11 UTC block below remained the latest
+verified remote state. The 2026-09-13 current snapshot above supersedes it.
 
 - Rb2Cu2SnS4 recovery tight-relax `21656285`: FAILED with exit `2:0` after
   4 SCF cycles / 3 BFGS steps; collector `21656286`: COMPLETED. QE wrote
@@ -323,15 +378,19 @@ a separate clean checkout that consumes the original hashed evidence.
 
 ## Next research work, when requested
 
-1. Complete one interactive `ssh drac` MFA login, then refresh the live
-   scheduler and immutable source hashes before using any recorded job/run ID.
-2. For SrZrS3, import the accepted structure into a fresh current-policy run
-   and submit only the two new count-only preflight combinations. Review their
-   real counts, units, pair groups, finite-size risk, and cost before selecting
-   or piloting anything.
-3. For Rb2Cu2SnS4, archive/replay the failed one-reset lineage and run only the
-   three-SCF force-consistency diagnostic. Release the single reviewed polish
-   only if that diagnostic passes; a second automatic reset remains forbidden.
+1. Commit/deploy the independently reviewed SrZrS3 3.5541348625-A count-only
+   contract patch, then refresh the live scheduler and immutable source hashes
+   through the explicitly authorized `ssh drac` session.
+2. For SrZrS3, submit only
+   `sr_fc3_2x1x1__sr_cutoff_3p5541348625A` as count-only. Require its fresh
+   YAML to match the predicted 787 count, complete included/newly-excluded
+   shell sets, units, and multiplicities before a separate scientific review.
+   Count agreement alone must not select or pilot the cutoff.
+3. For Rb2Cu2SnS4, first repair and independently review the diagnostic
+   collector replay defect. The diagnostic already completed, while the sole
+   reviewed BFGS polish failed; do not replay the old diagnostic, resubmit that
+   polish, accept its RUN_DIR, or perform another automatic reset. Any genuinely
+   different optimization method requires a new lineage and prior review.
 4. After each material independently reaches its gates, run amplitude,
    basis/cutoff, force-k-mesh, supercell, q-mesh, and NAC-sensitivity decisions.
    Do not infer a production choice from cost alone.

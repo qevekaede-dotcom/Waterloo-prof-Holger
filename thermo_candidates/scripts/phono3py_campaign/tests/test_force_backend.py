@@ -186,6 +186,36 @@ class ForceBackendTests(unittest.TestCase):
         with self.assertRaisesRegex(fb.ForceError, "explicit production"):
             self.prepare(mode="production")
 
+    def test_count_only_cutoff_is_rejected_for_pilot_and_production(self):
+        self.config["displacements"]["cutoff_candidates"][0][
+            "production_fc3_eligible_without_new_review"
+        ] = False
+        with self.assertRaisesRegex(fb.ForceError, "cutoff requires a new scientific review"):
+            fb._settings(self.config, "pilot", self.spec)
+
+        self.config["production"] = {
+            "selection_required": False,
+            "automatic_submission_allowed": True,
+            "selected_supercell": "s",
+            "selected_cutoff": "c",
+            "selected_fc3_supercell_matrix": self.data["supercell_matrix"],
+            "selected_cutoff_pair_distance_angstrom": 4 * core.BOHR_TO_ANGSTROM,
+            "selected_cutoff_pair_distance_cli_bohr": 4.0,
+        }
+        self.config["force_and_amplitude_validation"] = {
+            "selection_required": False,
+            "selected_displacement_distance_angstrom": self.spec[
+                "amplitude_angstrom"
+            ],
+            "selected_displacement_distance_cli_bohr": 0.06,
+            "selected_ecutwfc_Ry": 80,
+            "selected_ecutrho_Ry": 640,
+            "selected_conv_thr_Ry": 1e-10,
+            "selected_k_points": [2, 2, 2],
+        }
+        with self.assertRaisesRegex(fb.ForceError, "cutoff requires a new scientific review"):
+            fb._settings(self.config, "production", None)
+
     def test_explicit_production_flags_cannot_override_scientific_eligibility(self):
         self.config["production"] = {"selection_required": False, "automatic_submission_allowed": True,
             "selected_supercell": "s", "selected_cutoff": "c", "selected_fc3_supercell_matrix": self.data["supercell_matrix"],

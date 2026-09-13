@@ -159,3 +159,39 @@ checked (same as SrCu2SnS4), no SOC, no tau / kappa_L.
 Cross-checks: trace-vs-condtens diag average 1.65e-5; N(E_F) residual
 +0.005 e/uc; dope-vs-scan S at 300 K n 1e20 cm^-3: -91.1 vs -91.2 uV/K.
 Curated copy in `third step result (three-material first pass)/READY_TO_ATTACH/`.
+
+---
+
+## 2026-09-13 — frozen 3.70-A count evidence and reviewed 3.554-A prediction
+
+The completed remote count-only preflight at 3.70 A produced 1003 displacement
+supercells for both 2x1x1 and 3x1x1, above the configured hard cap of 800. Five
+raw source files were copied without byte changes into
+`phono3py/evidence/3p70A_count_only/`; `SHA256SUMS` and `manifest.json` bind
+their names, sizes, hashes, staging source, and original remote provenance.
+This is preserved count/geometry evidence, not FC3, phonon, or kappa evidence.
+
+Read-only thresholding of the frozen 2x1x1 3.70-A YAML identified the open
+shell gap from 3.526178139 to 3.582091586 A. The midpoint candidate
+3.5541348625 A (6.71634150010947 bohr) predicts 787 files: 25 singles and 762
+second-displacement IDs in 147 included pair groups, 122 of them nonzero,
+across exactly 12 positive included shells. The config now records the full
+included-shell group/ID multiplicities and the complete three-shell set newly
+excluded between the candidate and the 3.70-A source cutoff. Runtime checks use
+a 5e-8-A absolute clustering tolerance and fail closed on extra, missing, or
+redistributed shells.
+
+Strict limitation: 787 is a prediction from frozen source evidence, not a new
+phono3py result. The candidate is enumerated only for 2x1x1 count-only and is
+blocked from both pilot and production force settings. A fresh count-only run
+must reproduce the signed contract and then receive separate scientific review;
+even exact count/shell agreement would not establish FC3 cutoff or supercell
+convergence and would not authorize production.
+
+After an initial independent `FIX`, the runtime contract was tightened to
+require the complete newly excluded shell set in `(3.5541348625, 3.70] A`, not
+merely the presence of three expected shells.  A new 3.65-A shell now fails;
+an irrelevant 3.75-A shell remains outside that source-cutoff interval.  The
+final fresh review returned `SHIP`: 309 tests passed with one optional-spglib
+skip, both material configs validated healthy, all five raw hashes and byte
+comparisons passed, and no `READY_TO_ATTACH/` file changed.

@@ -1,0 +1,35 @@
+{
+  "document_type": "srzrs3_3p70A_count_only_evidence_manifest",
+  "schema_version": 1,
+  "evidence_status": "frozen_raw_count_only_not_production_acceptance",
+  "staging_source": "/tmp/srzrs3-preflight-evidence.YNYbe0",
+  "remote_provenance_root": "/scratch/yuhansun/phono3py-runs/20260911-continuation-4e9b64c/SrZrS3/slurm_attempts/preflight/20260911T125726Z-preflight-e054b797",
+  "raw_bytes_unchanged": true,
+  "artifacts": [
+    {
+      "path": "preflight_inventory.json",
+      "size_bytes": 74224,
+      "sha256": "ed52f4fbd933a8f786b1ff995637cdd497c2036d7a42eabbf0f4d5305c81594c"
+    },
+    {
+      "path": "sr_fc3_2x1x1__sr_cutoff_3p70A/phono3py_disp.yaml",
+      "size_bytes": 415585,
+      "sha256": "efdbe22c7e628d9bbf286250a7ddf5e1bce457048fc675a6e7ec050ba3aec70e"
+    },
+    {
+      "path": "sr_fc3_2x1x1__sr_cutoff_3p70A/preflight_result.json",
+      "size_bytes": 25422,
+      "sha256": "6fcd6c6704935bfda2494b78a172de699d92024a7a08a3895be28a9e03d8f213"
+    },
+    {
+      "path": "sr_fc3_3x1x1__sr_cutoff_3p70A/phono3py_disp.yaml",
+      "size_bytes": 591751,
+      "sha256": "6d1caef8f29628607da43087057e414f0808e3a29dffbd60608e15c1b2fcbb38"
+    },
+    {
+      "path": "sr_fc3_3x1x1__sr_cutoff_3p70A/preflight_result.json",
+      "size_bytes": 30505,
+      "sha256": "b7a9802615cb9036dc45a867ac813c90b2c5204254c31aea4a5daf3c894f70f7"
+    }
+  ]
+}

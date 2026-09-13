@@ -55,6 +55,7 @@ BOHR_TO_ANGSTROM = 0.529177210903
 # that harmless ~6.6e-9 relative unit-conversion difference.
 SUPERCELL_LATTICE_REL_TOL = 1e-8
 SUPERCELL_LATTICE_ABS_TOL_BOHR = 2e-8
+COUNT_ONLY_SHELL_ABS_TOL_ANGSTROM = 5e-8
 FLOAT_REL_TOL = 2e-10
 RUN_MANIFEST = "run_manifest.json"
 STRUCTURE_POLICY_FIELDS = (
@@ -300,8 +301,7 @@ def vector_norm(vector: Sequence[float]) -> float:
     return math.sqrt(sum(float(value) ** 2 for value in vector))
 
 
-def resolve_repo_source(config: Mapping[str, Any], field: str) -> Path:
-    raw = required(config, field)
+def resolve_repo_relative_file(raw: Any, field: str) -> Path:
     if not isinstance(raw, str) or not raw:
         raise CampaignError(f"{field} must be a repository-relative path")
     candidate = (REPO_ROOT / raw).resolve()
@@ -312,6 +312,10 @@ def resolve_repo_source(config: Mapping[str, Any], field: str) -> Path:
     if not candidate.is_file():
         raise CampaignError(f"{field} does not exist: {candidate}")
     return candidate
+
+
+def resolve_repo_source(config: Mapping[str, Any], field: str) -> Path:
+    return resolve_repo_relative_file(required(config, field), field)
 
 
 def safe_run_dir(path: Path) -> Path:
@@ -429,13 +433,267 @@ def validate_config(config_path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
         check(math.isclose(amplitude_a / factor, amplitude_b, rel_tol=FLOAT_REL_TOL), "amplitude Å/bohr mismatch")
 
         cutoff_ids: set[str] = set()
+        cutoff_candidates_by_id: dict[str, Mapping[str, Any]] = {}
+        count_only_predictions: dict[str, Mapping[str, Any]] = {}
         for index, cutoff in enumerate(required(config, "displacements.cutoff_candidates")):
             cutoff_id = required(cutoff, "id")
             cutoff_a = positive_number(required(cutoff, "cutoff_pair_distance_angstrom"), f"cutoff[{index}] angstrom")
             cutoff_b = positive_number(required(cutoff, "cutoff_pair_distance_cli_bohr"), f"cutoff[{index}] bohr")
             check(isinstance(cutoff_id, str) and cutoff_id not in cutoff_ids, f"duplicate cutoff id {cutoff_id!r}")
             cutoff_ids.add(cutoff_id)
+            if isinstance(cutoff_id, str):
+                cutoff_candidates_by_id[cutoff_id] = cutoff
             check(math.isclose(cutoff_a / factor, cutoff_b, rel_tol=FLOAT_REL_TOL), f"cutoff conversion mismatch: {cutoff_id}")
+            prediction = cutoff.get("count_only_prediction")
+            if prediction is not None:
+                check(isinstance(prediction, Mapping), f"count-only prediction must be an object: {cutoff_id}")
+                if not isinstance(prediction, Mapping):
+                    continue
+                count_only_predictions[str(cutoff_id)] = prediction
+                check(
+                    cutoff.get("role") == "exploratory_count_only_lower_cost_hypothesis",
+                    f"predicted cutoff must remain exploratory count-only: {cutoff_id}",
+                )
+                check(
+                    cutoff.get("candidate_status")
+                    == "predicted_from_verified_remote_3p70A_yaml_not_a_generated_result",
+                    f"predicted cutoff must remain labeled as a prediction: {cutoff_id}",
+                )
+                check(
+                    cutoff.get("production_fc3_eligible_without_new_review") is False,
+                    f"predicted cutoff must block unreviewed FC3 production: {cutoff_id}",
+                )
+                check(
+                    prediction.get("evidence_status")
+                    == "prediction_from_read_only_thresholding_not_a_new_phono3py_result",
+                    f"count-only evidence status is invalid: {cutoff_id}",
+                )
+                check(
+                    isinstance(prediction.get("source_yaml_sha256"), str)
+                    and re.fullmatch(r"[0-9a-f]{64}", prediction["source_yaml_sha256"])
+                    is not None,
+                    f"count-only source YAML hash is invalid: {cutoff_id}",
+                )
+                source_yaml_path = resolve_repo_relative_file(
+                    prediction.get("source_yaml_path"),
+                    f"count-only source YAML path for {cutoff_id}",
+                )
+                check(
+                    sha256_path(source_yaml_path)
+                    == prediction.get("source_yaml_sha256"),
+                    f"count-only source YAML hash mismatch: {cutoff_id}",
+                )
+                check(
+                    isinstance(prediction.get("source_remote_yaml_path"), str)
+                    and prediction["source_remote_yaml_path"].startswith(
+                        "/scratch/"
+                    )
+                    and prediction["source_remote_yaml_path"].endswith(
+                        "/phono3py_disp.yaml"
+                    ),
+                    f"count-only remote source YAML provenance is invalid: {cutoff_id}",
+                )
+                check(
+                    isinstance(
+                        prediction.get("source_preflight_inventory_sha256"), str
+                    )
+                    and re.fullmatch(
+                        r"[0-9a-f]{64}",
+                        prediction["source_preflight_inventory_sha256"],
+                    )
+                    is not None,
+                    f"count-only source inventory hash is invalid: {cutoff_id}",
+                )
+                source_inventory_path = resolve_repo_relative_file(
+                    prediction.get("source_preflight_inventory_path"),
+                    f"count-only source inventory path for {cutoff_id}",
+                )
+                check(
+                    sha256_path(source_inventory_path)
+                    == prediction.get("source_preflight_inventory_sha256"),
+                    f"count-only source inventory hash mismatch: {cutoff_id}",
+                )
+                check(
+                    isinstance(
+                        prediction.get("source_remote_preflight_inventory_path"),
+                        str,
+                    )
+                    and prediction[
+                        "source_remote_preflight_inventory_path"
+                    ].startswith("/scratch/")
+                    and prediction[
+                        "source_remote_preflight_inventory_path"
+                    ].endswith("/preflight_inventory.json"),
+                    f"count-only remote source inventory provenance is invalid: {cutoff_id}",
+                )
+                source_cutoff_a = positive_number(
+                    prediction.get("source_cutoff_pair_distance_angstrom"),
+                    f"count-only source cutoff angstrom for {cutoff_id}",
+                )
+                source_cutoff_b = positive_number(
+                    prediction.get("source_cutoff_pair_distance_cli_bohr"),
+                    f"count-only source cutoff bohr for {cutoff_id}",
+                )
+                check(
+                    source_cutoff_a > cutoff_a
+                    and math.isclose(
+                        source_cutoff_a / factor,
+                        source_cutoff_b,
+                        rel_tol=FLOAT_REL_TOL,
+                    ),
+                    f"count-only source cutoff bound is invalid: {cutoff_id}",
+                )
+                shell_gap = prediction.get("shell_gap_angstrom")
+                check(
+                    isinstance(shell_gap, list)
+                    and len(shell_gap) == 2
+                    and all(
+                        isinstance(value, (int, float))
+                        and not isinstance(value, bool)
+                        and value > 0
+                        for value in shell_gap
+                    )
+                    and shell_gap[0] < cutoff_a < shell_gap[1],
+                    f"predicted cutoff must lie strictly inside its shell gap: {cutoff_id}",
+                )
+                expected_single = prediction.get("expected_single_displacements")
+                expected_second = prediction.get("expected_second_displacement_ids")
+                expected_total = prediction.get(
+                    "expected_generated_displacement_supercells"
+                )
+                check(
+                    all(
+                        isinstance(value, int)
+                        and not isinstance(value, bool)
+                        and value > 0
+                        for value in (expected_single, expected_second, expected_total)
+                    )
+                    and expected_single + expected_second == expected_total,
+                    f"predicted displacement-count accounting is inconsistent: {cutoff_id}",
+                )
+                expected_groups = prediction.get("expected_included_pair_groups")
+                expected_nonzero = prediction.get(
+                    "expected_nonzero_included_pair_groups"
+                )
+                check(
+                    isinstance(expected_groups, int)
+                    and not isinstance(expected_groups, bool)
+                    and isinstance(expected_nonzero, int)
+                    and not isinstance(expected_nonzero, bool)
+                    and expected_groups > expected_nonzero > 0,
+                    f"predicted pair-group accounting is invalid: {cutoff_id}",
+                )
+                check(
+                    isinstance(expected_groups, int)
+                    and isinstance(expected_nonzero, int)
+                    and isinstance(expected_single, int)
+                    and expected_groups - expected_nonzero == expected_single,
+                    f"predicted onsite pair-group accounting is inconsistent: {cutoff_id}",
+                )
+                if isinstance(shell_gap, list) and len(shell_gap) == 2:
+                    check(
+                        prediction.get("expected_largest_included_shell_angstrom")
+                        == shell_gap[0]
+                        and prediction.get("expected_smallest_excluded_shell_angstrom")
+                        == shell_gap[1],
+                        f"predicted shell-boundary contract is inconsistent: {cutoff_id}",
+                    )
+                retained = prediction.get(
+                    "expected_distinct_included_shells_angstrom"
+                )
+                excluded = prediction.get("expected_newly_excluded_shells_angstrom")
+                check(
+                    isinstance(retained, list)
+                    and all(
+                        isinstance(value, (int, float))
+                        and not isinstance(value, bool)
+                        for value in retained
+                    )
+                    and retained == sorted(set(retained))
+                    and retained
+                    and all(
+                        right - left > COUNT_ONLY_SHELL_ABS_TOL_ANGSTROM
+                        for left, right in zip(retained, retained[1:])
+                    )
+                    and retained[-1]
+                    == prediction.get("expected_largest_included_shell_angstrom")
+                    and all(value < cutoff_a for value in retained),
+                    f"predicted distinct included-shell contract is invalid: {cutoff_id}",
+                )
+                shell_multiplicities = prediction.get(
+                    "expected_included_shell_multiplicities"
+                )
+                multiplicity_shells = (
+                    [item.get("shell_angstrom") for item in shell_multiplicities]
+                    if isinstance(shell_multiplicities, list)
+                    and all(isinstance(item, Mapping) for item in shell_multiplicities)
+                    else []
+                )
+                check(
+                    isinstance(shell_multiplicities, list)
+                    and len(shell_multiplicities) == len(retained or [])
+                    and multiplicity_shells == retained
+                    and all(
+                        isinstance(item.get(key), int)
+                        and not isinstance(item.get(key), bool)
+                        and item[key] > 0
+                        for item in shell_multiplicities
+                        for key in ("pair_groups", "second_ids")
+                    ),
+                    f"predicted included-shell multiplicity contract is invalid: {cutoff_id}",
+                )
+                zero_groups = prediction.get("expected_zero_distance_pair_groups")
+                zero_second_ids = prediction.get(
+                    "expected_zero_distance_second_ids"
+                )
+                check(
+                    isinstance(zero_groups, int)
+                    and not isinstance(zero_groups, bool)
+                    and isinstance(zero_second_ids, int)
+                    and not isinstance(zero_second_ids, bool)
+                    and zero_groups > 0
+                    and zero_second_ids > 0,
+                    f"predicted zero-distance multiplicity contract is invalid: {cutoff_id}",
+                )
+                if isinstance(shell_multiplicities, list) and all(
+                    isinstance(item, Mapping)
+                    and all(
+                        isinstance(item.get(key), int)
+                        and not isinstance(item.get(key), bool)
+                        for key in ("pair_groups", "second_ids")
+                    )
+                    for item in shell_multiplicities
+                ):
+                    check(
+                        zero_groups
+                        + sum(item.get("pair_groups", 0) for item in shell_multiplicities)
+                        == expected_groups
+                        and sum(
+                            item.get("pair_groups", 0)
+                            for item in shell_multiplicities
+                        )
+                        == expected_nonzero
+                        and zero_second_ids
+                        + sum(item.get("second_ids", 0) for item in shell_multiplicities)
+                        == expected_second,
+                        f"predicted shell multiplicities do not reproduce totals: {cutoff_id}",
+                    )
+                check(
+                    isinstance(excluded, list)
+                    and all(
+                        isinstance(value, (int, float))
+                        and not isinstance(value, bool)
+                        for value in excluded
+                    )
+                    and excluded == sorted(set(excluded))
+                    and excluded
+                    and excluded[0]
+                    == prediction.get("expected_smallest_excluded_shell_angstrom")
+                    and all(
+                        cutoff_a < value <= source_cutoff_a for value in excluded
+                    ),
+                    f"predicted excluded-shell contract is invalid: {cutoff_id}",
+                )
 
         supercells: dict[str, dict[str, Any]] = {}
         for index, candidate in enumerate(required(config, "displacements.supercell_candidates")):
@@ -470,8 +728,45 @@ def validate_config(config_path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
             )
             enumeration_ids.add(candidate_id)
 
+        for cutoff_id, prediction in count_only_predictions.items():
+            prediction_rows = [
+                item
+                for item in enumerations
+                if isinstance(item, Mapping)
+                and item.get("cutoff_pair_id") == cutoff_id
+            ]
+            check(
+                len(prediction_rows) == 1,
+                f"predicted cutoff must have exactly one count-only enumeration: {cutoff_id}",
+            )
+            if len(prediction_rows) == 1:
+                prediction_row = prediction_rows[0]
+                check(
+                    prediction_row.get("count_only") is True,
+                    f"predicted cutoff enumeration must be count-only: {cutoff_id}",
+                )
+                check(
+                    prediction_row.get(
+                        "supercell_id", prediction_row.get("fc3_supercell_id")
+                    )
+                    == prediction.get("source_supercell_id"),
+                    f"predicted cutoff enumeration changed supercell: {cutoff_id}",
+                )
+
         hard_cap = required(config, "displacements.hard_cap")
         check(isinstance(hard_cap, int) and not isinstance(hard_cap, bool) and hard_cap > 0, "hard_cap must be positive integer")
+        for cutoff_id, prediction in count_only_predictions.items():
+            expected_total = prediction.get(
+                "expected_generated_displacement_supercells"
+            )
+            check(
+                isinstance(expected_total, int)
+                and not isinstance(expected_total, bool)
+                and isinstance(hard_cap, int)
+                and not isinstance(hard_cap, bool)
+                and expected_total <= hard_cap,
+                f"predicted count-only candidate exceeds hard cap: {cutoff_id}",
+            )
 
         force_policy = required(config, "force_and_amplitude_validation")
         check(isinstance(force_policy, Mapping), "force_and_amplitude_validation must be an object")
@@ -806,6 +1101,17 @@ def validate_config(config_path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
         else:
             check(selected_supercell in supercells, "selected_supercell is not a configured candidate")
             check(selected_cutoff in cutoff_ids, "selected_cutoff is not a configured candidate")
+            selected_cutoff_candidate = cutoff_candidates_by_id.get(
+                str(selected_cutoff)
+            )
+            check(
+                selected_cutoff_candidate is not None
+                and selected_cutoff_candidate.get(
+                    "production_fc3_eligible_without_new_review"
+                )
+                is not False,
+                "selected cutoff requires a new scientific review before production",
+            )
             check(
                 required(config, "production.automatic_submission_allowed") is True,
                 "automatic production submission must be explicitly true after selection",
@@ -1802,6 +2108,8 @@ def analyze_displacement_yaml(value: Mapping[str, Any]) -> dict[str, Any]:
     excluded_pair_groups = 0
     included_pair_distances: list[float] = []
     excluded_pair_distances: list[float] = []
+    included_pair_second_id_counts: list[int] = []
+    excluded_pair_second_id_counts: list[int] = []
     for first_index, first in enumerate(pairs):
         if not isinstance(first, Mapping):
             raise CampaignError(f"invalid displacement_pairs[{first_index}]")
@@ -1845,9 +2153,11 @@ def analyze_displacement_yaml(value: Mapping[str, Any]) -> dict[str, Any]:
                 included_ids.extend(second_ids)
                 included_pair_groups += 1
                 included_pair_distances.append(pair_distance)
+                included_pair_second_id_counts.append(len(second_ids))
             else:
                 excluded_pair_groups += 1
                 excluded_pair_distances.append(pair_distance)
+                excluded_pair_second_id_counts.append(len(second_ids))
     if len(set(all_ids)) != len(all_ids):
         raise CampaignError("duplicate displacement IDs in phono3py YAML")
     expected_domain = set(range(1, len(all_ids) + 1))
@@ -1868,10 +2178,302 @@ def analyze_displacement_yaml(value: Mapping[str, Any]) -> dict[str, Any]:
         "excluded_pair_groups": excluded_pair_groups,
         "included_pair_distances": included_pair_distances,
         "excluded_pair_distances": excluded_pair_distances,
+        "included_pair_second_id_counts": included_pair_second_id_counts,
+        "excluded_pair_second_id_counts": excluded_pair_second_id_counts,
         "nonzero_included_pair_groups": sum(
             distance > 1e-10 for distance in included_pair_distances
         ),
     }
+
+
+def _cluster_included_shell_inventory(
+    distances_bohr: Sequence[float], second_id_counts: Sequence[int]
+) -> tuple[dict[str, int], list[dict[str, Any]]]:
+    """Cluster included pair groups into zero and positive shells in angstrom."""
+
+    if len(distances_bohr) != len(second_id_counts):
+        raise CampaignError(
+            "included pair distances and second-ID multiplicities differ in length"
+        )
+    zero = {"pair_groups": 0, "second_ids": 0}
+    positive: list[dict[str, Any]] = []
+    rows = sorted(
+        (
+            float(distance) * BOHR_TO_ANGSTROM,
+            int(second_ids),
+        )
+        for distance, second_ids in zip(distances_bohr, second_id_counts)
+    )
+    for distance, second_ids in rows:
+        if second_ids <= 0:
+            raise CampaignError("included pair group has no second-displacement IDs")
+        if distance <= COUNT_ONLY_SHELL_ABS_TOL_ANGSTROM:
+            zero["pair_groups"] += 1
+            zero["second_ids"] += second_ids
+            continue
+        if positive and math.isclose(
+            distance,
+            positive[-1]["shell_angstrom"],
+            rel_tol=0,
+            abs_tol=COUNT_ONLY_SHELL_ABS_TOL_ANGSTROM,
+        ):
+            positive[-1]["pair_groups"] += 1
+            positive[-1]["second_ids"] += second_ids
+        else:
+            positive.append(
+                {
+                    "shell_angstrom": distance,
+                    "pair_groups": 1,
+                    "second_ids": second_ids,
+                }
+            )
+    return zero, positive
+
+
+def _cluster_distinct_shells_angstrom(
+    distances_angstrom: Sequence[float],
+) -> list[float]:
+    """Return sorted shell representatives clustered at the audit tolerance."""
+
+    shells: list[float] = []
+    for distance in sorted(float(value) for value in distances_angstrom):
+        if not shells or not math.isclose(
+            distance,
+            shells[-1],
+            rel_tol=0,
+            abs_tol=COUNT_ONLY_SHELL_ABS_TOL_ANGSTROM,
+        ):
+            shells.append(distance)
+    return shells
+
+
+def audit_count_only_prediction(
+    cutoff: Mapping[str, Any],
+    yaml_inventory: Mapping[str, Any],
+    created_count: int,
+) -> dict[str, Any] | None:
+    """Fail closed when a fresh count-only YAML differs from its prediction."""
+
+    prediction = cutoff.get("count_only_prediction")
+    if prediction is None:
+        return None
+    if not isinstance(prediction, Mapping):
+        raise CampaignError("count-only prediction must be an object at runtime")
+
+    included_ids = required(yaml_inventory, "included_displacement_ids")
+    singles = int(required(yaml_inventory, "single_displacements"))
+    included_groups = int(required(yaml_inventory, "included_pair_groups"))
+    nonzero_groups = int(required(yaml_inventory, "nonzero_included_pair_groups"))
+    included_distances = required(yaml_inventory, "included_pair_distances")
+    included_second_id_counts = required(
+        yaml_inventory, "included_pair_second_id_counts"
+    )
+    zero_shell, positive_shells = _cluster_included_shell_inventory(
+        included_distances, included_second_id_counts
+    )
+    excluded_angstrom = [
+        float(distance) * BOHR_TO_ANGSTROM
+        for distance in required(yaml_inventory, "excluded_pair_distances")
+    ]
+    if not positive_shells or not excluded_angstrom:
+        raise CampaignError(
+            "count-only prediction audit requires positive included and excluded shells"
+        )
+
+    expected_positive_shells = [
+        {
+            "shell_angstrom": float(required(item, "shell_angstrom")),
+            "pair_groups": int(required(item, "pair_groups")),
+            "second_ids": int(required(item, "second_ids")),
+        }
+        for item in required(
+            prediction, "expected_included_shell_multiplicities"
+        )
+    ]
+    expected_distinct_shells = [
+        float(shell)
+        for shell in required(
+            prediction, "expected_distinct_included_shells_angstrom"
+        )
+    ]
+    observed_distinct_shells = [
+        float(item["shell_angstrom"]) for item in positive_shells
+    ]
+    candidate_cutoff_a = float(required(cutoff, "cutoff_pair_distance_angstrom"))
+    source_cutoff_a = float(
+        required(prediction, "source_cutoff_pair_distance_angstrom")
+    )
+    expected_newly_excluded_shells = [
+        float(shell)
+        for shell in required(
+            prediction, "expected_newly_excluded_shells_angstrom"
+        )
+    ]
+    observed_newly_excluded_shells = _cluster_distinct_shells_angstrom(
+        [
+            distance
+            for distance in excluded_angstrom
+            if distance > candidate_cutoff_a + COUNT_ONLY_SHELL_ABS_TOL_ANGSTROM
+            and distance
+            <= source_cutoff_a + COUNT_ONLY_SHELL_ABS_TOL_ANGSTROM
+        ]
+    )
+
+    observed = {
+        "generated_displacement_supercells": created_count,
+        "single_displacements": singles,
+        "second_displacement_ids": len(included_ids) - singles,
+        "included_pair_groups": included_groups,
+        "nonzero_included_pair_groups": nonzero_groups,
+        "largest_positive_included_shell_angstrom": observed_distinct_shells[-1],
+        "smallest_excluded_shell_angstrom": min(excluded_angstrom),
+        "zero_distance_shell_multiplicity": zero_shell,
+        "distinct_positive_included_shells_angstrom": observed_distinct_shells,
+        "included_shell_multiplicities": positive_shells,
+        "distinct_newly_excluded_shells_angstrom": observed_newly_excluded_shells,
+    }
+    expected = {
+        "generated_displacement_supercells": int(
+            required(prediction, "expected_generated_displacement_supercells")
+        ),
+        "single_displacements": int(
+            required(prediction, "expected_single_displacements")
+        ),
+        "second_displacement_ids": int(
+            required(prediction, "expected_second_displacement_ids")
+        ),
+        "included_pair_groups": int(
+            required(prediction, "expected_included_pair_groups")
+        ),
+        "nonzero_included_pair_groups": int(
+            required(prediction, "expected_nonzero_included_pair_groups")
+        ),
+        "largest_positive_included_shell_angstrom": float(
+            required(prediction, "expected_largest_included_shell_angstrom")
+        ),
+        "smallest_excluded_shell_angstrom": float(
+            required(prediction, "expected_smallest_excluded_shell_angstrom")
+        ),
+        "zero_distance_shell_multiplicity": {
+            "pair_groups": int(
+                required(prediction, "expected_zero_distance_pair_groups")
+            ),
+            "second_ids": int(
+                required(prediction, "expected_zero_distance_second_ids")
+            ),
+        },
+        "distinct_positive_included_shells_angstrom": expected_distinct_shells,
+        "included_shell_multiplicities": expected_positive_shells,
+        "distinct_newly_excluded_shells_angstrom": expected_newly_excluded_shells,
+    }
+
+    mismatches = [
+        key
+        for key in (
+            "generated_displacement_supercells",
+            "single_displacements",
+            "second_displacement_ids",
+            "included_pair_groups",
+            "nonzero_included_pair_groups",
+        )
+        if observed[key] != expected[key]
+    ]
+    for key in (
+        "largest_positive_included_shell_angstrom",
+        "smallest_excluded_shell_angstrom",
+    ):
+        if not math.isclose(
+            observed[key],
+            expected[key],
+            rel_tol=0,
+            abs_tol=COUNT_ONLY_SHELL_ABS_TOL_ANGSTROM,
+        ):
+            mismatches.append(key)
+
+    distinct_shells_equivalent = (
+        len(observed_distinct_shells) == len(expected_distinct_shells)
+        and all(
+            math.isclose(
+                observed_shell,
+                expected_shell,
+                rel_tol=0,
+                abs_tol=COUNT_ONLY_SHELL_ABS_TOL_ANGSTROM,
+            )
+            for observed_shell, expected_shell in zip(
+                observed_distinct_shells, expected_distinct_shells
+            )
+        )
+    )
+    if not distinct_shells_equivalent:
+        mismatches.append("distinct_positive_included_shells_angstrom")
+    multiplicities_equivalent = (
+        len(positive_shells) == len(expected_positive_shells)
+        and all(
+            math.isclose(
+                observed_item["shell_angstrom"],
+                expected_item["shell_angstrom"],
+                rel_tol=0,
+                abs_tol=COUNT_ONLY_SHELL_ABS_TOL_ANGSTROM,
+            )
+            and observed_item["pair_groups"] == expected_item["pair_groups"]
+            and observed_item["second_ids"] == expected_item["second_ids"]
+            for observed_item, expected_item in zip(
+                positive_shells, expected_positive_shells
+            )
+        )
+        and zero_shell == expected["zero_distance_shell_multiplicity"]
+    )
+    if not multiplicities_equivalent:
+        mismatches.append("included_shell_multiplicities")
+
+    newly_excluded_shells_equivalent = (
+        len(observed_newly_excluded_shells)
+        == len(expected_newly_excluded_shells)
+        and all(
+            math.isclose(
+                observed_shell,
+                expected_shell,
+                rel_tol=0,
+                abs_tol=COUNT_ONLY_SHELL_ABS_TOL_ANGSTROM,
+            )
+            for observed_shell, expected_shell in zip(
+                observed_newly_excluded_shells,
+                expected_newly_excluded_shells,
+            )
+        )
+    )
+    if not newly_excluded_shells_equivalent:
+        mismatches.append("distinct_newly_excluded_shells_angstrom")
+
+    audit = {
+        "pass": not mismatches,
+        "distance_comparison": {
+            "unit": "angstrom",
+            "relative_tolerance": 0,
+            "absolute_tolerance": COUNT_ONLY_SHELL_ABS_TOL_ANGSTROM,
+        },
+        "prediction_evidence_status": prediction["evidence_status"],
+        "source_yaml_sha256": prediction["source_yaml_sha256"],
+        "source_preflight_inventory_sha256": prediction[
+            "source_preflight_inventory_sha256"
+        ],
+        "expected": expected,
+        "observed": observed,
+        "distinct_included_shell_set_equivalent": distinct_shells_equivalent,
+        "included_shell_multiplicities_equivalent": multiplicities_equivalent,
+        "newly_excluded_shell_set_equivalent": newly_excluded_shells_equivalent,
+        "newly_excluded_interval_angstrom": {
+            "lower_exclusive": candidate_cutoff_a,
+            "upper_inclusive": source_cutoff_a,
+        },
+        "mismatches": mismatches,
+        "scope": "count_and_shell_inventory_only_not_production_acceptance",
+    }
+    if mismatches:
+        raise CampaignError(
+            "count-only prediction audit mismatch: " + ", ".join(mismatches)
+        )
+    return audit
 
 
 def parse_fragment(path: Path) -> tuple[int, tuple[tuple[float, float, float], ...], str]:
@@ -2065,6 +2667,9 @@ def command_preflight(
         if not math.isclose(yaml_cutoff, float(cutoff["cutoff_pair_distance_cli_bohr"]), rel_tol=2e-8):
             raise CampaignError(f"YAML cutoff mismatch for {supercell_id}/{cutoff_id}")
         yaml_inventory = analyze_displacement_yaml(yaml_data)
+        count_only_prediction_audit = audit_count_only_prediction(
+            cutoff, yaml_inventory, created_count
+        )
         vectors = yaml_inventory["vectors"]
         if not vectors or any(not math.isclose(vector_norm(vector), amplitude, rel_tol=2e-6, abs_tol=2e-8) for vector in vectors):
             raise CampaignError(f"YAML displacement amplitude mismatch for {supercell_id}/{cutoff_id}")
@@ -2174,6 +2779,8 @@ def command_preflight(
         result["requires_budget_or_scientific_review"] = not result[
             "selection_eligible"
         ]
+        if count_only_prediction_audit is not None:
+            result["count_only_prediction_audit"] = count_only_prediction_audit
         write_json_immutable(work / "preflight_result.json", result)
         results.append(result)
 

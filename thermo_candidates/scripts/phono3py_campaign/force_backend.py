@@ -751,6 +751,8 @@ def _settings(config: Mapping[str, Any], mode: str, pilot: Mapping[str, Any] | N
     matrix, cutoff = matrices[result["supercell_id"]], cutoffs[result["cutoff_id"]]
     if matrix.get("production_fc3_eligible_without_new_review") is False:
         raise ForceError("count-only escalation matrix requires a new scientific policy")
+    if cutoff.get("production_fc3_eligible_without_new_review") is False:
+        raise ForceError("count-only cutoff requires a new scientific review")
     if mode == "production":
         for key, expected in (("selected_fc3_supercell_matrix", matrix["matrix"]),
                               ("selected_cutoff_pair_distance_angstrom", cutoff["cutoff_pair_distance_angstrom"]),

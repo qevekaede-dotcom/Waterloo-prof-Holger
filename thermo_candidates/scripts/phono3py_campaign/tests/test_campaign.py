@@ -11,6 +11,7 @@ import campaign as campaign_module
 from campaign import (
     CampaignError,
     analyze_displacement_yaml,
+    audit_count_only_prediction,
     command_prepare_relax,
     derive_no_cutoff_preflight_results,
     load_json,
@@ -29,6 +30,10 @@ from campaign import (
 REPO_ROOT = Path(__file__).resolve().parents[4]
 SR_CONFIG = REPO_ROOT / "thermo_candidates/SrZrS3/phono3py/campaign.json"
 RB_CONFIG = REPO_ROOT / "thermo_candidates/Rb2Cu2SnS4/phono3py/campaign.json"
+SR_COUNT_ONLY_EVIDENCE = (
+    REPO_ROOT
+    / "thermo_candidates/SrZrS3/phono3py/evidence/3p70A_count_only"
+)
 
 
 class CampaignConfigTests(unittest.TestCase):
@@ -181,6 +186,8 @@ class CampaignConfigTests(unittest.TestCase):
         self.assertEqual(inventory["single_displacements"], 2)
         self.assertEqual(inventory["included_pair_distances"], [2.5, 3.0])
         self.assertEqual(inventory["excluded_pair_distances"], [6.0, 7.0])
+        self.assertEqual(inventory["included_pair_second_id_counts"], [2, 1])
+        self.assertEqual(inventory["excluded_pair_second_id_counts"], [1, 1])
         self.assertEqual(inventory["nonzero_included_pair_groups"], 2)
 
     def test_material_configs_validate_and_remain_selection_gated(self) -> None:
@@ -190,6 +197,367 @@ class CampaignConfigTests(unittest.TestCase):
             self.assertTrue(config["production"]["selection_required"])
             self.assertIsNone(config["production"]["selected_supercell"])
             self.assertIsNone(config["production"]["selected_cutoff"])
+
+    def test_sr_predicted_sub_cap_candidate_is_unique_count_only_and_blocked(self) -> None:
+        config, report = validate_config(SR_CONFIG)
+        self.assertTrue(report["healthy"])
+        cutoff_id = "sr_cutoff_3p5541348625A"
+        cutoff = next(
+            item
+            for item in config["displacements"]["cutoff_candidates"]
+            if item["id"] == cutoff_id
+        )
+        self.assertEqual(cutoff["cutoff_pair_distance_angstrom"], 3.5541348625)
+        self.assertEqual(cutoff["cutoff_pair_distance_cli_bohr"], 6.71634150010947)
+        self.assertFalse(cutoff["production_fc3_eligible_without_new_review"])
+        prediction = cutoff["count_only_prediction"]
+        self.assertEqual(
+            prediction["evidence_status"],
+            "prediction_from_read_only_thresholding_not_a_new_phono3py_result",
+        )
+        self.assertEqual(
+            prediction["source_yaml_sha256"],
+            "efdbe22c7e628d9bbf286250a7ddf5e1bce457048fc675a6e7ec050ba3aec70e",
+        )
+        self.assertEqual(
+            prediction["source_preflight_inventory_sha256"],
+            "ed52f4fbd933a8f786b1ff995637cdd497c2036d7a42eabbf0f4d5305c81594c",
+        )
+        self.assertEqual(
+            prediction["source_preflight_inventory_path"],
+            "thermo_candidates/SrZrS3/phono3py/evidence/3p70A_count_only/preflight_inventory.json",
+        )
+        self.assertEqual(prediction["shell_gap_angstrom"], [3.526178139, 3.582091586])
+        self.assertEqual(prediction["source_cutoff_pair_distance_angstrom"], 3.7)
+        self.assertEqual(
+            prediction["source_cutoff_pair_distance_cli_bohr"],
+            6.99198666111535,
+        )
+        self.assertEqual(prediction["expected_generated_displacement_supercells"], 787)
+        self.assertEqual(prediction["expected_single_displacements"], 25)
+        self.assertEqual(prediction["expected_second_displacement_ids"], 762)
+        self.assertEqual(prediction["expected_included_pair_groups"], 147)
+        self.assertEqual(prediction["expected_nonzero_included_pair_groups"], 122)
+        self.assertEqual(
+            prediction["expected_distinct_included_shells_angstrom"],
+            [
+                2.459508671,
+                2.585175162,
+                2.59813694,
+                2.646829583,
+                3.065676377,
+                3.068714495,
+                3.118844198,
+                3.124895583,
+                3.371525126,
+                3.443068937,
+                3.46404448,
+                3.526178139,
+            ],
+        )
+        self.assertEqual(
+            prediction["expected_newly_excluded_shells_angstrom"],
+            [3.582091586, 3.604263809, 3.616141604],
+        )
+        rows = [
+            item
+            for item in config["displacements"]["enumerate"]
+            if item.get("cutoff_pair_id") == cutoff_id
+        ]
+        self.assertEqual(
+            rows,
+            [
+                {
+                    "fc3_supercell_id": "sr_fc3_2x1x1",
+                    "cutoff_pair_id": cutoff_id,
+                    "count_only": True,
+                }
+            ],
+        )
+        selected, signature = select_preflight_candidates(
+            config, [f"sr_fc3_2x1x1__{cutoff_id}"]
+        )
+        self.assertTrue(selected[0]["count_only"])
+        self.assertEqual(
+            preflight_completion_fields(signature),
+            {
+                "preflight_complete": False,
+                "requested_scope_complete": True,
+                "full_config_preflight_complete": False,
+            },
+        )
+        self.assertTrue(config["production"]["selection_required"])
+        self.assertIsNone(config["production"]["selected_supercell"])
+        self.assertIsNone(config["production"]["selected_cutoff"])
+
+    @staticmethod
+    def count_only_prediction_inventory(
+        cutoff: dict,
+    ) -> dict:
+        prediction = cutoff["count_only_prediction"]
+        distances_angstrom: list[float] = []
+        second_id_counts: list[int] = []
+
+        def add_groups(shell: float, groups: int, second_ids: int) -> None:
+            quotient, remainder = divmod(second_ids, groups)
+            distances_angstrom.extend([shell] * groups)
+            second_id_counts.extend(
+                [quotient + 1] * remainder + [quotient] * (groups - remainder)
+            )
+
+        add_groups(
+            0.0,
+            prediction["expected_zero_distance_pair_groups"],
+            prediction["expected_zero_distance_second_ids"],
+        )
+        for item in prediction["expected_included_shell_multiplicities"]:
+            add_groups(
+                item["shell_angstrom"], item["pair_groups"], item["second_ids"]
+            )
+        return {
+            "included_displacement_ids": list(range(1, 788)),
+            "single_displacements": 25,
+            "included_pair_groups": 147,
+            "nonzero_included_pair_groups": 122,
+            "included_pair_distances": [
+                value / campaign_module.BOHR_TO_ANGSTROM
+                for value in distances_angstrom
+            ],
+            "included_pair_second_id_counts": second_id_counts,
+            "excluded_pair_distances": [
+                value / campaign_module.BOHR_TO_ANGSTROM
+                for value in prediction["expected_newly_excluded_shells_angstrom"]
+            ],
+        }
+
+    def test_count_only_prediction_runtime_audit_passes_and_records_evidence(self) -> None:
+        config = load_json(SR_CONFIG)
+        cutoff = next(
+            item
+            for item in config["displacements"]["cutoff_candidates"]
+            if item["id"] == "sr_cutoff_3p5541348625A"
+        )
+        prediction = cutoff["count_only_prediction"]
+        inventory = self.count_only_prediction_inventory(cutoff)
+        audit = audit_count_only_prediction(cutoff, inventory, 787)
+        self.assertIsNotNone(audit)
+        self.assertTrue(audit["pass"])
+        self.assertEqual(audit["mismatches"], [])
+        self.assertEqual(
+            audit["observed"]["largest_positive_included_shell_angstrom"],
+            3.526178139,
+        )
+        self.assertEqual(
+            audit["observed"]["smallest_excluded_shell_angstrom"],
+            3.582091586,
+        )
+        self.assertTrue(audit["distinct_included_shell_set_equivalent"])
+        self.assertTrue(audit["included_shell_multiplicities_equivalent"])
+        self.assertTrue(audit["newly_excluded_shell_set_equivalent"])
+        self.assertEqual(
+            audit["newly_excluded_interval_angstrom"],
+            {"lower_exclusive": 3.5541348625, "upper_inclusive": 3.7},
+        )
+
+    def test_count_only_prediction_runtime_audit_fails_closed_on_mismatch(self) -> None:
+        config = load_json(SR_CONFIG)
+        cutoff = next(
+            item
+            for item in config["displacements"]["cutoff_candidates"]
+            if item["id"] == "sr_cutoff_3p5541348625A"
+        )
+        inventory = self.count_only_prediction_inventory(cutoff)
+        with self.assertRaisesRegex(
+            CampaignError, "generated_displacement_supercells"
+        ):
+            audit_count_only_prediction(cutoff, inventory, 788)
+
+        missing_shell = copy.deepcopy(inventory)
+        missing_shell["excluded_pair_distances"] = [
+            3.604263809 / campaign_module.BOHR_TO_ANGSTROM,
+            3.616141604 / campaign_module.BOHR_TO_ANGSTROM,
+        ]
+        with self.assertRaisesRegex(
+            CampaignError, "smallest_excluded_shell_angstrom"
+        ):
+            audit_count_only_prediction(cutoff, missing_shell, 787)
+
+    def test_count_only_prediction_runtime_rejects_unexpected_included_shell(self) -> None:
+        config = load_json(SR_CONFIG)
+        cutoff = next(
+            item
+            for item in config["displacements"]["cutoff_candidates"]
+            if item["id"] == "sr_cutoff_3p5541348625A"
+        )
+        inventory = self.count_only_prediction_inventory(cutoff)
+        source_shell_bohr = 3.443068937 / campaign_module.BOHR_TO_ANGSTROM
+        source_indices = [
+            index
+            for index, distance in enumerate(inventory["included_pair_distances"])
+            if abs(distance - source_shell_bohr) < 1e-10
+        ]
+        inventory["included_pair_distances"][source_indices[0]] = (
+            3.2 / campaign_module.BOHR_TO_ANGSTROM
+        )
+        with self.assertRaisesRegex(
+            CampaignError, "distinct_positive_included_shells_angstrom"
+        ):
+            audit_count_only_prediction(cutoff, inventory, 787)
+
+    def test_count_only_prediction_runtime_rejects_shell_multiplicity_redistribution(self) -> None:
+        config = load_json(SR_CONFIG)
+        cutoff = next(
+            item
+            for item in config["displacements"]["cutoff_candidates"]
+            if item["id"] == "sr_cutoff_3p5541348625A"
+        )
+        inventory = self.count_only_prediction_inventory(cutoff)
+        source_shell_bohr = 3.443068937 / campaign_module.BOHR_TO_ANGSTROM
+        source_index = next(
+            index
+            for index, distance in enumerate(inventory["included_pair_distances"])
+            if abs(distance - source_shell_bohr) < 1e-10
+        )
+        inventory["included_pair_distances"][source_index] = (
+            3.46404448 / campaign_module.BOHR_TO_ANGSTROM
+        )
+        with self.assertRaisesRegex(CampaignError, "included_shell_multiplicities"):
+            audit_count_only_prediction(cutoff, inventory, 787)
+
+    def test_count_only_prediction_runtime_requires_exact_newly_excluded_shell_set(self) -> None:
+        config = load_json(SR_CONFIG)
+        cutoff = next(
+            item
+            for item in config["displacements"]["cutoff_candidates"]
+            if item["id"] == "sr_cutoff_3p5541348625A"
+        )
+        unexpected = self.count_only_prediction_inventory(cutoff)
+        unexpected["excluded_pair_distances"].append(
+            3.65 / campaign_module.BOHR_TO_ANGSTROM
+        )
+        with self.assertRaisesRegex(
+            CampaignError, "distinct_newly_excluded_shells_angstrom"
+        ):
+            audit_count_only_prediction(cutoff, unexpected, 787)
+
+        beyond_source = self.count_only_prediction_inventory(cutoff)
+        beyond_source["excluded_pair_distances"].append(
+            3.75 / campaign_module.BOHR_TO_ANGSTROM
+        )
+        audit = audit_count_only_prediction(cutoff, beyond_source, 787)
+        self.assertTrue(audit["newly_excluded_shell_set_equivalent"])
+
+    def test_sr_predicted_cutoff_cannot_be_promoted_or_duplicate_supercell_added(self) -> None:
+        cases = []
+        promoted = copy.deepcopy(load_json(SR_CONFIG))
+        next(
+            item
+            for item in promoted["displacements"]["enumerate"]
+            if item.get("cutoff_pair_id") == "sr_cutoff_3p5541348625A"
+        )["count_only"] = False
+        cases.append((promoted, "enumeration must be count-only"))
+
+        duplicated = copy.deepcopy(load_json(SR_CONFIG))
+        duplicated["displacements"]["enumerate"].append(
+            {
+                "fc3_supercell_id": "sr_fc3_3x1x1",
+                "cutoff_pair_id": "sr_cutoff_3p5541348625A",
+                "count_only": True,
+            }
+        )
+        cases.append((duplicated, "exactly one count-only enumeration"))
+
+        shell_drift = copy.deepcopy(load_json(SR_CONFIG))
+        cutoff = next(
+            item
+            for item in shell_drift["displacements"]["cutoff_candidates"]
+            if item["id"] == "sr_cutoff_3p5541348625A"
+        )
+        cutoff["count_only_prediction"]["expected_smallest_excluded_shell_angstrom"] = 3.60
+        cases.append((shell_drift, "shell-boundary contract is inconsistent"))
+
+        source_cutoff_unit_drift = copy.deepcopy(load_json(SR_CONFIG))
+        cutoff = next(
+            item
+            for item in source_cutoff_unit_drift["displacements"][
+                "cutoff_candidates"
+            ]
+            if item["id"] == "sr_cutoff_3p5541348625A"
+        )
+        cutoff["count_only_prediction"][
+            "source_cutoff_pair_distance_cli_bohr"
+        ] = 3.7
+        cases.append((source_cutoff_unit_drift, "source cutoff bound is invalid"))
+
+        for changed, message in cases:
+            with self.subTest(message=message), tempfile.TemporaryDirectory() as temporary:
+                path = Path(temporary) / "changed.json"
+                path.write_text(json.dumps(changed))
+                with self.assertRaisesRegex(CampaignError, message):
+                    validate_config(path)
+
+    def test_sr_predicted_cutoff_cannot_be_selected_for_production(self) -> None:
+        selected = copy.deepcopy(load_json(SR_CONFIG))
+        selected["production"].update(
+            selection_required=False,
+            selected_supercell="sr_fc3_2x1x1",
+            selected_cutoff="sr_cutoff_3p5541348625A",
+            automatic_submission_allowed=True,
+        )
+        selected["force_and_amplitude_validation"].update(
+            selection_required=False,
+            selected_displacement_distance_angstrom=0.03,
+            selected_displacement_distance_cli_bohr=0.0566917837388,
+            selected_ecutwfc_Ry=80,
+            selected_ecutrho_Ry=640,
+            selected_conv_thr_Ry=1e-10,
+            selected_k_points=[2, 2, 2],
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "selected.json"
+            path.write_text(json.dumps(selected))
+            with self.assertRaisesRegex(
+                CampaignError, "selected cutoff requires a new scientific review"
+            ):
+                validate_config(path)
+
+    def test_sr_prediction_evidence_is_path_and_hash_bound(self) -> None:
+        for field, value, message in (
+            ("source_yaml_sha256", "0" * 64, "source YAML hash mismatch"),
+            (
+                "source_preflight_inventory_path",
+                "../outside.json",
+                "escapes repository root",
+            ),
+        ):
+            bad = copy.deepcopy(load_json(SR_CONFIG))
+            cutoff = next(
+                item
+                for item in bad["displacements"]["cutoff_candidates"]
+                if item["id"] == "sr_cutoff_3p5541348625A"
+            )
+            cutoff["count_only_prediction"][field] = value
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as temporary:
+                path = Path(temporary) / "bad-evidence.json"
+                path.write_text(json.dumps(bad))
+                with self.assertRaisesRegex(CampaignError, message):
+                    validate_config(path)
+
+    def test_sr_durable_count_only_evidence_manifest_matches_files(self) -> None:
+        manifest = load_json(SR_COUNT_ONLY_EVIDENCE / "manifest.json")
+        self.assertEqual(
+            manifest["evidence_status"],
+            "frozen_raw_count_only_not_production_acceptance",
+        )
+        self.assertTrue(manifest["raw_bytes_unchanged"])
+        for artifact in manifest["artifacts"]:
+            path = SR_COUNT_ONLY_EVIDENCE / artifact["path"]
+            with self.subTest(path=artifact["path"]):
+                self.assertTrue(path.is_file())
+                self.assertEqual(path.stat().st_size, artifact["size_bytes"])
+                self.assertEqual(
+                    campaign_module.sha256_path(path), artifact["sha256"]
+                )
 
     def test_signed_preflight_subset_is_unique_nonempty_and_config_bound(self) -> None:
         config = load_json(SR_CONFIG)

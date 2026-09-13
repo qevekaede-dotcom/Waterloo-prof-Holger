@@ -182,3 +182,44 @@ two) because the valence DOS is high and steep at the VBM (flat bands), so
 N(mu) rises sharply within one mu-grid step; the dope-based check confirms the
 S curves are unaffected. Curated copy in
 `third step result (three-material first pass)/READY_TO_ATTACH/`.
+
+---
+
+## 2026-09-13 — one allowed BFGS polish failed; lineage is terminal
+
+The force-consistency diagnostic in the fresh Nibi lineage
+`/scratch/yuhansun/phono3py-runs/20260911-continuation-cf0b1d1/Rb2Cu2SnS4`
+completed and passed its narrow release gate.  Primary job `21732222` and
+collector `21732223` both completed `0:0`.  The duplicate-force RMS difference
+was `1.9245008973e-09 Ry/bohr`; increasing ecutrho from 800 to 1000 Ry changed
+the force vector by `3.5007935608e-07 Ry/bohr` RMS and `1.01e-06 Ry/bohr` at
+the largest component.  This established fixed-geometry repeatability only;
+it did not accept a structure.
+
+Exactly one reviewed small-trust-radius BFGS polish was then submitted.  Its
+primary job `21848175` is authoritatively `FAILED/2:0`; collector
+`21848176` completed `0:0` and preserved the failure.  QE completed four SCF
+cycles and printed `JOB DONE`, but also explicitly reported
+`bfgs failed ... convergence not achieved`.  Total force decreased from
+`6.6e-05` to `5.4e-05 Ry/bohr`, while the final maximum force component was
+`1.37e-05 Ry/bohr`, still above the BFGS `1e-05 Ry/bohr` threshold.  Two
+successive history resets followed sub-threshold natural steps of about
+`2e-05 bohr`; no pristine SCF, execution manifest, relax gate, final unitcell,
+or accepted structure was produced.  The collector receipt is incomplete by
+design and has SHA-256
+`d5b4e87c8c69dddb5f1ba484d0a6d2f2dc618be6ec55f8d3e7b8d4611f4d2c83`.
+
+Independent scientific review therefore marked this unique polish as a
+terminal **BLOCK**.  Low residual force and a zero QE process exit code do not
+override failed BFGS convergence.  Do not add a second polish attempt to this
+RUN_DIR, loosen thresholds after the fact, accept its last geometry, or release
+preflight/force work from it.  A genuinely different relaxation protocol may
+be designed and reviewed as a new lineage, but no such method is currently
+approved for execution.
+
+The same review exposed a provenance replay defect: diagnostic finalization
+currently assumes that `slurm_attempts/collect/` contains only its own
+collector, so replay after the later relax collector can fail for the wrong
+reason.  Repair and independently review that code before using the diagnostic
+lineage as evidence for any future method.  This is a software/evidence fix,
+not authorization for another calculation.
