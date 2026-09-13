@@ -11,7 +11,9 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Event, Lock
 from unittest.mock import patch
 
 import campaign as core
@@ -208,6 +210,105 @@ class FireRecoveryTests(unittest.TestCase):
             return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
         return REAL_SUBPROCESS_RUN(command, *args, **kwargs)
 
+    def _startup_incident_fixture(self):
+        run = self.root / "startup-incident"
+        fire.prepare_lineage(self.config_path, run, self.old)
+        context = submit.resolve_context(self.config_path, run, "fire-pilot")
+        with patch("submit.require_nibi_login"), patch(
+            "submit.run_sbatch", side_effect=self._successful_sbatch("101", "102")
+        ), patch("submit.subprocess.run", side_effect=self._successful_release):
+            submitted = submit.execute_submission(
+                context, "fire-pilot", expected_config_sha=context.config_sha256,
+                task_map=None, max_in_flight=None,
+            )
+        primary_attempt = submitted["attempt_id"]
+        collector_attempt = submitted["collector"]["attempt_id"]
+        collector = run / "slurm_attempts/collect" / collector_attempt
+        collector.mkdir(parents=True)
+        record = Path(submitted["record_dir"])
+        request = core.load_json(record / "request.json")
+        primary_result = core.load_json(record / "primary_result.json")
+        lineage_sha = core.sha256_path(run / fire.LINEAGE)
+        release_sha = core.sha256_path(run / fire.PILOT_RELEASE)
+        collector_context = (
+            f"stage\tcollect\nattempt_id\t{collector_attempt}\nslurm_job_id\t102\n"
+            "slurm_job_account\tdef-kleinke_cpu\n"
+            "slurm_job_partition\tcpubase_bycore_b2\nslurm_job_num_nodes\t1\n"
+            "slurm_ntasks\t1\nslurm_cpus_per_task\t\n"
+            "slurm_mem_per_cpu\t\nslurm_timelimit\t\n"
+            f"run_dir\t{run}\nconfig_sha256\t{context.config_sha256}\n"
+            f"primary_stage\tfire-pilot\nprimary_attempt_id\t{primary_attempt}\n"
+            "primary_job_id\t101\n"
+            f"primary_request_sha256\t{core.sha256_path(record / 'request.json')}\n"
+            f"primary_result_sha256\t{core.sha256_path(record / 'primary_result.json')}\n"
+            f"fire_lineage_sha256\t{lineage_sha}\nfire_release_sha256\t{release_sha}\n"
+            "git_commit\t\n"
+        )
+        primary_row = (
+            "101|FAILED|2:0|4|32||def-kleinke_cpu|cpubase_bycore_b2|"
+            "1|32|62.50G|120"
+        )
+        raw = {
+            "context.tsv": collector_context.encode(),
+            "stdout.log": b'{"command":"collect","error":"git missing","healthy":false}\n',
+            "stderr.log": b"",
+            "exit_code.txt": b"2\n",
+            "finished_utc.txt": b"2026-09-14T00:00:00Z\n",
+            "primary_sacct.psv": ("header\n" + primary_row + "\n").encode(),
+            "primary_sacct-query-01.psv": ("header\n" + primary_row + "\n").encode(),
+            "primary_sacct.err": b"",
+            "primary_sacct-query-01.err": b"",
+            "primary_sacct_exit_code.txt": b"0\n",
+            "primary_sacct_query_count.txt": b"1\n",
+        }
+        for name, data in raw.items():
+            (collector / name).write_bytes(data)
+        scheduler_root = self.root / "thermo_candidates/scripts/phono3py_campaign"
+        scheduler_root.mkdir(parents=True)
+        primary_scheduler_text = (
+            "/var/spool/slurmd/job101/slurm_script: line 32: git: command not found\n"
+            "ERROR: FIRE pilot checkout commit differs from the released lineage\n"
+        )
+        (scheduler_root / "slurm-101.out").write_text(primary_scheduler_text)
+        (scheduler_root / "slurm-p3-collect-102.out").write_bytes(raw["stdout.log"])
+        incident = copy.deepcopy(fire.TRUSTED_STARTUP_INCIDENT)
+        incident.update({
+            "run_dir": str(run), "checkout": str(self.root),
+            "config_relative": "campaign.json",
+            "config_sha256": context.config_sha256,
+            "git_commit": request["git_commit"],
+            "primary_attempt_id": primary_attempt, "primary_job_id": "101",
+            "collector_attempt_id": collector_attempt, "collector_job_id": "102",
+            "primary_allocation": primary_row,
+            "collector_allocation": (
+                "102|FAILED|2:0|5|1||def-kleinke_cpu|cpubase_bycore_b2|1|1|4G|30"
+            ),
+            "primary_scheduler_text": primary_scheduler_text,
+        })
+        claim_path = Path(core.load_json(run / fire.LINEAGE)["global_claim_path"])
+        hashes = {
+            "global_claim": core.sha256_path(claim_path),
+            fire.LINEAGE: lineage_sha,
+            fire.PILOT_RELEASE: release_sha,
+            "fire_seed.in": core.sha256_path(run / "fire_seed.in"),
+        }
+        for name in (
+            "request.json", "primary_result.json", "collector_request.json",
+            "collector_result.json", "collector_attachment.json",
+            "primary_release.json", "submission.json",
+        ):
+            hashes[name] = core.sha256_path(record / name)
+        for name in raw:
+            hashes[f"collector/{name}"] = core.sha256_path(collector / name)
+        hashes["primary_scheduler_log"] = core.sha256_path(
+            scheduler_root / "slurm-101.out"
+        )
+        hashes["collector_scheduler_log"] = core.sha256_path(
+            scheduler_root / "slurm-p3-collect-102.out"
+        )
+        incident["hashes"] = hashes
+        return run, incident
+
     def test_policy_has_exact_fire_controls_and_rejects_bfgs(self) -> None:
         fire.validate_fire_policy(self.config)
         bad = copy.deepcopy(self.config)
@@ -345,6 +446,545 @@ class FireRecoveryTests(unittest.TestCase):
                     self.config_path, self.root / "racing-polish-replacement", self.old
                 )
         self.assertTrue(replaced)
+
+    def test_startup_incident_authorizes_exactly_one_replacement_without_new_lineage(self) -> None:
+        run, incident = self._startup_incident_fixture()
+        lineage_before = core.sha256_path(run / fire.LINEAGE)
+        rows = {
+            "101": incident["primary_allocation"],
+            "102": incident["collector_allocation"],
+        }
+        with patch.object(fire, "TRUSTED_STARTUP_INCIDENT", incident), patch(
+            "submit.require_nibi_login"
+        ), patch("fire_recovery._query_exact_incident_scheduler_rows", return_value=rows):
+            result = fire.create_infrastructure_replacement_authorization(
+                self.config_path, run
+            )
+            verified = fire.verify_infrastructure_replacement_authorization(
+                self.config_path, run
+            )
+            with self.assertRaises(core.CampaignError):
+                fire.create_infrastructure_replacement_authorization(
+                    self.config_path, run
+                )
+        self.assertTrue(result["replacement_submission_released"])
+        self.assertEqual(verified["authorization_sha256"], result["authorization_sha256"])
+        self.assertEqual(core.sha256_path(run / fire.LINEAGE), lineage_before)
+        receipt = core.load_json(Path(result["authorization"]))
+        self.assertEqual(receipt["original_global_claims_consumed"], 1)
+        self.assertEqual(receipt["scientific_attempts_observed"], 0)
+        self.assertEqual(receipt["maximum_scientific_attempts"], 1)
+        self.assertFalse(receipt["new_lineage_created"])
+        for field in (
+            "structure_accepted", "preflight_unlocked", "full_execution_released",
+            "force_execution_released", "production_execution_released",
+        ):
+            self.assertFalse(receipt[field])
+
+    def test_startup_incident_uses_exact_empty_collector_resource_context(self) -> None:
+        self.assertEqual(
+            fire.TRUSTED_STARTUP_INCIDENT["hashes"]["collector/context.tsv"],
+            "4c30ae4e5ebace93aac0f9dcbeac44f2c554f7c1e8413d1f7e766eccc6dee957",
+        )
+        run, incident = self._startup_incident_fixture()
+        context_path = (
+            run
+            / "slurm_attempts/collect"
+            / incident["collector_attempt_id"]
+            / "context.tsv"
+        )
+        context = fire._context_snapshot_fields(
+            context_path.read_bytes(), "fixture collector context"
+        )
+        self.assertEqual(context["slurm_cpus_per_task"], "")
+        self.assertEqual(context["slurm_mem_per_cpu"], "")
+        self.assertEqual(context["slurm_timelimit"], "")
+        self.assertEqual(
+            incident["hashes"]["collector/context.tsv"],
+            core.sha256_path(context_path),
+        )
+
+    def test_startup_incident_any_raw_hash_or_scheduler_row_drift_fails(self) -> None:
+        run, incident = self._startup_incident_fixture()
+        record = run / "submissions/fire-pilot" / incident["primary_attempt_id"]
+        target = record / "collector_request.json"
+        original = target.read_text()
+        target.write_text(original + " ")
+        with patch.object(fire, "TRUSTED_STARTUP_INCIDENT", incident), patch(
+            "submit.require_nibi_login"
+        ), patch("fire_recovery._query_exact_incident_scheduler_rows") as query:
+            with self.assertRaisesRegex(core.CampaignError, "hash drift"):
+                fire.create_infrastructure_replacement_authorization(
+                    self.config_path, run
+                )
+        query.assert_not_called()
+        target.write_text(original)
+        bad_rows = {
+            "101": incident["primary_allocation"].replace("FAILED", "COMPLETED"),
+            "102": incident["collector_allocation"],
+        }
+        with patch.object(fire, "TRUSTED_STARTUP_INCIDENT", incident), patch(
+            "submit.require_nibi_login"
+        ), patch(
+            "fire_recovery._query_exact_incident_scheduler_rows",
+            side_effect=core.CampaignError(str(bad_rows)),
+        ):
+            with self.assertRaises(core.CampaignError):
+                fire.create_infrastructure_replacement_authorization(
+                    self.config_path, run
+                )
+
+    def test_startup_incident_rejects_any_primary_attempt_or_arbitrary_authority(self) -> None:
+        run, incident = self._startup_incident_fixture()
+        primary = run / "slurm_attempts/fire-pilot" / incident["primary_attempt_id"]
+        primary.mkdir()
+        with patch.object(fire, "TRUSTED_STARTUP_INCIDENT", incident), patch(
+            "submit.require_nibi_login"
+        ):
+            with self.assertRaisesRegex(core.CampaignError, "scientific primary attempt"):
+                fire.create_infrastructure_replacement_authorization(
+                    self.config_path, run
+                )
+        primary.rmdir()
+        config, _ = core.validate_config(self.config_path)
+        authority = fire._replacement_authorization_path(config, run)
+        authority.write_text('{"released": true}\n')
+        with patch.object(fire, "TRUSTED_STARTUP_INCIDENT", incident):
+            with self.assertRaises(core.CampaignError):
+                fire.verify_infrastructure_replacement_authorization(
+                    self.config_path, run
+                )
+
+    def test_replacement_authorization_creation_is_globally_exclusive_under_race(self) -> None:
+        run, incident = self._startup_incident_fixture()
+        rows = {
+            "101": incident["primary_allocation"],
+            "102": incident["collector_allocation"],
+        }
+
+        def create_once():
+            try:
+                fire.create_infrastructure_replacement_authorization(
+                    self.config_path, run
+                )
+            except core.CampaignError:
+                return "rejected"
+            return "created"
+
+        with patch.object(fire, "TRUSTED_STARTUP_INCIDENT", incident), patch(
+            "submit.require_nibi_login"
+        ), patch("fire_recovery._query_exact_incident_scheduler_rows", return_value=rows):
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                outcomes = list(pool.map(lambda _: create_once(), range(2)))
+        self.assertEqual(sorted(outcomes), ["created", "rejected"])
+
+    def test_replacement_plan_and_execute_bind_authority_through_afterany_chain(self) -> None:
+        run, incident = self._startup_incident_fixture()
+        rows = {
+            "101": incident["primary_allocation"],
+            "102": incident["collector_allocation"],
+        }
+        with patch.object(fire, "TRUSTED_STARTUP_INCIDENT", incident), patch(
+            "submit.require_nibi_login"
+        ), patch(
+            "fire_recovery._query_exact_incident_scheduler_rows",
+            return_value=rows,
+        ):
+            authorization = fire.create_infrastructure_replacement_authorization(
+                self.config_path, run
+            )
+            context = submit.resolve_context(
+                self.config_path,
+                run,
+                "fire-pilot",
+                infrastructure_replacement=True,
+            )
+            plan = submit.plan_report(
+                context,
+                "fire-pilot",
+                task_map=None,
+                max_in_flight=None,
+                infrastructure_replacement=True,
+            )
+            self.assertEqual(plan["mode"], "plan-replacement")
+            self.assertEqual(
+                plan["fire_replacement_sha256"],
+                authorization["authorization_sha256"],
+            )
+            with patch(
+                "submit.run_sbatch",
+                side_effect=self._successful_sbatch("201", "202"),
+            ), patch(
+                "submit.subprocess.run", side_effect=self._successful_release
+            ):
+                submitted = submit.execute_infrastructure_replacement(
+                    context,
+                    expected_config_sha=context.config_sha256,
+                    expected_replacement_authorization_sha=authorization[
+                        "authorization_sha256"
+                    ],
+                )
+
+            record = Path(submitted["record_dir"])
+            for name in (
+                "request.json",
+                "primary_result.json",
+                "collector_request.json",
+                "collector_result.json",
+                "collector_attachment.json",
+                "primary_release.json",
+                "submission.json",
+            ):
+                self.assertEqual(
+                    core.load_json(record / name)["fire_replacement_sha256"],
+                    authorization["authorization_sha256"],
+                )
+            request = core.load_json(record / "request.json")
+            collector_request = core.load_json(record / "collector_request.json")
+            self.assertIn("--hold", request["command"])
+            self.assertIn("--dependency=afterany:201", collector_request["command"])
+            self.assertEqual(collector_request["dependency"], "afterany:201")
+            self.assertFalse(submitted.get("structure_accepted", False))
+            self.assertFalse(submitted.get("preflight_unlocked", False))
+
+            collector_attempt_id = submitted["collector"]["attempt_id"]
+            collector = run / "slurm_attempts/collect" / collector_attempt_id
+            collector.mkdir()
+            collector_context = {
+                "stage": "collect",
+                "attempt_id": collector_attempt_id,
+                "slurm_job_id": "202",
+                "run_dir": str(run),
+                "config_sha256": context.config_sha256,
+                "primary_stage": "fire-pilot",
+                "primary_attempt_id": submitted["attempt_id"],
+                "primary_job_id": "201",
+                "primary_request_sha256": collector_request[
+                    "primary_request_sha256"
+                ],
+                "primary_result_sha256": collector_request[
+                    "primary_result_sha256"
+                ],
+                "primary_stage_script_sha256": collector_request[
+                    "primary_stage_script_sha256"
+                ],
+                "fire_lineage_sha256": collector_request[
+                    "fire_lineage_sha256"
+                ],
+                "fire_release_sha256": collector_request[
+                    "fire_release_sha256"
+                ],
+                "fire_backend_sha256": collector_request[
+                    "fire_backend_sha256"
+                ],
+                "fire_requested_walltime_minutes": "120",
+                "fire_replacement_sha256": authorization[
+                    "authorization_sha256"
+                ],
+                "submit_script_sha256": collector_request[
+                    "submit_script_sha256"
+                ],
+                "campaign_cli_sha256": collector_request[
+                    "campaign_cli_sha256"
+                ],
+                "cluster_env_sha256": collector_request[
+                    "cluster_env_sha256"
+                ],
+                "stage_script_sha256": collector_request[
+                    "collector_script_sha256"
+                ],
+            }
+            (collector / "context.tsv").write_text(
+                "".join(f"{key}\t{value}\n" for key, value in collector_context.items())
+            )
+            accounting = collector / "primary_sacct.psv"
+            accounting.write_text(
+                "JobID|JobIDRaw|State|ExitCode|ElapsedRaw|AllocCPUS|MaxRSS|"
+                "Account|Partition|NNodes|NCPUS|ReqMem|TimelimitRaw\n"
+                "201|201|FAILED|2:0|4|32||def-kleinke_cpu|"
+                "cpubase_bycore_b2|1|32|2000Mc|120\n"
+            )
+            accounting_status = collector / "primary_sacct_exit_code.txt"
+            accounting_status.write_text("0\n")
+            records, errors, metadata = core._read_sacct_records(
+                accounting, accounting_status, core.DIAGNOSTIC_SACCT_FIELDS
+            )
+            collection = fire.collect_pilot_evidence(
+                config=self.config,
+                config_path=self.config_path,
+                run_dir=run,
+                current_attempt=collector,
+                primary_attempt_id=submitted["attempt_id"],
+                primary_job_id="201",
+                expected_primary_request_sha256=collector_request[
+                    "primary_request_sha256"
+                ],
+                expected_primary_result_sha256=collector_request[
+                    "primary_result_sha256"
+                ],
+                expected_primary_stage_script_sha256=collector_request[
+                    "primary_stage_script_sha256"
+                ],
+                accounting_records=records,
+                accounting_errors=errors,
+                accounting_metadata=metadata,
+            )
+            self.assertEqual(
+                collection["fire_replacement_sha256"],
+                authorization["authorization_sha256"],
+            )
+            collection_path = collector / "collection.json"
+            collection_path.write_text(json.dumps(collection))
+            replay = fire.replay_pilot(
+                self.config_path,
+                run,
+                collection_path,
+                expected_collection_sha256=core.sha256_path(collection_path),
+            )
+            self.assertFalse(replay["pass"])
+            self.assertEqual(
+                replay["fire_replacement_sha256"],
+                authorization["authorization_sha256"],
+            )
+            self.assertFalse(replay["structure_accepted"])
+            self.assertFalse(replay["preflight_unlocked"])
+            self.assertFalse(replay["full_execution_released"])
+
+            with patch("submit.run_sbatch") as second_sbatch:
+                with self.assertRaises((core.CampaignError, submit.SubmissionError)):
+                    submit.execute_infrastructure_replacement(
+                        context,
+                        expected_config_sha=context.config_sha256,
+                        expected_replacement_authorization_sha=authorization[
+                            "authorization_sha256"
+                        ],
+                    )
+            second_sbatch.assert_not_called()
+
+    def test_replacement_rejected_primary_consumes_slot_before_sbatch_retry(self) -> None:
+        run, incident = self._startup_incident_fixture()
+        rows = {
+            "101": incident["primary_allocation"],
+            "102": incident["collector_allocation"],
+        }
+        rejection = submit.RejectedSubmissionError(
+            "reviewed rejection",
+            {
+                "command": ["sbatch"],
+                "returncode": 1,
+                "stdout": "",
+                "stderr": "rejected",
+                "finished_utc": "2026-09-14T00:00:00Z",
+            },
+        )
+        with patch.object(fire, "TRUSTED_STARTUP_INCIDENT", incident), patch(
+            "submit.require_nibi_login"
+        ), patch(
+            "fire_recovery._query_exact_incident_scheduler_rows",
+            return_value=rows,
+        ):
+            authorization = fire.create_infrastructure_replacement_authorization(
+                self.config_path, run
+            )
+            context = submit.resolve_context(
+                self.config_path,
+                run,
+                "fire-pilot",
+                infrastructure_replacement=True,
+            )
+            with patch("submit.run_sbatch", side_effect=rejection) as sbatch:
+                with self.assertRaises(submit.RejectedSubmissionError):
+                    submit.execute_infrastructure_replacement(
+                        context,
+                        expected_config_sha=context.config_sha256,
+                        expected_replacement_authorization_sha=authorization[
+                            "authorization_sha256"
+                        ],
+                    )
+            self.assertEqual(sbatch.call_count, 1)
+            replacement_records = [
+                item
+                for item in (run / "submissions/fire-pilot").iterdir()
+                if item.is_dir()
+                and item.name != incident["primary_attempt_id"]
+            ]
+            self.assertEqual(len(replacement_records), 1)
+            self.assertTrue((replacement_records[0] / "primary_rejected.json").is_file())
+            with patch("submit.run_sbatch") as retry:
+                with self.assertRaises((core.CampaignError, submit.SubmissionError)):
+                    submit.execute_infrastructure_replacement(
+                        context,
+                        expected_config_sha=context.config_sha256,
+                        expected_replacement_authorization_sha=authorization[
+                            "authorization_sha256"
+                        ],
+                    )
+            retry.assert_not_called()
+
+    def test_replacement_concurrency_allows_only_one_primary_submission_chain(self) -> None:
+        run, incident = self._startup_incident_fixture()
+        rows = {
+            "101": incident["primary_allocation"],
+            "102": incident["collector_allocation"],
+        }
+        entered = Event()
+        release_first = Event()
+        call_lock = Lock()
+        calls: list[list[str]] = []
+
+        def controlled_sbatch(command):
+            with call_lock:
+                calls.append(list(command))
+                call_number = len(calls)
+            if call_number == 1:
+                entered.set()
+                self.assertTrue(release_first.wait(5))
+                job_id = "301"
+            else:
+                job_id = "302"
+            return job_id, {
+                "command": list(command),
+                "returncode": 0,
+                "stdout": job_id + ";nibi\n",
+                "stderr": "",
+                "finished_utc": "2026-09-14T00:00:00Z",
+            }
+
+        with patch.object(fire, "TRUSTED_STARTUP_INCIDENT", incident), patch(
+            "submit.require_nibi_login"
+        ), patch(
+            "fire_recovery._query_exact_incident_scheduler_rows",
+            return_value=rows,
+        ):
+            authorization = fire.create_infrastructure_replacement_authorization(
+                self.config_path, run
+            )
+            context = submit.resolve_context(
+                self.config_path,
+                run,
+                "fire-pilot",
+                infrastructure_replacement=True,
+            )
+
+            def execute_once():
+                return submit.execute_infrastructure_replacement(
+                    context,
+                    expected_config_sha=context.config_sha256,
+                    expected_replacement_authorization_sha=authorization[
+                        "authorization_sha256"
+                    ],
+                )
+
+            with patch("submit.run_sbatch", side_effect=controlled_sbatch), patch(
+                "submit.subprocess.run", side_effect=self._successful_release
+            ), ThreadPoolExecutor(max_workers=2) as pool:
+                first = pool.submit(execute_once)
+                self.assertTrue(entered.wait(5))
+                second = pool.submit(execute_once)
+                with self.assertRaises(submit.SubmissionError):
+                    second.result(timeout=5)
+                release_first.set()
+                result = first.result(timeout=5)
+        self.assertEqual(result["primary_job_id"], "301")
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(sum("--hold" in command for command in calls), 1)
+
+    def test_replacement_crash_after_consuming_record_prevents_retry(self) -> None:
+        run, incident = self._startup_incident_fixture()
+        rows = {
+            "101": incident["primary_allocation"],
+            "102": incident["collector_allocation"],
+        }
+        with patch.object(fire, "TRUSTED_STARTUP_INCIDENT", incident), patch(
+            "submit.require_nibi_login"
+        ), patch(
+            "fire_recovery._query_exact_incident_scheduler_rows",
+            return_value=rows,
+        ):
+            authorization = fire.create_infrastructure_replacement_authorization(
+                self.config_path, run
+            )
+            context = submit.resolve_context(
+                self.config_path,
+                run,
+                "fire-pilot",
+                infrastructure_replacement=True,
+            )
+            with patch(
+                "submit.run_sbatch", side_effect=RuntimeError("simulated crash")
+            ) as sbatch:
+                with self.assertRaisesRegex(RuntimeError, "simulated crash"):
+                    submit.execute_infrastructure_replacement(
+                        context,
+                        expected_config_sha=context.config_sha256,
+                        expected_replacement_authorization_sha=authorization[
+                            "authorization_sha256"
+                        ],
+                    )
+            self.assertEqual(sbatch.call_count, 1)
+            with patch("submit.run_sbatch") as retry:
+                with self.assertRaises((core.CampaignError, submit.SubmissionError)):
+                    submit.execute_infrastructure_replacement(
+                        context,
+                        expected_config_sha=context.config_sha256,
+                        expected_replacement_authorization_sha=authorization[
+                            "authorization_sha256"
+                        ],
+                    )
+            retry.assert_not_called()
+
+    def test_internal_replacement_entry_cannot_bypass_login_or_authority_hash(self) -> None:
+        run, incident = self._startup_incident_fixture()
+        rows = {
+            "101": incident["primary_allocation"],
+            "102": incident["collector_allocation"],
+        }
+        with patch.object(fire, "TRUSTED_STARTUP_INCIDENT", incident), patch(
+            "submit.require_nibi_login"
+        ), patch(
+            "fire_recovery._query_exact_incident_scheduler_rows",
+            return_value=rows,
+        ):
+            authorization = fire.create_infrastructure_replacement_authorization(
+                self.config_path, run
+            )
+            context = submit.resolve_context(
+                self.config_path,
+                run,
+                "fire-pilot",
+                infrastructure_replacement=True,
+            )
+        with patch(
+            "submit.require_nibi_login",
+            side_effect=submit.SubmissionError("not Nibi"),
+        ), patch("submit.run_sbatch") as sbatch:
+            with self.assertRaisesRegex(submit.SubmissionError, "not Nibi"):
+                submit._execute_locked(
+                    context,
+                    "fire-pilot",
+                    expected_config_sha=context.config_sha256,
+                    task_map=None,
+                    max_in_flight=None,
+                    expected_replacement_authorization_sha=authorization[
+                        "authorization_sha256"
+                    ],
+                    infrastructure_replacement=True,
+                )
+        sbatch.assert_not_called()
+        with patch.object(fire, "TRUSTED_STARTUP_INCIDENT", incident), patch(
+            "submit.require_nibi_login"
+        ), patch("submit.run_sbatch") as sbatch:
+            with self.assertRaises(submit.SubmissionError):
+                submit._execute_locked(
+                    context,
+                    "fire-pilot",
+                    expected_config_sha=context.config_sha256,
+                    task_map=None,
+                    max_in_flight=None,
+                    expected_replacement_authorization_sha="0" * 64,
+                    infrastructure_replacement=True,
+                )
+        sbatch.assert_not_called()
 
     def test_manifest_wrong_lineage_filename_fails_after_coherent_rehash(self) -> None:
         manifest_path = self.old / "run_manifest.json"
@@ -524,6 +1164,35 @@ class FireRecoveryTests(unittest.TestCase):
 
     def test_job_done_without_fire_markers_is_not_normal_convergence(self) -> None:
         self.assertFalse(all(marker in "JOB DONE." for marker in fire.FIRE_MARKERS))
+
+    def test_slurm_git_commit_uses_only_exact_pinned_nibi_binary(self) -> None:
+        with patch.dict(os.environ, {"SLURM_JOB_ID": "123", "P3_GIT": "/tmp/git"}):
+            with patch("fire_recovery.subprocess.run") as run:
+                with self.assertRaisesRegex(core.CampaignError, "exact pinned Nibi git"):
+                    fire._git_commit()
+            run.assert_not_called()
+        pinned = "/cvmfs/soft.computecanada.ca/gentoo/2023/x86-64-v3/usr/bin/git"
+        version = subprocess.CompletedProcess(
+            [pinned], 0, stdout="git version 2.41.0\n", stderr=""
+        )
+        completed = subprocess.CompletedProcess(
+            [pinned], 0, stdout="a" * 40 + "\n", stderr=""
+        )
+        pinned_env = {
+            "SLURM_JOB_ID": "123", "P3_GIT": pinned,
+            "P3_GIT_SHA256": fire._PINNED_NIBI_GIT_SHA256,
+            "P3_GIT_VERSION": fire._PINNED_NIBI_GIT_VERSION,
+        }
+        with patch.dict(os.environ, pinned_env), patch(
+            "fire_recovery.os.lstat", return_value=os.stat(__file__)
+        ), patch("fire_recovery.os.access", return_value=True), patch(
+            "fire_recovery._load_strict_bytes_snapshot",
+            return_value=(b"git", fire._PINNED_NIBI_GIT_SHA256),
+        ), patch(
+            "fire_recovery.subprocess.run", side_effect=(version, completed)
+        ) as run:
+            self.assertEqual(fire._git_commit(), "a" * 40)
+        self.assertEqual(run.call_args_list[-1].args[0][0], pinned)
 
     def test_pilot_plan_is_32_rank_two_hour_afterany_collectable(self) -> None:
         run = self.root / "new-fire-run"

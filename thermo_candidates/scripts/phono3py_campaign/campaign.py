@@ -5656,6 +5656,7 @@ def command_collect(
     config_path = config_path.resolve()
     config, _ = validate_config(config_path)
     run_dir = safe_run_dir(run_dir)
+    current_attempt: Path | None = None
     if primary_stage == "diagnostic":
         from polish_recovery import _load_lineage
 
@@ -5665,9 +5666,49 @@ def command_collect(
             )
         _load_lineage(config, run_dir)
     elif primary_stage == "fire-pilot":
-        from fire_recovery import verify_fire_submission_ready
+        from fire_recovery import (
+            verify_fire_submission_ready,
+            verify_infrastructure_replacement_authorization,
+        )
 
-        verify_fire_submission_ready(config_path, run_dir, "fire-pilot", require_unused=False)
+        current_attempt = attempt_dir(run_dir)
+        reject_symlinks_below(run_dir, current_attempt, "collector Slurm attempt")
+
+        request_path = strict_run_descendant(
+            run_dir,
+            run_dir / "submissions/fire-pilot" / primary_attempt_id / "request.json",
+            "FIRE primary submission request",
+            require_exists=True,
+        )
+        request = load_json(request_path)
+        recorded_replacement_sha = request.get("fire_replacement_sha256")
+        exported_replacement_sha = os.environ.get("P3_FIRE_REPLACEMENT_SHA256")
+        if recorded_replacement_sha is None:
+            if exported_replacement_sha:
+                raise CampaignError(
+                    "ordinary FIRE collection forbids a replacement authorization export"
+                )
+            verify_fire_submission_ready(
+                config_path, run_dir, "fire-pilot", require_unused=False
+            )
+        else:
+            if (
+                not isinstance(recorded_replacement_sha, str)
+                or re.fullmatch(r"[0-9a-f]{64}", recorded_replacement_sha) is None
+                or exported_replacement_sha != recorded_replacement_sha
+            ):
+                raise CampaignError(
+                    "replacement FIRE collection requires its exact submitted authorization SHA256"
+                )
+            verify_infrastructure_replacement_authorization(
+                config_path,
+                run_dir,
+                require_unused=False,
+                expected_authorization_sha256=recorded_replacement_sha,
+                replacement_attempt_id=primary_attempt_id,
+                allow_primary_attempt=True,
+                replacement_collector_attempt_id=current_attempt.name,
+            )
     else:
         verify_upstream_manifest(
             config,
@@ -5675,8 +5716,9 @@ def command_collect(
             run_dir,
             stage="preflight" if primary_stage == "force" else "structure",
         )
-    current_attempt = attempt_dir(run_dir)
-    reject_symlinks_below(run_dir, current_attempt, "collector Slurm attempt")
+    if current_attempt is None:
+        current_attempt = attempt_dir(run_dir)
+        reject_symlinks_below(run_dir, current_attempt, "collector Slurm attempt")
     accounting_path = strict_run_descendant(
         run_dir,
         scheduler_accounting,

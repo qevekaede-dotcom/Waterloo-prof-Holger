@@ -278,7 +278,17 @@ def submission_lock(run_dir: Path, stage: str) -> Iterable[None]:
             fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
-def resolve_context(config_path: Path, run_dir: Path, stage: str) -> SubmissionContext:
+def resolve_context(
+    config_path: Path,
+    run_dir: Path,
+    stage: str,
+    *,
+    infrastructure_replacement: bool = False,
+) -> SubmissionContext:
+    if infrastructure_replacement and stage != "fire-pilot":
+        raise SubmissionError(
+            "infrastructure replacement is restricted to fire-pilot"
+        )
     config_path = config_path.resolve()
     if not config_path.is_file():
         raise SubmissionError(f"campaign config does not exist: {config_path}")
@@ -296,12 +306,31 @@ def resolve_context(config_path: Path, run_dir: Path, stage: str) -> SubmissionC
                 f"reviewed diagnostic lineage is not submission-ready: {exc}"
             ) from exc
     elif stage in {"fire-pilot", "fire-full"}:
-        from fire_recovery import verify_fire_submission_ready
+        from fire_recovery import (
+            verify_fire_submission_ready,
+            verify_infrastructure_replacement_authorization,
+        )
         try:
-            ready = verify_fire_submission_ready(config_path, run_dir, stage)
+            if infrastructure_replacement:
+                if stage != "fire-pilot":
+                    raise CampaignError(
+                        "infrastructure replacement is restricted to fire-pilot"
+                    )
+                ready = verify_infrastructure_replacement_authorization(
+                    config_path, run_dir, require_unused=True
+                )
+            else:
+                ready = verify_fire_submission_ready(config_path, run_dir, stage)
         except (CampaignError, OSError, ValueError, KeyError) as exc:
             raise SubmissionError(f"FIRE lineage is not submission-ready: {exc}") from exc
-        manifest = {"material": ready["material"], "fire_lineage_sha256": ready["lineage_sha256"]}
+        manifest = {
+            "material": ready.get("material", config["material"]["formula"]),
+            "fire_lineage_sha256": ready["lineage_sha256"],
+        }
+        if infrastructure_replacement:
+            manifest["fire_replacement_sha256"] = ready[
+                "authorization_sha256"
+            ]
     elif stage == "relax":
         policy_stage = "structure"
         manifest = verify_manifest(config, config_path, run_dir, stage=policy_stage)
@@ -1336,7 +1365,12 @@ def stage_plan(
     candidate_ids: Sequence[str] | None = None,
     retry_collection: Path | None = None,
     expected_retry_collection_sha256: str | None = None,
+    infrastructure_replacement: bool = False,
 ) -> StagePlan:
+    if infrastructure_replacement and stage != "fire-pilot":
+        raise SubmissionError(
+            "infrastructure replacement is restricted to fire-pilot"
+        )
     if stage not in STAGE_SCRIPTS:
         raise SubmissionError(f"unsupported stage: {stage}")
     if not ATTEMPT_RE.fullmatch(attempt_id):
@@ -1416,9 +1450,23 @@ def stage_plan(
             Path(__file__).resolve().with_name("polish_recovery.py")
         )
     elif stage in {"fire-pilot", "fire-full"}:
-        from fire_recovery import verify_fire_submission_ready
+        from fire_recovery import (
+            verify_fire_submission_ready,
+            verify_infrastructure_replacement_authorization,
+        )
         try:
-            ready = verify_fire_submission_ready(context.config_path, context.run_dir, stage)
+            if infrastructure_replacement:
+                if stage != "fire-pilot":
+                    raise CampaignError(
+                        "infrastructure replacement is restricted to fire-pilot"
+                    )
+                ready = verify_infrastructure_replacement_authorization(
+                    context.config_path, context.run_dir, require_unused=True
+                )
+            else:
+                ready = verify_fire_submission_ready(
+                    context.config_path, context.run_dir, stage
+                )
         except (CampaignError, OSError, ValueError, KeyError) as exc:
             raise SubmissionError(f"FIRE lineage is not ready: {exc}") from exc
         resources = required(context.config, "reviewed_fire_recovery.resources")
@@ -1429,6 +1477,10 @@ def stage_plan(
         exports["P3_FIRE_RELEASE_SHA256"] = ready["release_sha256"]
         exports["P3_GIT_COMMIT"] = ready["git_commit"]
         exports["P3_FIRE_REQUESTED_WALLTIME_MINUTES"] = "120" if stage == "fire-pilot" else "720"
+        if infrastructure_replacement:
+            exports["P3_FIRE_REPLACEMENT_SHA256"] = ready[
+                "authorization_sha256"
+            ]
     elif stage == "relax":
         if context.manifest.get("accepted_structure_import") is not None:
             raise SubmissionError(
@@ -1572,6 +1624,7 @@ def export_argument(exports: Mapping[str, str]) -> str:
         "P3_FIRE_RECOVERY_SHA256",
         "P3_FIRE_LINEAGE_SHA256",
         "P3_FIRE_RELEASE_SHA256",
+        "P3_FIRE_REPLACEMENT_SHA256",
         "P3_GIT_COMMIT",
         "P3_FIRE_REQUESTED_WALLTIME_MINUTES",
         "PRIMARY_STAGE",
@@ -1820,6 +1873,7 @@ def plan_report(
     candidate_ids: Sequence[str] | None = None,
     retry_collection: Path | None = None,
     expected_retry_collection_sha256: str | None = None,
+    infrastructure_replacement: bool = False,
 ) -> dict[str, Any]:
     preview = stage_plan(
         context,
@@ -1830,11 +1884,12 @@ def plan_report(
         candidate_ids=candidate_ids,
         retry_collection=retry_collection,
         expected_retry_collection_sha256=expected_retry_collection_sha256,
+        infrastructure_replacement=infrastructure_replacement,
     )
     preview_command = None if stage == "fire-full" else sbatch_command(preview)
-    return {
+    report = {
         "healthy": True,
-        "mode": "plan",
+        "mode": "plan-replacement" if infrastructure_replacement else "plan",
         "stage": stage,
         "material": context.manifest.get("material"),
         "config": str(context.config_path),
@@ -1872,6 +1927,16 @@ def plan_report(
             "for every sbatch call."
         ),
     }
+    if infrastructure_replacement:
+        report["fire_replacement_sha256"] = preview.exports[
+            "P3_FIRE_REPLACEMENT_SHA256"
+        ]
+        report["execute_requirement"] = (
+            "Run execute-replacement with both exact config_sha256 and "
+            "fire_replacement_sha256 from this plan; the immutable replacement "
+            "slot is consumed before the first sbatch invocation."
+        )
+    return report
 
 
 def _request_record(
@@ -1890,7 +1955,7 @@ def _request_record(
         ]
     if plan.stage in {"fire-pilot", "fire-full"}:
         workflow_sha256["fire_recovery.py"] = plan.exports["P3_FIRE_RECOVERY_SHA256"]
-    return {
+    record = {
         "created_utc": utc_now(),
         "stage": plan.stage,
         "attempt_id": plan.exports["ATTEMPT_ID"],
@@ -1946,6 +2011,10 @@ def _request_record(
         ),
         "command": list(command),
     }
+    replacement_sha256 = plan.exports.get("P3_FIRE_REPLACEMENT_SHA256")
+    if replacement_sha256 is not None:
+        record["fire_replacement_sha256"] = replacement_sha256
+    return record
 
 
 def execute_submission(
@@ -1973,6 +2042,26 @@ def execute_submission(
     )
 
 
+def execute_infrastructure_replacement(
+    context: SubmissionContext,
+    *,
+    expected_config_sha: str,
+    expected_replacement_authorization_sha: str,
+) -> dict[str, Any]:
+    """Submit only the reviewed one-shot pre-QE FIRE replacement."""
+    return _execute_locked(
+        context,
+        "fire-pilot",
+        expected_config_sha=expected_config_sha,
+        task_map=None,
+        max_in_flight=None,
+        expected_replacement_authorization_sha=(
+            expected_replacement_authorization_sha
+        ),
+        infrastructure_replacement=True,
+    )
+
+
 def _guard_submission_entry(func):
     """Apply login, exact-config and file-lock gates to every callable entry.
 
@@ -1991,12 +2080,31 @@ def _guard_submission_entry(func):
         expected_candidate_subset_sha: str | None = None,
         retry_collection: Path | None = None,
         expected_retry_collection_sha256: str | None = None,
+        expected_replacement_authorization_sha: str | None = None,
+        infrastructure_replacement: bool = False,
     ) -> dict[str, Any]:
         if stage == "fire-full":
             raise SubmissionError(
                 "FIRE execution is hard-locked: independent lineage replay and execution receipt verification are not implemented"
             )
         require_nibi_login()
+        if infrastructure_replacement:
+            if stage != "fire-pilot":
+                raise SubmissionError(
+                    "infrastructure replacement is restricted to fire-pilot"
+                )
+            if (
+                not isinstance(expected_replacement_authorization_sha, str)
+                or SHA256_RE.fullmatch(expected_replacement_authorization_sha)
+                is None
+            ):
+                raise SubmissionError(
+                    "execute-replacement requires the exact replacement authorization SHA256"
+                )
+        elif expected_replacement_authorization_sha is not None:
+            raise SubmissionError(
+                "replacement authorization is forbidden for ordinary execute"
+            )
         if not isinstance(expected_config_sha, str) or not SHA256_RE.fullmatch(
             expected_config_sha
         ):
@@ -2049,6 +2157,10 @@ def _guard_submission_entry(func):
                 expected_candidate_subset_sha=expected_candidate_subset_sha,
                 retry_collection=retry_collection,
                 expected_retry_collection_sha256=expected_retry_collection_sha256,
+                expected_replacement_authorization_sha=(
+                    expected_replacement_authorization_sha
+                ),
+                infrastructure_replacement=infrastructure_replacement,
             )
 
     return guarded
@@ -2066,8 +2178,11 @@ def _execute_locked(
     expected_candidate_subset_sha: str | None = None,
     retry_collection: Path | None = None,
     expected_retry_collection_sha256: str | None = None,
+    expected_replacement_authorization_sha: str | None = None,
+    infrastructure_replacement: bool = False,
 ) -> dict[str, Any]:
-    ensure_no_active_duplicate(context.run_dir, stage)
+    if not infrastructure_replacement:
+        ensure_no_active_duplicate(context.run_dir, stage)
 
     attempt_id = new_attempt_id(stage)
     plan = stage_plan(
@@ -2079,7 +2194,15 @@ def _execute_locked(
         candidate_ids=candidate_ids,
         retry_collection=retry_collection,
         expected_retry_collection_sha256=expected_retry_collection_sha256,
+        infrastructure_replacement=infrastructure_replacement,
     )
+    if (
+        plan.exports.get("P3_FIRE_REPLACEMENT_SHA256")
+        != expected_replacement_authorization_sha
+    ):
+        raise SubmissionError(
+            "replacement authorization SHA256 changed or was not copied from the current plan; nothing submitted"
+        )
     if plan.candidate_subset_sha256 != expected_candidate_subset_sha:
         raise SubmissionError(
             "preflight candidate subset SHA256 changed or was not copied from the current plan; nothing submitted"
@@ -2143,6 +2266,15 @@ def _execute_locked(
             "attempt_id": attempt_id,
             "job_id": primary_job_id,
             "config_sha256": context.config_sha256,
+            **(
+                {
+                    "fire_replacement_sha256": plan.exports[
+                        "P3_FIRE_REPLACEMENT_SHA256"
+                    ]
+                }
+                if infrastructure_replacement
+                else {}
+            ),
         },
     )
 
@@ -2249,6 +2381,15 @@ def _execute_locked(
                 "fire_requested_walltime_minutes": collector_exports.get(
                     "P3_FIRE_REQUESTED_WALLTIME_MINUTES"
                 ),
+                **(
+                    {
+                        "fire_replacement_sha256": collector_exports[
+                            "P3_FIRE_REPLACEMENT_SHA256"
+                        ]
+                    }
+                    if infrastructure_replacement
+                    else {}
+                ),
                 "git_commit": collector_exports.get("P3_GIT_COMMIT"),
                 "dependency": f"afterany:{primary_job_id}",
                 "command": collector_command,
@@ -2281,6 +2422,15 @@ def _execute_locked(
                 "primary_attempt_id": attempt_id,
                 "primary_job_id": primary_job_id,
                 "config_sha256": context.config_sha256,
+                **(
+                    {
+                        "fire_replacement_sha256": plan.exports[
+                            "P3_FIRE_REPLACEMENT_SHA256"
+                        ]
+                    }
+                    if infrastructure_replacement
+                    else {}
+                ),
             },
         )
         if stage == "fire-pilot" or plan.hold_primary:
@@ -2312,6 +2462,10 @@ def _execute_locked(
                     "workflow_sha256"
                 ],
             }
+            if infrastructure_replacement:
+                attachment["fire_replacement_sha256"] = plan.exports[
+                    "P3_FIRE_REPLACEMENT_SHA256"
+                ]
             if plan.hold_primary:
                 attachment.update(
                     force_manifest_sha256=plan.force_manifest_sha256,
@@ -2364,6 +2518,15 @@ def _execute_locked(
                     "primary_job_id": primary_job_id,
                     "collector_attachment_sha256": sha256_path(
                         record_dir / "collector_attachment.json"
+                    ),
+                    **(
+                        {
+                            "fire_replacement_sha256": plan.exports[
+                                "P3_FIRE_REPLACEMENT_SHA256"
+                            ]
+                        }
+                        if infrastructure_replacement
+                        else {}
                     ),
                 },
             )
@@ -2422,6 +2585,10 @@ def _execute_locked(
         ),
         "record_dir": str(record_dir),
     }
+    if infrastructure_replacement:
+        summary["fire_replacement_sha256"] = plan.exports[
+            "P3_FIRE_REPLACEMENT_SHA256"
+        ]
     write_json_exclusive(record_dir / "submission.json", summary)
     return summary
 
@@ -2458,6 +2625,19 @@ def build_parser() -> argparse.ArgumentParser:
         if mode == "execute":
             subparser.add_argument("--expect-config-sha", required=True)
             subparser.add_argument("--expect-candidate-subset-sha")
+    authorize = subparsers.add_parser("authorize-replacement")
+    authorize.add_argument("--config", type=Path, required=True)
+    authorize.add_argument("--run-dir", type=Path, required=True)
+    replacement_plan = subparsers.add_parser("plan-replacement")
+    replacement_plan.add_argument("--config", type=Path, required=True)
+    replacement_plan.add_argument("--run-dir", type=Path, required=True)
+    replacement_execute = subparsers.add_parser("execute-replacement")
+    replacement_execute.add_argument("--config", type=Path, required=True)
+    replacement_execute.add_argument("--run-dir", type=Path, required=True)
+    replacement_execute.add_argument("--expect-config-sha", required=True)
+    replacement_execute.add_argument(
+        "--expect-replacement-authorization-sha", required=True
+    )
     return parser
 
 
@@ -2468,7 +2648,24 @@ def print_json(value: object) -> None:
 def main(argv: Iterable[str] | None = None) -> int:
     args = build_parser().parse_args(list(argv) if argv is not None else None)
     try:
-        context = resolve_context(args.config, args.run_dir, args.stage)
+        if args.mode == "authorize-replacement":
+            from fire_recovery import create_infrastructure_replacement_authorization
+
+            result = create_infrastructure_replacement_authorization(
+                args.config, args.run_dir
+            )
+            print_json(result)
+            return 0
+        infrastructure_replacement = args.mode in {
+            "plan-replacement", "execute-replacement"
+        }
+        stage = "fire-pilot" if infrastructure_replacement else args.stage
+        context = resolve_context(
+            args.config,
+            args.run_dir,
+            stage,
+            infrastructure_replacement=infrastructure_replacement,
+        )
         if args.mode == "plan":
             result = plan_report(
                 context,
@@ -2479,7 +2676,7 @@ def main(argv: Iterable[str] | None = None) -> int:
                 retry_collection=args.retry_collection,
                 expected_retry_collection_sha256=args.expect_retry_collection_sha,
             )
-        else:
+        elif args.mode == "execute":
             result = execute_submission(
                 context,
                 args.stage,
@@ -2490,6 +2687,22 @@ def main(argv: Iterable[str] | None = None) -> int:
                 expected_candidate_subset_sha=args.expect_candidate_subset_sha,
                 retry_collection=args.retry_collection,
                 expected_retry_collection_sha256=args.expect_retry_collection_sha,
+            )
+        elif args.mode == "plan-replacement":
+            result = plan_report(
+                context,
+                "fire-pilot",
+                task_map=None,
+                max_in_flight=None,
+                infrastructure_replacement=True,
+            )
+        else:
+            result = execute_infrastructure_replacement(
+                context,
+                expected_config_sha=args.expect_config_sha,
+                expected_replacement_authorization_sha=(
+                    args.expect_replacement_authorization_sha
+                ),
             )
         print_json(result)
         return 0

@@ -35,6 +35,8 @@ PILOT_RELEASE = "fire_pilot_execution_release.json"
 PILOT_GATE = "fire_pilot_gate.json"
 PILOT_PROVENANCE = "fire_pilot_provenance.json"
 GLOBAL_CLAIM_DIRECTORY = ".p3-fire-pilot-claims-v1"
+INFRASTRUCTURE_REPLACEMENT = "infrastructure_replacement_authorization_v1.json"
+REPLACEMENT_SUBMISSION_STAGE = "fire-pilot-infrastructure-replacement"
 EXECUTION_POLICY_VERSION = 1
 REQUIRED_SEED_FILES = (
     "polish_reference.in",
@@ -52,6 +54,9 @@ _TRUSTED_HISTORICAL_CONFIG_CANONICAL_SHA256 = "655cfa0efd216faf5a0ce35e73cf271d3
 _TRUSTED_HISTORICAL_COMMIT = "cf0b1d1be318725015ed5d05f4ee3fb63d0fb89d"
 _POLISH_LINEAGE_RECEIPT = "polish_lineage.json"
 _OLD_RUN_MANIFEST = "run_manifest.json"
+_PINNED_NIBI_GIT = "/cvmfs/soft.computecanada.ca/gentoo/2023/x86-64-v3/usr/bin/git"
+_PINNED_NIBI_GIT_SHA256 = "fee0fa5192046d970b854cc2a99a6c7fcc50d8ffedb453ad0c1f9294a2d796ea"
+_PINNED_NIBI_GIT_VERSION = "git version 2.41.0"
 
 # Code-owned trust root for the one real Rb lineage already replayed on Nibi.
 # A mutable campaign file may not redefine which historical run or evidence
@@ -77,6 +82,55 @@ TRUSTED_FAILED_RELAX_OUTPUT = (
 TRUSTED_LATER_COLLECTION = (
     "slurm_attempts/collect/20260913T133539Z-collect-6d5ba984/collection.json"
 )
+
+# Code-owned incident record for the sole Nibi FIRE submission.  It reached
+# neither p3_begin_attempt nor QE because the batch PATH could not resolve git.
+# These are raw readback digests, not values accepted from a caller JSON file.
+TRUSTED_STARTUP_INCIDENT: dict[str, Any] = {
+    "run_dir": "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-pilot-a85bd00/Rb2Cu2SnS4",
+    "checkout": "/scratch/yuhansun/codex-verify-a85bd00",
+    "git_commit": "a85bd00941a8958568b0b8dfa656a5ef620eed3b",
+    "config_relative": "thermo_candidates/Rb2Cu2SnS4/phono3py/campaign.json",
+    "config_sha256": "d0ba760f3e65ba65044ccc6e5c3a1987a38014d3b4c1113ddb0ace58c9bcd0a3",
+    "primary_attempt_id": "20260913T195903Z-fire-pilot-dc37f8bb",
+    "primary_job_id": "21864180",
+    "collector_attempt_id": "20260913T195903Z-collect-e4818b79",
+    "collector_job_id": "21864181",
+    "hashes": {
+        "global_claim": "5bdbef2c526aec1fee263538040c2070c966239fe93ca5f7ae5b6296c99de493",
+        "fire_lineage_receipt.json": "4f1b29ce0b400c409914ca1db6954b89738a2a2219da44ce12776bf3357cae18",
+        "fire_pilot_execution_release.json": "347677c8c959b7dc337956bfc345227d5ce7e79ba47b29c5ee544f1d72ecba2d",
+        "fire_seed.in": "b2f919f7af04a0fd93400e2e5cd021bb489947e245e3d834694167bf2ded714f",
+        "request.json": "d689f6a82e1c11b8ae213bb0f3103236eccd62459e0e267f2d3a4663c3d50c93",
+        "primary_result.json": "6a6175efd627f387897a49711cb2329b8e9d650d17f3a8dc84ab3f5cded2d044",
+        "collector_request.json": "7d910a2efa1c13a8947545932edb0c5c03d3108a8b61a18e8cef9cd6cf50dd10",
+        "collector_result.json": "79a943bd50be96687dc066dacfa44f3a770aeaedbe48751e25640bb4da48034b",
+        "collector_attachment.json": "d162178848a323249be2ddb9cdd91d9ae6759a30af6190ebfb7ee020e4b9cf3e",
+        "primary_release.json": "03111e053760603ba06d9e68adecbdd70c8b1323757aef0c8c1a828a22935cc1",
+        "submission.json": "ae40fd87e330cd9016afc5d4a5345c930634710592415c70c6f0a18d10444632",
+        "collector/context.tsv": "4c30ae4e5ebace93aac0f9dcbeac44f2c554f7c1e8413d1f7e766eccc6dee957",
+        "collector/stdout.log": "b069c620b3e6c6a883e5cebd0b43ceb5649be63a84d2a37837a9f4f46222ebf9",
+        "collector/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "collector/exit_code.txt": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
+        "collector/finished_utc.txt": "bec78859d13f59c2c00b67a442a7ff76002f51d3083af5bcd475d785fc13f1b7",
+        "collector/primary_sacct.psv": "41918bc8091a1502f8755a550aa94bd1ef3b3a80c8b47fabbebd387a10ddee10",
+        "collector/primary_sacct-query-01.psv": "41918bc8091a1502f8755a550aa94bd1ef3b3a80c8b47fabbebd387a10ddee10",
+        "collector/primary_sacct.err": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "collector/primary_sacct-query-01.err": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "collector/primary_sacct_exit_code.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "collector/primary_sacct_query_count.txt": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "primary_scheduler_log": "8b0f19ae5ceef8971891d101eb6664291d7e033923753268500c44028a6553d5",
+        "collector_scheduler_log": "b069c620b3e6c6a883e5cebd0b43ceb5649be63a84d2a37837a9f4f46222ebf9",
+    },
+    "primary_allocation": "21864180|FAILED|2:0|4|32||def-kleinke_cpu|cpubase_bycore_b2|1|32|62.50G|120",
+    "collector_allocation": "21864181|FAILED|2:0|5|1||def-kleinke_cpu|cpubase_bycore_b2|1|1|4G|30",
+    "primary_scheduler_text": "/var/spool/slurmd/job21864180/slurm_script: line 32: git: command not found\nERROR: FIRE pilot checkout commit differs from the released lineage\n",
+}
+if any(
+    re.fullmatch(r"[0-9a-f]{64}", str(value)) is None
+    for value in TRUSTED_STARTUP_INCIDENT["hashes"].values()
+):
+    raise RuntimeError("TRUSTED_STARTUP_INCIDENT contains a non-SHA256 digest")
 
 
 def _archived_source_relative(name: str) -> str:
@@ -128,10 +182,10 @@ def _strict_regular(root: Path, relative: str) -> Path:
     return path
 
 
-def _load_strict_json_snapshot(
+def _load_strict_bytes_snapshot(
     root: Path, relative: str, label: str
-) -> tuple[dict[str, Any], str]:
-    """Hash and parse one immutable byte snapshot from one no-follow fd."""
+) -> tuple[bytes, str]:
+    """Hash one immutable byte snapshot from one no-follow fd."""
     path = _strict_regular(root, relative)
     try:
         path_before = os.lstat(path)
@@ -182,13 +236,21 @@ def _load_strict_json_snapshot(
     data = b"".join(chunks)
     if len(data) != after.st_size:
         raise core.CampaignError(f"trusted {label} byte count changed while reading: {path}")
+    return data, hashlib.sha256(data).hexdigest()
+
+
+def _load_strict_json_snapshot(
+    root: Path, relative: str, label: str
+) -> tuple[dict[str, Any], str]:
+    """Hash and parse the same strict single-open byte snapshot."""
+    data, digest = _load_strict_bytes_snapshot(root, relative, label)
     try:
         value = json.loads(data.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise core.CampaignError(f"trusted {label} is not valid UTF-8 JSON: {path}") from exc
+        raise core.CampaignError(f"trusted {label} is not valid UTF-8 JSON") from exc
     if not isinstance(value, dict):
-        raise core.CampaignError(f"trusted {label} JSON root is not an object: {path}")
-    return value, hashlib.sha256(data).hexdigest()
+        raise core.CampaignError(f"trusted {label} JSON root is not an object")
+    return value, digest
 
 
 def _write_json(path: Path, value: object) -> None:
@@ -333,8 +395,43 @@ def _workflow_hashes() -> dict[str, str]:
 
 
 def _git_commit() -> str:
+    executable = "git"
+    if os.environ.get("SLURM_JOB_ID"):
+        executable = os.environ.get("P3_GIT", "")
+        if (
+            executable != _PINNED_NIBI_GIT
+            or os.environ.get("P3_GIT_SHA256") != _PINNED_NIBI_GIT_SHA256
+            or os.environ.get("P3_GIT_VERSION") != _PINNED_NIBI_GIT_VERSION
+        ):
+            raise core.CampaignError("Slurm FIRE replay requires the exact pinned Nibi git")
+        git_path = Path(executable)
+        try:
+            git_stat = os.lstat(git_path)
+        except OSError as exc:
+            raise core.CampaignError("pinned Nibi git is unavailable") from exc
+        if (
+            stat.S_ISLNK(git_stat.st_mode)
+            or not stat.S_ISREG(git_stat.st_mode)
+            or not os.access(git_path, os.X_OK)
+        ):
+            raise core.CampaignError("pinned Nibi git is unsafe or not executable")
+        data, digest = _load_strict_bytes_snapshot(
+            Path("/"), executable.lstrip("/"), "pinned Nibi git"
+        )
+        del data
+        if digest != _PINNED_NIBI_GIT_SHA256:
+            raise core.CampaignError("pinned Nibi git digest drift")
+        version = subprocess.run(
+            [executable, "--version"], text=True, capture_output=True, check=False
+        )
+        if (
+            version.returncode != 0
+            or version.stdout.strip() != _PINNED_NIBI_GIT_VERSION
+            or version.stderr
+        ):
+            raise core.CampaignError("pinned Nibi git version drift")
     value = subprocess.run(
-        ["git", "-C", str(core.REPO_ROOT), "rev-parse", "HEAD"],
+        [executable, "-C", str(core.REPO_ROOT), "rev-parse", "HEAD"],
         text=True,
         capture_output=True,
         check=False,
@@ -436,6 +533,590 @@ def _verify_global_claim(
     ):
         raise core.CampaignError("FIRE global claim binding drift")
     return expected_path, dict(claim)
+
+
+def _replacement_authorization_path(
+    config: Mapping[str, Any], run_dir: Path
+) -> Path:
+    binding = _policy(config)["trusted_old_lineage"]
+    assert isinstance(binding, Mapping)
+    claim_path = _global_claim_path(Path(str(binding["run_dir"])), binding)
+    return claim_path.parent / INFRASTRUCTURE_REPLACEMENT
+
+
+def _require_snapshot_hash(
+    root: Path,
+    relative: str,
+    label: str,
+    expected_sha256: str,
+    *,
+    json_object: bool = False,
+) -> bytes | dict[str, Any]:
+    if re.fullmatch(r"[0-9a-f]{64}", expected_sha256) is None:
+        raise core.CampaignError(f"code-owned {label} SHA256 is invalid")
+    if json_object:
+        value, digest = _load_strict_json_snapshot(root, relative, label)
+    else:
+        value, digest = _load_strict_bytes_snapshot(root, relative, label)
+    if digest != expected_sha256:
+        raise core.CampaignError(f"trusted FIRE startup incident hash drift: {label}")
+    return value
+
+
+def _context_snapshot_fields(data: bytes, label: str) -> dict[str, str]:
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise core.CampaignError(f"trusted {label} is not UTF-8") from exc
+    fields: dict[str, str] = {}
+    for line in text.splitlines():
+        if "\t" not in line:
+            raise core.CampaignError(f"trusted {label} is malformed")
+        key, value = line.split("\t", 1)
+        if not key or key in fields:
+            raise core.CampaignError(f"trusted {label} has duplicate/empty keys")
+        fields[key] = value
+    return fields
+
+
+def _query_exact_incident_scheduler_rows(
+    incident: Mapping[str, Any],
+) -> dict[str, str]:
+    """Read-only reconciliation of the two terminal Nibi allocations."""
+    primary_job_id = str(incident["primary_job_id"])
+    collector_job_id = str(incident["collector_job_id"])
+    command = [
+        "/opt/software/slurm/bin/sacct", "--jobs",
+        f"{primary_job_id},{collector_job_id}", "--noheader", "--parsable2",
+        "--format=JobID,State,ExitCode,ElapsedRaw,AllocCPUS,MaxRSS,Account,Partition,NNodes,NCPUS,ReqMem,TimelimitRaw",
+    ]
+    try:
+        completed = subprocess.run(
+            command, text=True, capture_output=True, check=False
+        )
+    except OSError as exc:
+        raise core.CampaignError("cannot invoke pinned sacct for FIRE incident") from exc
+    if completed.returncode != 0 or completed.stderr:
+        raise core.CampaignError("pinned sacct could not reconcile the FIRE incident")
+    rows: dict[str, str] = {}
+    for line in completed.stdout.splitlines():
+        job_id = line.split("|", 1)[0]
+        if job_id in {primary_job_id, collector_job_id}:
+            if job_id in rows:
+                raise core.CampaignError("duplicate FIRE incident allocation row")
+            rows[job_id] = line
+    expected = {
+        primary_job_id: str(incident["primary_allocation"]),
+        collector_job_id: str(incident["collector_allocation"]),
+    }
+    if rows != expected:
+        raise core.CampaignError(
+            "FIRE incident scheduler rows differ from reviewed terminal evidence"
+        )
+    return rows
+
+
+def _authenticate_startup_incident(
+    config_path: Path,
+    run_dir: Path,
+    *,
+    query_scheduler: bool,
+    replacement_attempt_id: str | None = None,
+    allow_primary_attempt: bool = False,
+    replacement_collector_attempt_id: str | None = None,
+) -> dict[str, Any]:
+    """Replay the sole pre-QE Nibi failure from exact single-open evidence."""
+    config_path = config_path.resolve(strict=True)
+    config, validation = core.validate_config(config_path)
+    validate_fire_policy(config)
+    incident = TRUSTED_STARTUP_INCIDENT
+    hashes = incident.get("hashes")
+    if not isinstance(hashes, Mapping) or any(
+        re.fullmatch(r"[0-9a-f]{64}", str(value)) is None
+        for value in hashes.values()
+    ):
+        raise core.CampaignError(
+            "code-owned FIRE startup-incident hash inventory is invalid"
+        )
+    _reject_existing_ancestor_symlinks(run_dir, "incident RUN_DIR")
+    run_dir = core.safe_run_dir(run_dir)
+    if str(run_dir) != incident.get("run_dir"):
+        raise core.CampaignError(
+            "infrastructure replacement is restricted to the exact failed FIRE RUN_DIR"
+        )
+    if validation["config_sha256"] != incident.get("config_sha256"):
+        raise core.CampaignError(
+            "FIRE replacement config differs from the reviewed incident config"
+        )
+
+    binding = _policy(config)["trusted_old_lineage"]
+    assert isinstance(binding, Mapping)
+    claim_path = _global_claim_path(Path(str(binding["run_dir"])), binding)
+    claim = _require_snapshot_hash(
+        claim_path.parent, "claim.json", "global claim",
+        str(hashes["global_claim"]), json_object=True,
+    )
+    lineage = _require_snapshot_hash(
+        run_dir, LINEAGE, "FIRE lineage", str(hashes[LINEAGE]), json_object=True
+    )
+    release = _require_snapshot_hash(
+        run_dir, PILOT_RELEASE, "FIRE pilot release",
+        str(hashes[PILOT_RELEASE]), json_object=True,
+    )
+    seed = _require_snapshot_hash(
+        run_dir, "fire_seed.in", "frozen FIRE seed",
+        str(hashes["fire_seed.in"]),
+    )
+    assert isinstance(claim, dict) and isinstance(lineage, dict)
+    assert isinstance(release, dict) and isinstance(seed, bytes)
+    primary_attempt_id = str(incident["primary_attempt_id"])
+    primary_job_id = str(incident["primary_job_id"])
+    collector_attempt_id = str(incident["collector_attempt_id"])
+    collector_job_id = str(incident["collector_job_id"])
+    if (
+        claim.get("authorized_run_dir") != str(run_dir)
+        or claim.get("fire_lineage_sha256") != hashes[LINEAGE]
+        or claim.get("trusted_old_lineage") != dict(binding)
+        or claim.get("maximum_lineages") != 1
+        or any(claim.get(key) is not False for key in (
+            "structure_accepted", "preflight_unlocked", "full_execution_released"
+        ))
+        or lineage.get("trusted_old_lineage") != dict(binding)
+        or lineage.get("seed_sha256") != hashes["fire_seed.in"]
+        or hashes["fire_seed.in"] != binding["reference_sha256"]
+        or lineage.get("global_claim_path") != str(claim_path)
+        or release.get("fire_lineage_sha256") != hashes[LINEAGE]
+        or release.get("global_claim_sha256") != hashes["global_claim"]
+        or release.get("config_sha256") != incident["config_sha256"]
+        or release.get("git_commit") != incident["git_commit"]
+        or release.get("resources") != {
+            "account": "def-kleinke_cpu", "partition": "cpubase_bycore_b2",
+            "nodes": 1, "ntasks": 32, "cpus_per_task": 1,
+            "mem_per_cpu_mb": 2000, "walltime_minutes": 120,
+        }
+        or any(release.get(name) is not False for name in (
+            "structure_accepted", "preflight_unlocked", "full_execution_released",
+            "force_execution_released", "production_execution_released",
+        ))
+    ):
+        raise core.CampaignError("trusted FIRE claim/lineage/release relation drift")
+
+    submission_root = _strict_dir(run_dir, "submissions/fire-pilot")
+    submission_entries = {item.name for item in submission_root.iterdir()}
+    allowed_submission_entries = {primary_attempt_id, ".submission.lock"}
+    if replacement_attempt_id is not None:
+        if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}", replacement_attempt_id) is None:
+            raise core.CampaignError("invalid FIRE replacement attempt identity")
+        allowed_submission_entries.add(replacement_attempt_id)
+    if submission_entries - allowed_submission_entries or primary_attempt_id not in submission_entries or (
+        replacement_attempt_id is not None and replacement_attempt_id not in submission_entries
+    ):
+        raise core.CampaignError(
+            "FIRE incident does not contain exactly one original submission"
+        )
+    submission = _strict_dir(
+        run_dir, f"submissions/fire-pilot/{primary_attempt_id}"
+    )
+    submission_names = {
+        "request.json", "primary_result.json", "collector_request.json",
+        "collector_result.json", "collector_attachment.json",
+        "primary_release.json", "submission.json",
+    }
+    if {item.name for item in submission.iterdir()} != submission_names:
+        raise core.CampaignError("FIRE incident submission record schema drift")
+    records: dict[str, dict[str, Any]] = {}
+    for name in sorted(submission_names):
+        value = _require_snapshot_hash(
+            submission, name, f"original {name}", str(hashes[name]),
+            json_object=True,
+        )
+        assert isinstance(value, dict)
+        records[name] = value
+    request = records["request.json"]
+    primary_result = records["primary_result.json"]
+    collector_request = records["collector_request.json"]
+    collector_result = records["collector_result.json"]
+    attachment = records["collector_attachment.json"]
+    primary_release = records["primary_release.json"]
+    summary = records["submission.json"]
+    original_config_path = str(
+        Path(str(incident["checkout"])) / str(incident["config_relative"])
+    )
+    if (
+        request.get("stage") != "fire-pilot"
+        or request.get("attempt_id") != primary_attempt_id
+        or request.get("run_dir") != str(run_dir)
+        or request.get("config_sha256") != incident["config_sha256"]
+        or request.get("config") != original_config_path
+        or request.get("git_commit") != incident["git_commit"]
+        or primary_result.get("stage") != "fire-pilot"
+        or primary_result.get("attempt_id") != primary_attempt_id
+        or str(primary_result.get("job_id")) != primary_job_id
+        or primary_result.get("returncode") != 0
+        or not _sbatch_stdout_matches_job(primary_result.get("stdout"), primary_job_id)
+        or primary_result.get("stderr") != ""
+        or primary_result.get("command") != request.get("command")
+        or collector_request.get("stage") != "collect"
+        or collector_request.get("attempt_id") != collector_attempt_id
+        or collector_request.get("primary_attempt_id") != primary_attempt_id
+        or str(collector_request.get("primary_job_id")) != primary_job_id
+        or collector_request.get("primary_request_sha256") != hashes["request.json"]
+        or collector_request.get("primary_result_sha256") != hashes["primary_result.json"]
+        or collector_request.get("dependency") != f"afterany:{primary_job_id}"
+        or collector_request.get("git_commit") != incident["git_commit"]
+        or collector_result.get("attempt_id") != collector_attempt_id
+        or str(collector_result.get("job_id")) != collector_job_id
+        or collector_result.get("primary_attempt_id") != primary_attempt_id
+        or str(collector_result.get("primary_job_id")) != primary_job_id
+        or collector_result.get("returncode") != 0
+        or not _sbatch_stdout_matches_job(collector_result.get("stdout"), collector_job_id)
+        or collector_result.get("stderr") != ""
+        or collector_result.get("command") != collector_request.get("command")
+        or attachment.get("primary_attempt_id") != primary_attempt_id
+        or str(attachment.get("primary_job_id")) != primary_job_id
+        or attachment.get("collector_attempt_id") != collector_attempt_id
+        or str(attachment.get("collector_job_id")) != collector_job_id
+        or attachment.get("primary_request_sha256") != hashes["request.json"]
+        or attachment.get("primary_result_sha256") != hashes["primary_result.json"]
+        or attachment.get("collector_request_sha256") != hashes["collector_request.json"]
+        or attachment.get("collector_result_sha256") != hashes["collector_result.json"]
+        or attachment.get("collector_dependency") != f"afterany:{primary_job_id}"
+        or attachment.get("primary_command") != request.get("command")
+        or attachment.get("collector_command") != collector_request.get("command")
+        or attachment.get("release_command") != ["scontrol", "release", primary_job_id]
+        or primary_release.get("command") != ["scontrol", "release", primary_job_id]
+        or primary_release.get("returncode") != 0
+        or primary_release.get("collector_attachment_sha256")
+        != hashes["collector_attachment.json"]
+        or str(summary.get("primary_job_id")) != primary_job_id
+        or summary.get("attempt_id") != primary_attempt_id
+        or summary.get("stage") != "fire-pilot"
+    ):
+        raise core.CampaignError(
+            "trusted FIRE original submission-chain identity drift"
+        )
+    if not isinstance(request.get("command"), list) or "--hold" not in request["command"]:
+        raise core.CampaignError(
+            "trusted FIRE original primary was not submitted held"
+        )
+    summary_collector = summary.get("collector")
+    if not isinstance(summary_collector, Mapping) or (
+        summary_collector.get("attempt_id") != collector_attempt_id
+        or str(summary_collector.get("job_id")) != collector_job_id
+        or summary_collector.get("dependency") != f"afterany:{primary_job_id}"
+        or summary_collector.get("request_sha256") != hashes["collector_request.json"]
+        or summary_collector.get("result_sha256") != hashes["collector_result.json"]
+        or summary_collector.get("attachment_sha256") != hashes["collector_attachment.json"]
+        or summary_collector.get("primary_release_sha256") != hashes["primary_release.json"]
+    ):
+        raise core.CampaignError("trusted FIRE original submission summary drift")
+
+    primary_attempt_root = _strict_dir(run_dir, "slurm_attempts/fire-pilot")
+    primary_entries = {item.name for item in primary_attempt_root.iterdir()}
+    allowed_primary_entries = [set()]
+    if allow_primary_attempt and replacement_attempt_id:
+        allowed_primary_entries.append({replacement_attempt_id})
+    if primary_entries not in allowed_primary_entries:
+        raise core.CampaignError(
+            "FIRE incident unexpectedly contains a scientific primary attempt"
+        )
+    collector_root = _strict_dir(run_dir, "slurm_attempts/collect")
+    expected_collector_entries = {collector_attempt_id}
+    if replacement_collector_attempt_id is not None:
+        expected_collector_entries.add(replacement_collector_attempt_id)
+    if {item.name for item in collector_root.iterdir()} != expected_collector_entries:
+        raise core.CampaignError("FIRE incident collector-attempt inventory drift")
+    collector = _strict_dir(
+        run_dir, f"slurm_attempts/collect/{collector_attempt_id}"
+    )
+    collector_hash_names = {
+        str(key)[len("collector/"):]: str(value)
+        for key, value in hashes.items() if str(key).startswith("collector/")
+    }
+    if {item.name for item in collector.iterdir()} != set(collector_hash_names):
+        raise core.CampaignError("FIRE incident collector raw-evidence schema drift")
+    collector_bytes: dict[str, bytes] = {}
+    for name, expected_sha in collector_hash_names.items():
+        value = _require_snapshot_hash(
+            collector, name, f"collector {name}", expected_sha
+        )
+        assert isinstance(value, bytes)
+        collector_bytes[name] = value
+    context = _context_snapshot_fields(collector_bytes["context.tsv"], "collector context")
+    context_expected = {
+        "stage": "collect", "attempt_id": collector_attempt_id,
+        "slurm_job_id": collector_job_id, "slurm_job_account": "def-kleinke_cpu",
+        "slurm_job_partition": "cpubase_bycore_b2", "slurm_job_num_nodes": "1",
+        "slurm_ntasks": "1", "slurm_cpus_per_task": "",
+        "slurm_mem_per_cpu": "", "slurm_timelimit": "",
+        "run_dir": str(run_dir), "config_sha256": incident["config_sha256"],
+        "primary_stage": "fire-pilot", "primary_attempt_id": primary_attempt_id,
+        "primary_job_id": primary_job_id,
+        "primary_request_sha256": hashes["request.json"],
+        "primary_result_sha256": hashes["primary_result.json"],
+        "fire_lineage_sha256": hashes[LINEAGE],
+        "fire_release_sha256": hashes[PILOT_RELEASE], "git_commit": "",
+    }
+    if any(context.get(key) != str(value) for key, value in context_expected.items()):
+        raise core.CampaignError(
+            "trusted FIRE collector context identity/resource drift"
+        )
+    if (
+        collector_bytes["exit_code.txt"] != b"2\n"
+        or collector_bytes["primary_sacct_exit_code.txt"] != b"0\n"
+        or collector_bytes["primary_sacct_query_count.txt"] != b"1\n"
+    ):
+        raise core.CampaignError("trusted FIRE collector exit/query evidence drift")
+    try:
+        sacct_text = collector_bytes["primary_sacct.psv"].decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise core.CampaignError(
+            "trusted FIRE primary sacct evidence is not UTF-8"
+        ) from exc
+    if str(incident["primary_allocation"]) not in sacct_text.splitlines():
+        raise core.CampaignError(
+            "trusted FIRE primary scheduler allocation row drift"
+        )
+
+    checkout = Path(str(incident["checkout"]))
+    _reject_existing_ancestor_symlinks(checkout, "incident checkout")
+    checkout = core.safe_run_dir(checkout)
+    _require_snapshot_hash(
+        checkout, str(incident["config_relative"]), "original incident config",
+        str(incident["config_sha256"]),
+    )
+    primary_scheduler_relative = (
+        f"thermo_candidates/scripts/phono3py_campaign/slurm-{primary_job_id}.out"
+    )
+    collector_scheduler_relative = (
+        f"thermo_candidates/scripts/phono3py_campaign/slurm-p3-collect-{collector_job_id}.out"
+    )
+    primary_scheduler = _require_snapshot_hash(
+        checkout, primary_scheduler_relative, "primary scheduler log",
+        str(hashes["primary_scheduler_log"]),
+    )
+    collector_scheduler = _require_snapshot_hash(
+        checkout, collector_scheduler_relative, "collector scheduler log",
+        str(hashes["collector_scheduler_log"]),
+    )
+    assert isinstance(primary_scheduler, bytes) and isinstance(collector_scheduler, bytes)
+    if primary_scheduler != str(incident["primary_scheduler_text"]).encode("utf-8"):
+        raise core.CampaignError("FIRE primary scheduler failure text drift")
+    if collector_scheduler != collector_bytes["stdout.log"]:
+        raise core.CampaignError("FIRE collector scheduler/stdout evidence drift")
+    scheduler_rows = (
+        _query_exact_incident_scheduler_rows(incident) if query_scheduler else {
+            primary_job_id: str(incident["primary_allocation"]),
+            collector_job_id: str(incident["collector_allocation"]),
+        }
+    )
+    return {
+        "config": config, "validation": validation, "claim_path": claim_path,
+        "claim": claim, "lineage": lineage, "release": release,
+        "submission_dir": submission, "records": records,
+        "scheduler_rows": scheduler_rows, "evidence_sha256": dict(hashes),
+    }
+
+
+def create_infrastructure_replacement_authorization(
+    config_path: Path, run_dir: Path
+) -> dict[str, Any]:
+    """Consume the sole reviewed infrastructure replacement authorization."""
+    from submit import require_nibi_login
+
+    require_nibi_login()
+    evidence = _authenticate_startup_incident(
+        config_path, run_dir, query_scheduler=True
+    )
+    config = evidence["config"]
+    validation = evidence["validation"]
+    run_dir = core.safe_run_dir(run_dir)
+    authorization_path = _replacement_authorization_path(config, run_dir)
+    _reject_existing_ancestor_symlinks(
+        authorization_path, "replacement authorization"
+    )
+    if os.path.lexists(authorization_path):
+        raise core.CampaignError(
+            "FIRE infrastructure replacement authorization is already consumed"
+        )
+    receipt = {
+        "schema_version": 1,
+        "kind": "single_fire_pilot_infrastructure_replacement_authorization",
+        "created_utc": core.utc_now(),
+        "authorized_run_dir": str(run_dir),
+        "original_claim_path": str(evidence["claim_path"]),
+        "original_claim_sha256": TRUSTED_STARTUP_INCIDENT["hashes"]["global_claim"],
+        "original_lineage_sha256": TRUSTED_STARTUP_INCIDENT["hashes"][LINEAGE],
+        "original_release_sha256": TRUSTED_STARTUP_INCIDENT["hashes"][PILOT_RELEASE],
+        "original_primary_attempt_id": TRUSTED_STARTUP_INCIDENT["primary_attempt_id"],
+        "original_primary_job_id": TRUSTED_STARTUP_INCIDENT["primary_job_id"],
+        "original_collector_attempt_id": TRUSTED_STARTUP_INCIDENT["collector_attempt_id"],
+        "original_collector_job_id": TRUSTED_STARTUP_INCIDENT["collector_job_id"],
+        "original_evidence_sha256": dict(evidence["evidence_sha256"]),
+        "terminal_scheduler_rows": dict(evidence["scheduler_rows"]),
+        "incident_classification": "pinned_git_was_unavailable_before_p3_begin_attempt_or_qe",
+        "original_global_claims_consumed": 1,
+        "authorized_infrastructure_replacements": 1,
+        "scientific_attempts_observed": 0,
+        "maximum_scientific_attempts": 1,
+        "new_lineage_created": False,
+        "current_config_binding": _current_config_binding(
+            config_path, config, validation
+        ),
+        "current_workflow_sha256": _workflow_hashes(),
+        "current_git_commit": _git_commit(),
+        "replacement_resources": {
+            "primary": {
+                "account": "def-kleinke_cpu", "partition": "cpubase_bycore_b2",
+                "nodes": 1, "ntasks": 32, "cpus_per_task": 1,
+                "mem_per_cpu_mb": 2000, "walltime_minutes": 120,
+            },
+            "collector": {
+                "dependency": "afterany", "nodes": 1, "ntasks": 1,
+                "cpus_per_task": 1, "memory": "4G", "walltime_minutes": 30,
+            },
+        },
+        "structure_accepted": False,
+        "preflight_unlocked": False,
+        "full_execution_released": False,
+        "force_execution_released": False,
+        "production_execution_released": False,
+    }
+    _write_bytes_immutable(
+        authorization_path,
+        (json.dumps(receipt, indent=2, sort_keys=True) + "\n").encode("utf-8"),
+    )
+    _, authorization_sha256 = _load_strict_json_snapshot(
+        authorization_path.parent, authorization_path.name,
+        "infrastructure replacement authorization",
+    )
+    return {
+        "healthy": True, "authorization": str(authorization_path),
+        "authorization_sha256": authorization_sha256,
+        "authorized_run_dir": str(run_dir),
+        "replacement_submission_released": True,
+        "maximum_replacements": 1, "scientific_attempts_observed": 0,
+        "structure_accepted": False, "preflight_unlocked": False,
+        "full_execution_released": False,
+    }
+
+
+def verify_infrastructure_replacement_authorization(
+    config_path: Path,
+    run_dir: Path,
+    *,
+    require_unused: bool = True,
+    expected_authorization_sha256: str | None = None,
+    replacement_attempt_id: str | None = None,
+    allow_primary_attempt: bool = False,
+    replacement_collector_attempt_id: str | None = None,
+) -> dict[str, Any]:
+    """Replay the immutable replacement authority without creating state."""
+    evidence = _authenticate_startup_incident(
+        config_path, run_dir, query_scheduler=False,
+        replacement_attempt_id=replacement_attempt_id,
+        allow_primary_attempt=allow_primary_attempt,
+        replacement_collector_attempt_id=replacement_collector_attempt_id,
+    )
+    config = evidence["config"]
+    validation = evidence["validation"]
+    run_dir = core.safe_run_dir(run_dir)
+    path = _replacement_authorization_path(config, run_dir)
+    receipt, digest = _load_strict_json_snapshot(
+        path.parent, path.name, "infrastructure replacement authorization"
+    )
+    if expected_authorization_sha256 is not None and (
+        re.fullmatch(r"[0-9a-f]{64}", expected_authorization_sha256) is None
+        or digest != expected_authorization_sha256
+    ):
+        raise core.CampaignError(
+            "FIRE infrastructure replacement authorization SHA256 mismatch"
+        )
+    expected_fields = {
+        "schema_version", "kind", "created_utc", "authorized_run_dir",
+        "original_claim_path", "original_claim_sha256",
+        "original_lineage_sha256", "original_release_sha256",
+        "original_primary_attempt_id", "original_primary_job_id",
+        "original_collector_attempt_id", "original_collector_job_id",
+        "original_evidence_sha256", "terminal_scheduler_rows",
+        "incident_classification", "original_global_claims_consumed",
+        "authorized_infrastructure_replacements", "scientific_attempts_observed",
+        "maximum_scientific_attempts", "new_lineage_created",
+        "current_config_binding", "current_workflow_sha256", "current_git_commit",
+        "replacement_resources", "structure_accepted", "preflight_unlocked",
+        "full_execution_released", "force_execution_released",
+        "production_execution_released",
+    }
+    incident = TRUSTED_STARTUP_INCIDENT
+    if set(receipt) != expected_fields or (
+        receipt.get("schema_version") != 1
+        or receipt.get("kind")
+        != "single_fire_pilot_infrastructure_replacement_authorization"
+        or not isinstance(receipt.get("created_utc"), str)
+        or receipt.get("authorized_run_dir") != str(run_dir)
+        or receipt.get("original_claim_path") != str(evidence["claim_path"])
+        or receipt.get("original_claim_sha256") != incident["hashes"]["global_claim"]
+        or receipt.get("original_lineage_sha256") != incident["hashes"][LINEAGE]
+        or receipt.get("original_release_sha256") != incident["hashes"][PILOT_RELEASE]
+        or receipt.get("original_primary_attempt_id") != incident["primary_attempt_id"]
+        or receipt.get("original_primary_job_id") != incident["primary_job_id"]
+        or receipt.get("original_collector_attempt_id") != incident["collector_attempt_id"]
+        or receipt.get("original_collector_job_id") != incident["collector_job_id"]
+        or receipt.get("original_evidence_sha256") != evidence["evidence_sha256"]
+        or receipt.get("terminal_scheduler_rows") != {
+            str(incident["primary_job_id"]): str(incident["primary_allocation"]),
+            str(incident["collector_job_id"]): str(incident["collector_allocation"]),
+        }
+        or receipt.get("incident_classification")
+        != "pinned_git_was_unavailable_before_p3_begin_attempt_or_qe"
+        or receipt.get("original_global_claims_consumed") != 1
+        or receipt.get("authorized_infrastructure_replacements") != 1
+        or receipt.get("scientific_attempts_observed") != 0
+        or receipt.get("maximum_scientific_attempts") != 1
+        or receipt.get("new_lineage_created") is not False
+        or receipt.get("current_config_binding")
+        != _current_config_binding(config_path, config, validation)
+        or receipt.get("current_workflow_sha256") != _workflow_hashes()
+        or receipt.get("current_git_commit") != _git_commit()
+        or receipt.get("replacement_resources") != {
+            "primary": {
+                "account": "def-kleinke_cpu", "partition": "cpubase_bycore_b2",
+                "nodes": 1, "ntasks": 32, "cpus_per_task": 1,
+                "mem_per_cpu_mb": 2000, "walltime_minutes": 120,
+            },
+            "collector": {
+                "dependency": "afterany", "nodes": 1, "ntasks": 1,
+                "cpus_per_task": 1, "memory": "4G", "walltime_minutes": 30,
+            },
+        }
+        or any(receipt.get(name) is not False for name in (
+            "structure_accepted", "preflight_unlocked", "full_execution_released",
+            "force_execution_released", "production_execution_released",
+        ))
+    ):
+        raise core.CampaignError(
+            "FIRE infrastructure replacement authorization binding drift"
+        )
+    if require_unused:
+        original = str(TRUSTED_STARTUP_INCIDENT["primary_attempt_id"])
+        submission_root = _strict_dir(run_dir, "submissions/fire-pilot")
+        entries = {item.name for item in submission_root.iterdir()}
+        if entries - {original, ".submission.lock"} or original not in entries:
+            raise core.CampaignError(
+                "FIRE infrastructure replacement submission slot is already consumed"
+            )
+    return {
+        "stage": "fire-pilot", "replacement": True,
+        "authorization_path": str(path), "authorization_sha256": digest,
+        "lineage_sha256": incident["hashes"][LINEAGE],
+        "release_sha256": incident["hashes"][PILOT_RELEASE],
+        "config_sha256": validation["config_sha256"],
+        "git_commit": receipt["current_git_commit"],
+        "workflow_sha256": dict(receipt["current_workflow_sha256"]),
+        "resources": dict(receipt["replacement_resources"]),
+        "structure_accepted": False, "preflight_unlocked": False,
+        "full_execution_released": False,
+    }
 
 
 def _validate_generated_input(config: Mapping[str, Any], text: str, stage: str) -> None:
@@ -1128,15 +1809,29 @@ def verify_fire_collector_attachment(
     primary_job_id: str,
     *,
     require_release_receipt: bool = True,
+    replacement_authorization_sha256: str | None = None,
+    allow_primary_attempt: bool = False,
+    replacement_collector_attempt_id: str | None = None,
 ) -> dict[str, Any]:
     """Prove the held primary has an accepted afterany collector before QE."""
     if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}", primary_attempt_id) is None or not primary_job_id.isdigit():
         raise core.CampaignError("invalid FIRE primary attachment identity")
     config_path = config_path.resolve(strict=True)
     config, validation = core.validate_config(config_path)
-    ready = verify_fire_submission_ready(
-        config_path, run_dir, "fire-pilot", require_unused=False
-    )
+    if replacement_authorization_sha256 is None:
+        ready = verify_fire_submission_ready(
+            config_path, run_dir, "fire-pilot", require_unused=False
+        )
+    else:
+        ready = verify_infrastructure_replacement_authorization(
+            config_path,
+            run_dir,
+            require_unused=False,
+            expected_authorization_sha256=replacement_authorization_sha256,
+            replacement_attempt_id=primary_attempt_id,
+            allow_primary_attempt=allow_primary_attempt,
+            replacement_collector_attempt_id=replacement_collector_attempt_id,
+        )
     run_dir = core.safe_run_dir(run_dir)
     submission = _strict_dir(
         run_dir, f"submissions/fire-pilot/{primary_attempt_id}"
@@ -1176,6 +1871,10 @@ def verify_fire_collector_attachment(
         "P3_GIT_COMMIT": ready["git_commit"],
         "P3_FIRE_REQUESTED_WALLTIME_MINUTES": "120",
     }
+    if replacement_authorization_sha256 is not None:
+        expected_primary_exports["P3_FIRE_REPLACEMENT_SHA256"] = (
+            replacement_authorization_sha256
+        )
     expected_primary_plan = StagePlan(
         stage="fire-pilot",
         script=(SUBMIT_SLURM_DIR / "fire_pilot.sbatch").resolve(),
@@ -1219,6 +1918,8 @@ def verify_fire_collector_attachment(
         "release_command", "config_sha256", "fire_lineage_sha256",
         "fire_release_sha256", "workflow_sha256",
     }
+    if replacement_authorization_sha256 is not None:
+        attachment_keys.add("fire_replacement_sha256")
     collector_attempt_id = str(collector_result.get("attempt_id", ""))
     collector_job_id = str(collector_result.get("job_id", ""))
     release_command = ["scontrol", "release", primary_job_id]
@@ -1242,7 +1943,17 @@ def verify_fire_collector_attachment(
         or attachment.get("config_sha256") != validation["config_sha256"]
         or attachment.get("fire_lineage_sha256") != ready["lineage_sha256"]
         or attachment.get("fire_release_sha256") != ready["release_sha256"]
+        or attachment.get("fire_replacement_sha256")
+        != replacement_authorization_sha256
         or attachment.get("workflow_sha256") != request.get("workflow_sha256")
+        or request.get("fire_replacement_sha256")
+        != replacement_authorization_sha256
+        or primary_result.get("fire_replacement_sha256")
+        != replacement_authorization_sha256
+        or collector_request.get("fire_replacement_sha256")
+        != replacement_authorization_sha256
+        or collector_result.get("fire_replacement_sha256")
+        != replacement_authorization_sha256
     ):
         raise core.CampaignError("FIRE collector attachment exact binding drift")
     if (
@@ -1268,12 +1979,16 @@ def verify_fire_collector_attachment(
             "command", "returncode", "stdout", "stderr", "finished_utc",
             "primary_attempt_id", "primary_job_id", "collector_attachment_sha256",
         }
+        if replacement_authorization_sha256 is not None:
+            release_keys.add("fire_replacement_sha256")
         if set(release) != release_keys or (
             release.get("command") != release_command
             or release.get("returncode") != 0
             or release.get("primary_attempt_id") != primary_attempt_id
             or str(release.get("primary_job_id")) != primary_job_id
             or release.get("collector_attachment_sha256") != core.sha256_path(attachment_path)
+            or release.get("fire_replacement_sha256")
+            != replacement_authorization_sha256
         ):
             raise core.CampaignError("FIRE held-primary release evidence is missing or invalid")
     if primary_job_id == collector_job_id:
@@ -1290,11 +2005,24 @@ def verify_fire_collector_attachment(
 
 def _runtime_context(config_path: Path, run_dir: Path) -> tuple[dict[str, Any], dict[str, Any], Path]:
     core.require_compute_node()
-    ready = verify_fire_submission_ready(config_path, run_dir, "fire-pilot", require_unused=False)
     run_dir = core.safe_run_dir(run_dir)
     attempt = core.attempt_dir(run_dir)
     if attempt.parent != run_dir / "slurm_attempts/fire-pilot":
         raise core.CampaignError("FIRE pilot attempt is outside the exact stage root")
+    replacement_sha256 = os.environ.get("P3_FIRE_REPLACEMENT_SHA256") or None
+    if replacement_sha256 is None:
+        ready = verify_fire_submission_ready(
+            config_path, run_dir, "fire-pilot", require_unused=False
+        )
+    else:
+        ready = verify_infrastructure_replacement_authorization(
+            config_path,
+            run_dir,
+            require_unused=False,
+            expected_authorization_sha256=replacement_sha256,
+            replacement_attempt_id=attempt.name,
+            allow_primary_attempt=True,
+        )
     context = _context_fields(_strict_regular(run_dir, str((attempt / "context.tsv").relative_to(run_dir))))
     expected = {
         "stage": "fire-pilot",
@@ -1307,6 +2035,8 @@ def _runtime_context(config_path: Path, run_dir: Path) -> tuple[dict[str, Any], 
         "fire_backend_sha256": core.sha256_path(Path(__file__).resolve()),
         "git_commit": ready["git_commit"],
     }
+    if replacement_sha256 is not None:
+        expected["fire_replacement_sha256"] = replacement_sha256
     for key, value in expected.items():
         if context.get(key) != value:
             raise core.CampaignError(f"FIRE pilot wrapper context mismatch: {key}")
@@ -1338,6 +2068,7 @@ def _runtime_context(config_path: Path, run_dir: Path) -> tuple[dict[str, Any], 
         or request.get("config_sha256") != ready["config_sha256"]
         or request.get("fire_lineage_sha256") != ready["lineage_sha256"]
         or request.get("fire_release_sha256") != ready["release_sha256"]
+        or request.get("fire_replacement_sha256") != replacement_sha256
         or request.get("git_commit") != ready["git_commit"]
         or request.get("scheduler_options") != ["--partition=cpubase_bycore_b2", "--nodes=1", "--ntasks=32", "--cpus-per-task=1", "--mem-per-cpu=2000M", "--time=02:00:00"]
         or request.get("workflow_sha256") != {
@@ -1396,6 +2127,9 @@ def run_stage(config_path: Path, run_dir: Path, stage: str) -> dict[str, Any]:
         "structure_accepted": False,
         "preflight_unlocked": False,
     }
+    replacement_sha256 = os.environ.get("P3_FIRE_REPLACEMENT_SHA256") or None
+    if replacement_sha256 is not None:
+        launch["fire_replacement_sha256"] = replacement_sha256
     core.write_json_immutable(attempt / "launch.json", launch)
     process = core.run_process(command, attempt, attempt / "fire.out", attempt / "fire.err")
     execution = {
@@ -1578,6 +2312,21 @@ def collect_pilot_evidence(
         if re.fullmatch(r"[0-9a-f]{64}", expected or "") is None or core.sha256_path(path) != expected:
             raise core.CampaignError(f"FIRE collector {label} hash mismatch")
     request, result = core.load_json(request_path), core.load_json(result_path)
+    replacement_sha256 = request.get("fire_replacement_sha256")
+    if replacement_sha256 is not None:
+        if re.fullmatch(r"[0-9a-f]{64}", str(replacement_sha256)) is None:
+            raise core.CampaignError(
+                "FIRE collector replacement authorization hash is invalid"
+            )
+        verify_infrastructure_replacement_authorization(
+            config_path,
+            run_dir,
+            require_unused=False,
+            expected_authorization_sha256=str(replacement_sha256),
+            replacement_attempt_id=primary_attempt_id,
+            allow_primary_attempt=True,
+            replacement_collector_attempt_id=current_attempt.name,
+        )
     if (
         request.get("stage") != "fire-pilot"
         or request.get("attempt_id") != primary_attempt_id
@@ -1619,6 +2368,8 @@ def collect_pilot_evidence(
         "git_commit": request.get("git_commit"),
         "fire_requested_walltime_minutes": "120",
     }
+    if replacement_sha256 is not None:
+        expected_context["fire_replacement_sha256"] = str(replacement_sha256)
     for key, expected in expected_context.items():
         if context.get(key) != str(expected):
             if wrapper.is_dir():
@@ -1726,7 +2477,7 @@ def collect_pilot_evidence(
                 evidence[name] = {"sha256": core.sha256_path(path), "bytes": path.stat().st_size}
     integrity = not provenance_integrity_errors
     complete = integrity and scheduler_success and exit_code == 0 and finished_valid
-    return {
+    collection = {
         "schema_version": 1,
         "stage": "collect",
         "collection_kind": "fire_pilot_single_attempt",
@@ -1755,6 +2506,9 @@ def collect_pilot_evidence(
         "preflight_unlocked": False,
         "full_execution_released": False,
     }
+    if replacement_sha256 is not None:
+        collection["fire_replacement_sha256"] = str(replacement_sha256)
+    return collection
 
 
 def _global_job_id_counts(run_dir: Path) -> dict[str, int]:
@@ -1828,6 +2582,11 @@ def _validate_present_execution_provenance(
         "command", "fresh_scratch", "nstep", "max_seconds",
         "structure_accepted", "preflight_unlocked",
     }
+    replacement_sha256 = request.get("fire_replacement_sha256")
+    if replacement_sha256 is not None:
+        if re.fullmatch(r"[0-9a-f]{64}", str(replacement_sha256)) is None:
+            raise core.CampaignError("FIRE replacement authorization hash is invalid")
+        launch_keys.add("fire_replacement_sha256")
     expected_command = ["srun", "pw.x", "-nk", "1", "-in", "fire.in"]
     if set(launch) != launch_keys or (
         launch.get("schema_version") != 1
@@ -1837,6 +2596,7 @@ def _validate_present_execution_provenance(
         or launch.get("config_sha256") != request.get("config_sha256")
         or launch.get("fire_lineage_sha256") != request.get("fire_lineage_sha256")
         or launch.get("fire_release_sha256") != request.get("fire_release_sha256")
+        or launch.get("fire_replacement_sha256") != replacement_sha256
         or launch.get("fire_seed_sha256") != core.sha256_path(run_dir / "fire_seed.in")
         or launch.get("fire_input_sha256") != core.sha256_path(input_path)
         or launch.get("command") != expected_command
@@ -1919,9 +2679,6 @@ def replay_pilot(config_path: Path, run_dir: Path, collection_path: Path, *, exp
     config, validation = core.validate_config(config_path)
     validate_fire_policy(config)
     run_dir = core.safe_run_dir(run_dir)
-    ready = verify_fire_submission_ready(
-        config_path, run_dir, "fire-pilot", require_unused=False
-    )
     lexical_collection = Path(os.path.abspath(collection_path))
     try:
         relative_collection = lexical_collection.relative_to(run_dir)
@@ -1931,6 +2688,11 @@ def replay_pilot(config_path: Path, run_dir: Path, collection_path: Path, *, exp
     if re.fullmatch(r"[0-9a-f]{64}", expected_collection_sha256 or "") is None or core.sha256_path(collection_path) != expected_collection_sha256:
         raise core.CampaignError("FIRE collection SHA256 mismatch")
     collection = core.load_json(collection_path)
+    replacement_sha256 = collection.get("fire_replacement_sha256")
+    if replacement_sha256 is not None and re.fullmatch(
+        r"[0-9a-f]{64}", str(replacement_sha256)
+    ) is None:
+        raise core.CampaignError("FIRE collection replacement hash is invalid")
     collection_keys = {
         "schema_version", "stage", "collection_kind", "material",
         "collected_utc", "collector_attempt", "submission", "primary", "entry",
@@ -1939,6 +2701,8 @@ def replay_pilot(config_path: Path, run_dir: Path, collection_path: Path, *, exp
         "scientific_gate_published", "structure_accepted", "preflight_unlocked",
         "full_execution_released",
     }
+    if replacement_sha256 is not None:
+        collection_keys.add("fire_replacement_sha256")
     if (
         set(collection) != collection_keys
         or collection.get("schema_version") != 1
@@ -1979,10 +2743,27 @@ def replay_pilot(config_path: Path, run_dir: Path, collection_path: Path, *, exp
         "attempt_id", "job_id", "primary_stage", "primary_attempt_id",
         "primary_job_id", "config_sha256",
     }
+    if replacement_sha256 is not None:
+        collector_request_keys.add("fire_replacement_sha256")
+        collector_result_keys.add("fire_replacement_sha256")
     if set(collector_request) != collector_request_keys or set(collector_result) != collector_result_keys:
         raise core.CampaignError("FIRE collector request/result exact schema drift")
     collector_attempt_id = str(collector_result.get("attempt_id", ""))
     collector_job_id = str(collector_result.get("job_id", ""))
+    if replacement_sha256 is None:
+        ready = verify_fire_submission_ready(
+            config_path, run_dir, "fire-pilot", require_unused=False
+        )
+    else:
+        ready = verify_infrastructure_replacement_authorization(
+            config_path,
+            run_dir,
+            require_unused=False,
+            expected_authorization_sha256=str(replacement_sha256),
+            replacement_attempt_id=primary_attempt_id,
+            allow_primary_attempt=True,
+            replacement_collector_attempt_id=collector_attempt_id,
+        )
     if (
         collector_request.get("stage") != "collect"
         or collector_request.get("attempt_id") != collector_attempt_id
@@ -1994,6 +2775,7 @@ def replay_pilot(config_path: Path, run_dir: Path, collection_path: Path, *, exp
         or collector_request.get("config_sha256") != validation["config_sha256"]
         or collector_request.get("fire_lineage_sha256") != core.sha256_path(run_dir / LINEAGE)
         or collector_request.get("fire_release_sha256") != core.sha256_path(run_dir / PILOT_RELEASE)
+        or collector_request.get("fire_replacement_sha256") != replacement_sha256
         or collector_request.get("git_commit") != _git_commit()
         or collector_request.get("fire_requested_walltime_minutes") != "120"
         or collector_request.get("primary_request_sha256") != core.sha256_path(submission_dir / "request.json")
@@ -2008,6 +2790,7 @@ def replay_pilot(config_path: Path, run_dir: Path, collection_path: Path, *, exp
         or collector_result.get("primary_attempt_id") != primary_attempt_id
         or str(collector_result.get("primary_job_id")) != primary_job_id
         or collector_result.get("config_sha256") != validation["config_sha256"]
+        or collector_result.get("fire_replacement_sha256") != replacement_sha256
         or collector_result.get("returncode") != 0
         or not collector_job_id.isdigit()
     ):
@@ -2039,6 +2822,10 @@ def replay_pilot(config_path: Path, run_dir: Path, collection_path: Path, *, exp
         "P3_GIT_COMMIT": ready["git_commit"],
         "P3_FIRE_REQUESTED_WALLTIME_MINUTES": "120",
     }
+    if replacement_sha256 is not None:
+        expected_primary_exports["P3_FIRE_REPLACEMENT_SHA256"] = str(
+            replacement_sha256
+        )
     expected_primary_plan = StagePlan(
         stage="fire-pilot",
         script=(SUBMIT_SLURM_DIR / "fire_pilot.sbatch").resolve(),
@@ -2066,12 +2853,18 @@ def replay_pilot(config_path: Path, run_dir: Path, collection_path: Path, *, exp
         expected_primary_command,
     )
     expected_primary_request["created_utc"] = primary_request.get("created_utc")
+    if replacement_sha256 is not None:
+        expected_primary_request["fire_replacement_sha256"] = str(
+            replacement_sha256
+        )
     if primary_request != expected_primary_request:
         raise core.CampaignError("FIRE primary request exact schema/command drift")
     primary_result_keys = {
         "command", "returncode", "stdout", "stderr", "finished_utc", "stage",
         "attempt_id", "job_id", "config_sha256",
     }
+    if replacement_sha256 is not None:
+        primary_result_keys.add("fire_replacement_sha256")
     if set(primary_result) != primary_result_keys or (
         primary_result.get("command") != expected_primary_command
         or primary_result.get("returncode") != 0
@@ -2081,6 +2874,7 @@ def replay_pilot(config_path: Path, run_dir: Path, collection_path: Path, *, exp
         or primary_result.get("attempt_id") != primary_attempt_id
         or str(primary_result.get("job_id")) != primary_job_id
         or primary_result.get("config_sha256") != validation["config_sha256"]
+        or primary_result.get("fire_replacement_sha256") != replacement_sha256
     ):
         raise core.CampaignError("FIRE primary result exact schema/command drift")
     primary_command = primary_request.get("command")
@@ -2128,6 +2922,11 @@ def replay_pilot(config_path: Path, run_dir: Path, collection_path: Path, *, exp
     attachment = verify_fire_collector_attachment(
         config_path, run_dir, primary_attempt_id, primary_job_id,
         require_release_receipt=False,
+        replacement_authorization_sha256=(
+            str(replacement_sha256) if replacement_sha256 is not None else None
+        ),
+        allow_primary_attempt=True,
+        replacement_collector_attempt_id=collector_attempt_id,
     )
     submission_incomplete_reasons: list[str] = []
     if attachment["primary_release_sha256"] is None:
@@ -2141,6 +2940,7 @@ def replay_pilot(config_path: Path, run_dir: Path, collection_path: Path, *, exp
         summary_collector = summary.get("collector")
         if (
             not isinstance(summary_collector, Mapping)
+            or summary.get("fire_replacement_sha256") != replacement_sha256
             or summary_collector.get("request_sha256") != core.sha256_path(collector_request_path)
             or summary_collector.get("result_sha256") != core.sha256_path(collector_result_path)
             or summary_collector.get("command") != expected_collector_command
@@ -2191,6 +2991,8 @@ def replay_pilot(config_path: Path, run_dir: Path, collection_path: Path, *, exp
         "fire_requested_walltime_minutes": collector_request.get("fire_requested_walltime_minutes"),
         **collector_workflow,
     }
+    if replacement_sha256 is not None:
+        collector_expected["fire_replacement_sha256"] = str(replacement_sha256)
     for key, expected in collector_expected.items():
         if collector_context.get(key) != str(expected):
             raise core.CampaignError(f"FIRE collector wrapper context mismatch: {key}")
@@ -2210,7 +3012,14 @@ def replay_pilot(config_path: Path, run_dir: Path, collection_path: Path, *, exp
         expected_primary_stage_script_sha256=str(collector_request.get("primary_stage_script_sha256", "")),
         accounting_records=records, accounting_errors=accounting_errors, accounting_metadata=metadata,
     )
-    for key in ("submission", "primary", "entry", "collection_integrity_complete", "scheduler_completed_successfully", "wrapper_completed_successfully", "pilot_execution_complete", "incomplete"):
+    replay_keys = (
+        "submission", "primary", "entry", "collection_integrity_complete",
+        "scheduler_completed_successfully", "wrapper_completed_successfully",
+        "pilot_execution_complete", "incomplete",
+    )
+    if replacement_sha256 is not None:
+        replay_keys += ("fire_replacement_sha256",)
+    for key in replay_keys:
         if replayed.get(key) != collection.get(key):
             raise core.CampaignError(f"FIRE collector replay mismatch: {key}")
     entry = collection.get("entry")
@@ -2269,7 +3078,7 @@ def replay_pilot(config_path: Path, run_dir: Path, collection_path: Path, *, exp
             "cumulative_shift_le_0p02A": False,
             "Ibam_at_1e-6A": False,
         }
-        return {
+        report = {
             "schema_version": 1,
             "stage": "fire-pilot-review",
             "material": core.required(config, "material.formula"),
@@ -2290,6 +3099,9 @@ def replay_pilot(config_path: Path, run_dir: Path, collection_path: Path, *, exp
             "normal_fire_convergence_markers_required": False,
             "normal_fire_convergence_markers_scope": "future full FIRE only; the bounded pilot trend gate requires eight healthy complete force/SCF steps and terminal scheduler evidence",
         }
+        if replacement_sha256 is not None:
+            report["fire_replacement_sha256"] = str(replacement_sha256)
+        return report
     if wrapper is None:  # pragma: no cover - guarded by completion assertion
         raise core.CampaignError("FIRE completed collection lacks wrapper attempt")
     launch = core.load_json(_strict_regular(wrapper, "launch.json"))
@@ -2354,7 +3166,7 @@ def replay_pilot(config_path: Path, run_dir: Path, collection_path: Path, *, exp
         "process_completed_successfully": process.get("returncode") == 0,
         **trajectory["checks"],
     }
-    return {
+    report = {
         "schema_version": 1,
         "stage": "fire-pilot-review",
         "material": core.required(config, "material.formula"),
@@ -2374,6 +3186,9 @@ def replay_pilot(config_path: Path, run_dir: Path, collection_path: Path, *, exp
         "normal_fire_convergence_markers_required": False,
         "normal_fire_convergence_markers_scope": "future full FIRE only; the bounded pilot trend gate requires eight healthy complete force/SCF steps and terminal scheduler evidence",
     }
+    if replacement_sha256 is not None:
+        report["fire_replacement_sha256"] = str(replacement_sha256)
+    return report
 
 
 def finalize_stage(config_path: Path, run_dir: Path, stage: str, collection_path: Path | None = None, *, expected_collection_sha256: str = "") -> dict[str, Any]:
@@ -2384,19 +3199,22 @@ def finalize_stage(config_path: Path, run_dir: Path, stage: str, collection_path
     run_dir = core.safe_run_dir(run_dir)
     report = replay_pilot(config_path, run_dir, collection_path, expected_collection_sha256=expected_collection_sha256)
     core.write_json_immutable(run_dir / PILOT_GATE, report)
+    provenance = {
+        "schema_version": 1,
+        "gate_sha256": core.sha256_path(run_dir / PILOT_GATE),
+        "collection_path": str(collection_path.resolve(strict=True)),
+        "collection_sha256": expected_collection_sha256,
+        "fire_lineage_sha256": core.sha256_path(run_dir / LINEAGE),
+        "fire_release_sha256": core.sha256_path(run_dir / PILOT_RELEASE),
+        "structure_accepted": False,
+        "preflight_unlocked": False,
+        "full_execution_released": False,
+    }
+    if report.get("fire_replacement_sha256") is not None:
+        provenance["fire_replacement_sha256"] = report["fire_replacement_sha256"]
     core.write_json_immutable(
         run_dir / PILOT_PROVENANCE,
-        {
-            "schema_version": 1,
-            "gate_sha256": core.sha256_path(run_dir / PILOT_GATE),
-            "collection_path": str(collection_path.resolve(strict=True)),
-            "collection_sha256": expected_collection_sha256,
-            "fire_lineage_sha256": core.sha256_path(run_dir / LINEAGE),
-            "fire_release_sha256": core.sha256_path(run_dir / PILOT_RELEASE),
-            "structure_accepted": False,
-            "preflight_unlocked": False,
-            "full_execution_released": False,
-        },
+        provenance,
     )
     if report["pass"] is not True:
         raise core.CampaignError("FIRE pilot trend gate failed; immutable evidence was preserved")
@@ -2411,16 +3229,20 @@ def release_preflight(*_: object, **__: object) -> dict[str, Any]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__); sub = parser.add_subparsers(dest="command", required=True)
     p = sub.add_parser("prepare-lineage"); p.add_argument("--config", type=Path, required=True); p.add_argument("--run-dir", type=Path, required=True); p.add_argument("--old-lineage-run", type=Path, required=True)
+    p = sub.add_parser("authorize-infrastructure-replacement"); p.add_argument("--config", type=Path, required=True); p.add_argument("--run-dir", type=Path, required=True)
+    p = sub.add_parser("verify-infrastructure-replacement"); p.add_argument("--config", type=Path, required=True); p.add_argument("--run-dir", type=Path, required=True); p.add_argument("--expect-authorization-sha"); p.add_argument("--replacement-attempt-id"); p.add_argument("--allow-primary-attempt", action="store_true")
     p = sub.add_parser("verify-release"); p.add_argument("--config", type=Path, required=True); p.add_argument("--run-dir", type=Path, required=True)
-    p = sub.add_parser("verify-collector-attachment"); p.add_argument("--config", type=Path, required=True); p.add_argument("--run-dir", type=Path, required=True); p.add_argument("--primary-attempt-id", required=True); p.add_argument("--primary-job-id", required=True)
+    p = sub.add_parser("verify-collector-attachment"); p.add_argument("--config", type=Path, required=True); p.add_argument("--run-dir", type=Path, required=True); p.add_argument("--primary-attempt-id", required=True); p.add_argument("--primary-job-id", required=True); p.add_argument("--replacement-authorization-sha")
     p = sub.add_parser("run"); p.add_argument("--config", type=Path, required=True); p.add_argument("--run-dir", type=Path, required=True); p.add_argument("--stage", choices=("pilot", "full"), required=True)
     p = sub.add_parser("replay-pilot"); p.add_argument("--config", type=Path, required=True); p.add_argument("--run-dir", type=Path, required=True); p.add_argument("--collection", type=Path, required=True); p.add_argument("--expect-collection-sha", required=True)
     p = sub.add_parser("finalize-pilot"); p.add_argument("--config", type=Path, required=True); p.add_argument("--run-dir", type=Path, required=True); p.add_argument("--collection", type=Path, required=True); p.add_argument("--expect-collection-sha", required=True)
     args = parser.parse_args(argv)
     try:
         if args.command == "prepare-lineage": result = prepare_lineage(args.config,args.run_dir,args.old_lineage_run)
+        elif args.command == "authorize-infrastructure-replacement": result = create_infrastructure_replacement_authorization(args.config, args.run_dir)
+        elif args.command == "verify-infrastructure-replacement": result = verify_infrastructure_replacement_authorization(args.config, args.run_dir, require_unused=False, expected_authorization_sha256=args.expect_authorization_sha, replacement_attempt_id=args.replacement_attempt_id, allow_primary_attempt=args.allow_primary_attempt)
         elif args.command == "verify-release": result = verify_fire_submission_ready(args.config, args.run_dir, "fire-pilot", require_unused=False)
-        elif args.command == "verify-collector-attachment": result = verify_fire_collector_attachment(args.config, args.run_dir, args.primary_attempt_id, args.primary_job_id)
+        elif args.command == "verify-collector-attachment": result = verify_fire_collector_attachment(args.config, args.run_dir, args.primary_attempt_id, args.primary_job_id, replacement_authorization_sha256=args.replacement_authorization_sha)
         elif args.command == "run": result = run_stage(args.config, args.run_dir, args.stage)
         elif args.command == "replay-pilot": result = replay_pilot(args.config, args.run_dir, args.collection, expected_collection_sha256=args.expect_collection_sha)
         elif args.command == "finalize-pilot": result = finalize_stage(args.config, args.run_dir, "pilot", args.collection, expected_collection_sha256=args.expect_collection_sha)

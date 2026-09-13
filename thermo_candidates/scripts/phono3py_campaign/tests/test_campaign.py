@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import shutil
 import tempfile
 import unittest
@@ -49,6 +50,137 @@ SR_VERIFIED_COUNT_ONLY_YAML = (
 
 
 class CampaignConfigTests(unittest.TestCase):
+    def test_fire_replacement_command_collect_dispatches_exact_authorization(self) -> None:
+        replacement_sha = "a" * 64
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            config_path = root / "campaign.json"
+            config_path.write_text("{}\n")
+            run_dir = root / "run"
+            collector = run_dir / "slurm_attempts/collect/replacement-collector"
+            collector.mkdir(parents=True)
+            request_dir = run_dir / "submissions/fire-pilot/replacement-primary"
+            request_dir.mkdir(parents=True)
+            (request_dir / "request.json").write_text(
+                json.dumps({"fire_replacement_sha256": replacement_sha})
+            )
+            accounting = collector / "primary_sacct.psv"
+            accounting_status = collector / "primary_sacct_exit_code.txt"
+            accounting.write_text("fixture\n")
+            accounting_status.write_text("0\n")
+            config = {
+                "material": {"formula": "Rb2Cu2SnS4"},
+                "scheduler": {"slurm_account": "def-kleinke_cpu"},
+            }
+            report = {"schema_version": 1, "replacement": True}
+            common = dict(
+                primary_stage="fire-pilot",
+                primary_attempt_id="replacement-primary",
+                primary_job_id="21870001",
+                scheduler_accounting=accounting,
+                scheduler_accounting_status=accounting_status,
+                expected_primary_request_sha256="b" * 64,
+                expected_primary_result_sha256="c" * 64,
+                expected_primary_stage_script_sha256="d" * 64,
+            )
+            with patch.object(campaign_module, "require_compute_node"), patch.object(
+                campaign_module, "validate_config", return_value=(config, {})
+            ), patch.object(
+                campaign_module, "safe_run_dir", return_value=run_dir
+            ), patch.object(
+                campaign_module, "attempt_dir", return_value=collector
+            ), patch.object(
+                campaign_module, "reject_symlinks_below"
+            ), patch.object(
+                campaign_module,
+                "_read_sacct_records",
+                return_value=([], [], {"fixture": True}),
+            ), patch(
+                "fire_recovery.verify_fire_submission_ready"
+            ) as ordinary, patch(
+                "fire_recovery.verify_infrastructure_replacement_authorization"
+            ) as replacement, patch(
+                "fire_recovery.collect_pilot_evidence", return_value=report
+            ) as collect, patch.dict(
+                os.environ,
+                {"P3_FIRE_REPLACEMENT_SHA256": replacement_sha},
+                clear=False,
+            ):
+                observed = campaign_module.command_collect(
+                    config_path, run_dir, **common
+                )
+            self.assertEqual(observed, report)
+            ordinary.assert_not_called()
+            replacement.assert_called_once_with(
+                config_path.resolve(),
+                run_dir,
+                require_unused=False,
+                expected_authorization_sha256=replacement_sha,
+                replacement_attempt_id="replacement-primary",
+                allow_primary_attempt=True,
+                replacement_collector_attempt_id="replacement-collector",
+            )
+            collect.assert_called_once()
+
+    def test_fire_replacement_command_collect_rejects_missing_or_wrong_export(self) -> None:
+        replacement_sha = "a" * 64
+        for exported in (None, "b" * 64):
+            with self.subTest(exported=exported), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary).resolve()
+                config_path = root / "campaign.json"
+                config_path.write_text("{}\n")
+                run_dir = root / "run"
+                collector = run_dir / "slurm_attempts/collect/replacement-collector"
+                collector.mkdir(parents=True)
+                request_dir = run_dir / "submissions/fire-pilot/replacement-primary"
+                request_dir.mkdir(parents=True)
+                (request_dir / "request.json").write_text(
+                    json.dumps({"fire_replacement_sha256": replacement_sha})
+                )
+                environment = {}
+                if exported is not None:
+                    environment["P3_FIRE_REPLACEMENT_SHA256"] = exported
+                with patch.object(
+                    campaign_module, "require_compute_node"
+                ), patch.object(
+                    campaign_module,
+                    "validate_config",
+                    return_value=({}, {}),
+                ), patch.object(
+                    campaign_module, "safe_run_dir", return_value=run_dir
+                ), patch.object(
+                    campaign_module, "attempt_dir", return_value=collector
+                ), patch.object(
+                    campaign_module, "reject_symlinks_below"
+                ), patch(
+                    "fire_recovery.verify_fire_submission_ready"
+                ) as ordinary, patch(
+                    "fire_recovery.verify_infrastructure_replacement_authorization"
+                ) as replacement, patch.dict(
+                    os.environ,
+                    environment,
+                    clear=True,
+                ):
+                    with self.assertRaisesRegex(
+                        CampaignError, "exact submitted authorization"
+                    ):
+                        campaign_module.command_collect(
+                            config_path,
+                            run_dir,
+                            primary_stage="fire-pilot",
+                            primary_attempt_id="replacement-primary",
+                            primary_job_id="21870001",
+                            scheduler_accounting=collector / "primary_sacct.psv",
+                            scheduler_accounting_status=(
+                                collector / "primary_sacct_exit_code.txt"
+                            ),
+                            expected_primary_request_sha256="b" * 64,
+                            expected_primary_result_sha256="c" * 64,
+                            expected_primary_stage_script_sha256="d" * 64,
+                        )
+                ordinary.assert_not_called()
+                replacement.assert_not_called()
+
     def test_direct_relax_rejects_imported_run_before_attempt_side_effects(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             run_dir = Path(temporary).resolve() / "imported-run"

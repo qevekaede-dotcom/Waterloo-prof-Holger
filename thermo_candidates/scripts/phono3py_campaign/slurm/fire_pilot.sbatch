@@ -29,7 +29,7 @@ done
 [[ "${SLURM_CPUS_PER_TASK:-1}" == "1" && "${SLURM_MEM_PER_CPU:-}" == "2000" ]] || p3_die "FIRE pilot CPU/memory drift"
 [[ -z "${SLURM_TIMELIMIT:-}" || "$SLURM_TIMELIMIT" == "02:00:00" || "$SLURM_TIMELIMIT" == "120" ]] \
     || p3_die "FIRE pilot time-limit drift"
-[[ "$(git -C "$P3_REPO_ROOT" rev-parse HEAD)" == "$P3_GIT_COMMIT" ]] \
+[[ "$("$P3_GIT" -C "$P3_REPO_ROOT" rev-parse HEAD)" == "$P3_GIT_COMMIT" ]] \
     || p3_die "FIRE pilot checkout commit differs from the released lineage"
 [[ "$(sha256sum "$FIRE_RECOVERY_CLI" | awk '{print $1}')" == "$P3_FIRE_RECOVERY_SHA256" ]] \
     || p3_die "FIRE recovery backend differs from the submitted workflow"
@@ -45,7 +45,14 @@ p3_require_run_directory "slurm_attempts/fire-pilot"
 p3_activate_python
 # Full lineage/policy/config/workflow replay occurs before module setup and
 # before p3_begin_attempt creates the immutable attempt directory.
-p3_run_fire verify-release --config "$CAMPAIGN_CONFIG" --run-dir "$RUN_DIR"
+if [[ -n "${P3_FIRE_REPLACEMENT_SHA256:-}" ]]; then
+    p3_run_fire verify-infrastructure-replacement \
+        --config "$CAMPAIGN_CONFIG" --run-dir "$RUN_DIR" \
+        --expect-authorization-sha "$P3_FIRE_REPLACEMENT_SHA256" \
+        --replacement-attempt-id "$ATTEMPT_ID"
+else
+    p3_run_fire verify-release --config "$CAMPAIGN_CONFIG" --run-dir "$RUN_DIR"
+fi
 # The primary is submitted held.  QE is unreachable until submit.py has
 # recorded the accepted afterany collector and a successful scontrol release.
 fire_submission_dir="$RUN_DIR/submissions/fire-pilot/$ATTEMPT_ID"
@@ -55,8 +62,14 @@ for _fire_receipt_wait in $(seq 1 60); do
 done
 [[ -f "$fire_submission_dir/collector_attachment.json" && -f "$fire_submission_dir/primary_release.json" ]] \
     || p3_die "FIRE pilot release/collector receipts did not become visible"
-p3_run_fire verify-collector-attachment --config "$CAMPAIGN_CONFIG" --run-dir "$RUN_DIR" \
-    --primary-attempt-id "$ATTEMPT_ID" --primary-job-id "${SLURM_JOB_ID:?}"
+if [[ -n "${P3_FIRE_REPLACEMENT_SHA256:-}" ]]; then
+    p3_run_fire verify-collector-attachment --config "$CAMPAIGN_CONFIG" --run-dir "$RUN_DIR" \
+        --primary-attempt-id "$ATTEMPT_ID" --primary-job-id "${SLURM_JOB_ID:?}" \
+        --replacement-authorization-sha "$P3_FIRE_REPLACEMENT_SHA256"
+else
+    p3_run_fire verify-collector-attachment --config "$CAMPAIGN_CONFIG" --run-dir "$RUN_DIR" \
+        --primary-attempt-id "$ATTEMPT_ID" --primary-job-id "${SLURM_JOB_ID:?}"
+fi
 p3_load_qe
 p3_begin_attempt fire-pilot
 export P3_STAGE="fire-pilot"
