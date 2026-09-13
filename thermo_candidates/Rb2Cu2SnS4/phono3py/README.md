@@ -6,11 +6,17 @@ readable source of truth is [`campaign.json`](campaign.json); every `null`
 production choice is an intentional stop gate.
 
 Current recovery status: the sole reviewed BFGS polish failed and remains
-terminal.  A separately reviewed FIRE hypothesis has prepared only a frozen
-lineage and a non-runnable pilot plan on Nibi from exact commit `aab9290`.
-That plan reports `execution_released=false` and exposes no `sbatch` command;
-there is still no accepted structure, pristine gate, preflight, force job,
-FC2/FC3, or kappa_L result.
+terminal. A bounded eight-step FIRE pilot execution/collection/replay chain is
+implemented locally and pending independent review. It requires a wholly new
+lineage and code-issued release receipt from the exact reviewed code; the old
+plan-only Nibi lineage from `aab9290` cannot be reused after workflow/schema
+drift. The new lineage freezes the already-reviewed UPF bytes and atomically
+consumes the sole global FIRE hypothesis. Its primary is held until the exact
+`afterany` collector attachment and successful release receipt exist; the
+wrapper verifies both before QE or attempt creation. No FIRE job has been
+submitted or run. There is still no accepted
+structure, pristine gate, preflight, force job, FC2/FC3, or kappa_L result.
+Full FIRE execution remains hard-locked.
 
 Heavy QE calculations, displacement generation, force-constant construction,
 and phono3py transport postprocessing belong on a DRAC compute node. This

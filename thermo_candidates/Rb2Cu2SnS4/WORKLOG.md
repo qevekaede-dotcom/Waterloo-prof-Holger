@@ -318,3 +318,107 @@ submission files.  Its pilot plan is explicitly non-runnable:
 rechecked gate/provenance/lineage/manifest/output/context hashes were identical
 before and after.  `squeue` returned zero rows both times.  No `sbatch`, QE,
 FIRE step, structure acceptance, or downstream release occurred.
+
+---
+
+## 2026-09-14 — bounded FIRE pilot chain implemented locally; pending review, no job
+
+The plan-only FIRE design was advanced to a fail-closed implementation for one
+eight-step pilot. Preparation now emits a new versioned lineage and a separate
+immutable execution-release receipt that binds the exact Git commit, full and
+canonical configuration hashes, FIRE policy, workflow file hashes, frozen
+seed, one-attempt limit, 32-rank/two-hour allocation, and `afterany` collector.
+The old `aab9290` plan-only RUN_DIR cannot execute after this workflow/schema
+change; a fresh lineage is mandatory.
+
+The pilot wrapper validates compute-node context, QE 7.3.1, actual scheduler
+account/partition/node/rank/CPU/memory/time allocation, configuration, commit,
+workflow, lineage, release receipt, unused attempt slot, and absent scratch
+before `p3_begin_attempt`. It then generates and reparses the exact 100/800-Ry,
+4x7x7 fixed-occupation FIRE input (`conv_thr=1e-10`, `etot_conv_thr=1e-8`,
+`forc_conv_thr=1e-5`, 300 electronic steps, `mixing_beta=0.3`, `dt=10`, the
+reviewed FIRE parameters, `nstep=8`, and `max_seconds=6300`) and runs it from
+fresh scratch.
+
+The generic collector now accepts `fire-pilot` with extended scheduler fields
+and preserves exact primary/collector submission records, wrapper context, raw
+QE input/output/stderr/process evidence, exit status, and `sacct` rows. It does
+not interpret the science or finalize anything. `FAILED`, `TIMEOUT`, and
+nonzero exits remain collectible but cannot pass the later gate.
+
+A separate read-only replay rebuilds the result from raw evidence, requiring
+eight complete 18-atom main force blocks with healthy SCF cycles and no fatal,
+NaN, signal, or OOM marker, unchanged cell and atom order, a final maximum
+force component below the initial value and at most `1e-4 Ry/bohr`, cumulative
+shift at most `0.02 A`, and Ibam No. 72 at `1e-6 A`. It also replays exact
+request/result/context/hashes, terminal `COMPLETED/0:0` scheduler state,
+resources, and globally unique job IDs. `finalize-pilot` may write only an
+immutable pilot gate/provenance pair with `full_review_eligible`; structure
+acceptance, preflight, full FIRE, force, and production always remain false.
+
+The short pilot is a trend test, not a normal FIRE convergence test. Its design
+does not require the two full-run convergence strings. Any future full FIRE
+finalization would require both `FIRE: convergence achieved in` and `End of
+FIRE minimization`; `JOB DONE`, a step/time limit, or abnormal termination
+would be insufficient. Full execution/finalization is not implemented or
+released, and the production budget/selection remain unchanged and blocked.
+
+Local implementation validation is pending the final focused/full test and
+syntax/diff checks. No remote connection, Slurm submission, QE calculation,
+new runtime lineage, structure acceptance, or scientific result occurred.
+
+### Local validation completion
+
+After the implementation entry above was written, the final local checks
+completed: all 358 tests passed with one optional-spglib skip; focused FIRE,
+submission, collector, campaign, relax-recovery, and polish-recovery tests
+also passed; both Rb2Cu2SnS4 and SrZrS3 configurations validated; Python
+compilation, all Slurm/cluster shell syntax checks, and `git diff --check`
+passed. This is software validation only. It does not replace independent code
+review or remote exact-commit validation, and no scientific job was run.
+
+### Fresh-review hardening before any execution
+
+Fresh local review then identified authorization, uniqueness, collection, raw
+parser, pseudopotential, and crash-order gaps. They were fixed before any
+remote action. The trusted old lineage now has one code-owned atomic claim;
+only one new FIRE RUN_DIR can consume it, and an interrupted claim fails
+closed. The old plan-only RUN_DIR is not a claim and remains unusable under
+the new workflow hashes.
+
+Every importable submission entry now executes the Nibi-login, exact-config,
+and file-lock gates. The FIRE primary is submitted with `--hold`; only after
+the exact `afterany` collector is accepted are immutable attachment records
+written and `scontrol release` attempted. QE remains unreachable until the
+wrapper sees and replays both the attachment and successful release receipt.
+Collector failure therefore leaves the primary held, while a short bounded
+visibility wait closes the release-receipt filesystem race.
+
+Preparation copies the exact UPF bytes already authenticated by the old polish
+lineage into the new immutable `lineage_source/pseudopotentials/` archive.
+Lineage, release, runtime launch, generated input, and replay all bind and
+rehash those bytes; a changed file under the same basename is rejected.
+Replay now reconstructs exact primary and collector commands, schemas,
+dependencies, hashes, attachment, release, and summary. It requires the last
+selected `Program PWSCF` run to be QE 7.3.1 and its unique final-coordinate
+block to follow the eighth complete force step. Existing malformed provenance
+fails hard; scheduler failure, nonzero exit, startup-before-attempt, and
+writer-order interruption remain replayable negative gates when every artifact
+that does exist is internally exact.
+
+The corrected Rb-focused submission/FIRE/collector suite passed 77 tests;
+Python compilation also passed. Full-suite rerun is deferred to the root
+integration pass because concurrent Sr-only implementation work is changing
+shared files. No SSH, Slurm command, scientific calculation, new runtime
+lineage, structure acceptance, preflight/full FIRE, force, or production
+release occurred.
+
+The focused integration rerun then added all 46 campaign tests to the same
+check: 123 FIRE/submission/collector/campaign tests passed in total.
+
+Replay also covers both unavoidable submitter writer-order windows: a missing
+release result after `scontrol` and a missing final submission summary are
+explicit incomplete negative gates when all preceding records are exact;
+malformed or later-deleted records in an otherwise completed chain remain
+hard integrity failures. The online wrapper still requires the release receipt
+and summary-independent collector attachment before QE.

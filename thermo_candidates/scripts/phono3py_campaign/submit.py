@@ -50,7 +50,7 @@ STAGE_SCRIPTS = {
     "fire-pilot": "fire_pilot.sbatch",
     "fire-full": "fire_full.sbatch",
 }
-COLLECTED_STAGES = frozenset({"diagnostic", "relax", "force"})
+COLLECTED_STAGES = frozenset({"diagnostic", "relax", "force", "fire-pilot"})
 SHA256_RE = re.compile(r"[0-9a-f]{64}")
 ATTEMPT_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}")
 TERMINAL_STATES = frozenset(
@@ -68,8 +68,6 @@ TERMINAL_STATES = frozenset(
         "TIMEOUT",
     }
 )
-
-
 class SubmissionError(RuntimeError):
     """Raised when a submission cannot be proven safe."""
 
@@ -1100,6 +1098,9 @@ def stage_plan(
         scheduler_options = ("--partition=cpubase_bycore_b2", "--nodes=1", "--ntasks=32", "--cpus-per-task=1", "--mem-per-cpu=2000M", f"--time={format_slurm_time(hours)}")
         exports["P3_FIRE_RECOVERY_SHA256"] = sha256_path(Path(__file__).resolve().with_name("fire_recovery.py"))
         exports["P3_FIRE_LINEAGE_SHA256"] = ready["lineage_sha256"]
+        exports["P3_FIRE_RELEASE_SHA256"] = ready["release_sha256"]
+        exports["P3_GIT_COMMIT"] = ready["git_commit"]
+        exports["P3_FIRE_REQUESTED_WALLTIME_MINUTES"] = "120" if stage == "fire-pilot" else "720"
     elif stage == "relax":
         if context.manifest.get("accepted_structure_import") is not None:
             raise SubmissionError(
@@ -1206,6 +1207,9 @@ def export_argument(exports: Mapping[str, str]) -> str:
         "P3_DIAGNOSTIC_BACKEND_SHA256",
         "P3_FIRE_RECOVERY_SHA256",
         "P3_FIRE_LINEAGE_SHA256",
+        "P3_FIRE_RELEASE_SHA256",
+        "P3_GIT_COMMIT",
+        "P3_FIRE_REQUESTED_WALLTIME_MINUTES",
         "PRIMARY_STAGE",
         "PRIMARY_ATTEMPT_ID",
         "PRIMARY_JOB_ID",
@@ -1241,6 +1245,8 @@ def sbatch_command(plan: StagePlan, *, dependency: str | None = None) -> list[st
         "--parsable",
         f"--account={plan.account}",
     ]
+    if plan.stage == "fire-pilot" and dependency is None:
+        command.append("--hold")
     command.extend(plan.scheduler_options)
     command.append(export_argument(plan.exports))
     if plan.array is not None:
@@ -1454,9 +1460,7 @@ def plan_report(
         max_in_flight=max_in_flight,
         candidate_ids=candidate_ids,
     )
-    # FIRE is review-only planning: do not print a runnable sbatch template
-    # that could be copied around the execute hard lock.
-    preview_command = None if stage in {"fire-pilot", "fire-full"} else sbatch_command(preview)
+    preview_command = None if stage == "fire-full" else sbatch_command(preview)
     return {
         "healthy": True,
         "mode": "plan",
@@ -1483,10 +1487,10 @@ def plan_report(
         ),
         "primary_command_template": preview_command,
         "collector": stage in COLLECTED_STAGES,
-        "execution_released": stage not in {"fire-pilot", "fire-full"},
+        "execution_released": stage != "fire-full",
         "execute_requirement": (
-            "Unavailable: FIRE execution is hard-locked pending independent replay and receipt verification."
-            if stage in {"fire-pilot", "fire-full"} else
+            "Unavailable: FIRE full execution remains hard-locked; a passing pilot is review evidence only."
+            if stage == "fire-full" else
             "Run execute with --expect-config-sha exactly equal to config_sha256; "
             "an explicit preflight subset also requires --expect-candidate-subset-sha "
             "exactly equal to candidate_subset_sha256; a new ATTEMPT_ID is generated "
@@ -1532,6 +1536,12 @@ def _request_record(
             if plan.stage in {"fire-pilot", "fire-full"}
             else None
         ),
+        "fire_release_sha256": (
+            plan.exports.get("P3_FIRE_RELEASE_SHA256")
+            if plan.stage == "fire-pilot"
+            else None
+        ),
+        "git_commit": plan.exports.get("P3_GIT_COMMIT"),
         "submit_script_sha256": sha256_path(Path(__file__).resolve()),
         "stage_script_sha256": sha256_path(plan.script),
         "cluster_env_sha256": sha256_path(SLURM_DIR / "cluster.env"),
@@ -1569,79 +1579,105 @@ def execute_submission(
     candidate_ids: Sequence[str] | None = None,
     expected_candidate_subset_sha: str | None = None,
 ) -> dict[str, Any]:
-    # This implementation is deliberately planning-only.  Do this before
-    # lock acquisition, attempt creation, request writing, or sbatch access.
-    if stage in {"fire-pilot", "fire-full"}:
-        raise SubmissionError(
-            "FIRE execution is hard-locked: independent lineage replay and execution receipt verification are not implemented"
-        )
-    require_nibi_login()
-    expected = expected_config_sha
-    if not SHA256_RE.fullmatch(expected):
-        raise SubmissionError(
-            "--expect-config-sha must be exactly 64 lowercase hexadecimal characters"
-        )
-    if expected != context.config_sha256:
-        raise SubmissionError(
-            "configuration SHA-256 changed or was not copied from the current plan; "
-            "nothing submitted"
-        )
-    if candidate_ids is None:
-        if expected_candidate_subset_sha is not None:
-            raise SubmissionError(
-                "--expect-candidate-subset-sha is forbidden without an explicit preflight subset"
-            )
-    else:
-        if stage != "preflight":
-            raise SubmissionError("--candidate-id is valid only for the preflight stage")
-        if (
-            not isinstance(expected_candidate_subset_sha, str)
-            or SHA256_RE.fullmatch(expected_candidate_subset_sha) is None
-        ):
-            raise SubmissionError(
-                "explicit preflight execute requires the exact 64-character "
-                "--expect-candidate-subset-sha printed by plan"
-            )
-        try:
-            _, reviewed_selection = select_preflight_candidates(
-                context.config, candidate_ids
-            )
-        except CampaignError as exc:
-            raise SubmissionError(str(exc)) from exc
-        if (
-            reviewed_selection["candidate_subset_sha256"]
-            != expected_candidate_subset_sha
-        ):
-            raise SubmissionError(
-                "preflight candidate subset SHA256 changed or was not copied "
-                "from the current plan; nothing submitted"
-            )
-    with submission_lock(context.run_dir, stage):
-        return _execute_locked(
-            context,
-            stage,
-            task_map=task_map,
-            max_in_flight=max_in_flight,
-            candidate_ids=candidate_ids,
-            expected_candidate_subset_sha=expected_candidate_subset_sha,
-        )
+    return _execute_locked(
+        context,
+        stage,
+        expected_config_sha=expected_config_sha,
+        task_map=task_map,
+        max_in_flight=max_in_flight,
+        candidate_ids=candidate_ids,
+        expected_candidate_subset_sha=expected_candidate_subset_sha,
+    )
 
 
+def _guard_submission_entry(func):
+    """Apply login, exact-config and file-lock gates to every callable entry.
+
+    The only function that can call ``run_sbatch`` is captured by this closure,
+    not exposed as a separately importable unguarded helper.
+    """
+
+    def guarded(
+        context: SubmissionContext,
+        stage: str,
+        *,
+        expected_config_sha: str | None = None,
+        task_map: Path | None,
+        max_in_flight: int | None,
+        candidate_ids: Sequence[str] | None = None,
+        expected_candidate_subset_sha: str | None = None,
+    ) -> dict[str, Any]:
+        if stage == "fire-full":
+            raise SubmissionError(
+                "FIRE execution is hard-locked: independent lineage replay and execution receipt verification are not implemented"
+            )
+        require_nibi_login()
+        if not isinstance(expected_config_sha, str) or not SHA256_RE.fullmatch(
+            expected_config_sha
+        ):
+            raise SubmissionError(
+                "--expect-config-sha must be exactly 64 lowercase hexadecimal characters"
+            )
+        if expected_config_sha != context.config_sha256:
+            raise SubmissionError(
+                "configuration SHA-256 changed or was not copied from the current plan; "
+                "nothing submitted"
+            )
+        if candidate_ids is None:
+            if expected_candidate_subset_sha is not None:
+                raise SubmissionError(
+                    "--expect-candidate-subset-sha is forbidden without an explicit preflight subset"
+                )
+        else:
+            if stage != "preflight":
+                raise SubmissionError("--candidate-id is valid only for the preflight stage")
+            if (
+                not isinstance(expected_candidate_subset_sha, str)
+                or SHA256_RE.fullmatch(expected_candidate_subset_sha) is None
+            ):
+                raise SubmissionError(
+                    "explicit preflight execute requires the exact 64-character "
+                    "--expect-candidate-subset-sha printed by plan"
+                )
+            try:
+                _, reviewed_selection = select_preflight_candidates(
+                    context.config, candidate_ids
+                )
+            except CampaignError as exc:
+                raise SubmissionError(str(exc)) from exc
+            if (
+                reviewed_selection["candidate_subset_sha256"]
+                != expected_candidate_subset_sha
+            ):
+                raise SubmissionError(
+                    "preflight candidate subset SHA256 changed or was not copied "
+                    "from the current plan; nothing submitted"
+                )
+        with submission_lock(context.run_dir, stage):
+            return func(
+                context,
+                stage,
+                expected_config_sha=expected_config_sha,
+                task_map=task_map,
+                max_in_flight=max_in_flight,
+                candidate_ids=candidate_ids,
+                expected_candidate_subset_sha=expected_candidate_subset_sha,
+            )
+
+    return guarded
+
+
+@_guard_submission_entry
 def _execute_locked(
     context: SubmissionContext,
     stage: str,
     *,
+    expected_config_sha: str | None = None,
     task_map: Path | None,
     max_in_flight: int | None,
     candidate_ids: Sequence[str] | None = None,
     expected_candidate_subset_sha: str | None = None,
 ) -> dict[str, Any]:
-    # Keep the no-execution boundary effective for direct/internal callers as
-    # well as execute_submission's public entry point.
-    if stage in {"fire-pilot", "fire-full"}:
-        raise SubmissionError(
-            "FIRE execution is hard-locked: independent lineage replay and execution receipt verification are not implemented"
-        )
     ensure_no_active_duplicate(context.run_dir, stage)
 
     attempt_id = new_attempt_id(stage)
@@ -1792,6 +1828,9 @@ def _execute_locked(
                 "collector_script_sha256": collector_exports[
                     "P3_STAGE_SCRIPT_SHA256"
                 ],
+                "submit_script_sha256": collector_exports[
+                    "P3_SUBMIT_SCRIPT_SHA256"
+                ],
                 "cluster_env_sha256": collector_exports[
                     "P3_CLUSTER_ENV_SHA256"
                 ],
@@ -1807,6 +1846,19 @@ def _execute_locked(
                 "diagnostic_requested_walltime_minutes": collector_exports.get(
                     "P3_DIAGNOSTIC_REQUESTED_WALLTIME_MINUTES"
                 ),
+                "fire_lineage_sha256": collector_exports.get(
+                    "P3_FIRE_LINEAGE_SHA256"
+                ),
+                "fire_release_sha256": collector_exports.get(
+                    "P3_FIRE_RELEASE_SHA256"
+                ),
+                "fire_backend_sha256": collector_exports.get(
+                    "P3_FIRE_RECOVERY_SHA256"
+                ),
+                "fire_requested_walltime_minutes": collector_exports.get(
+                    "P3_FIRE_REQUESTED_WALLTIME_MINUTES"
+                ),
+                "git_commit": collector_exports.get("P3_GIT_COMMIT"),
                 "dependency": f"afterany:{primary_job_id}",
                 "command": collector_command,
             },
@@ -1840,6 +1892,77 @@ def _execute_locked(
                 "config_sha256": context.config_sha256,
             },
         )
+        if stage == "fire-pilot":
+            release_command = ["scontrol", "release", primary_job_id]
+            write_json_exclusive(
+                record_dir / "collector_attachment.json",
+                {
+                    "schema_version": 1,
+                    "kind": "fire_pilot_afterany_collector_attachment",
+                    "primary_attempt_id": attempt_id,
+                    "primary_job_id": primary_job_id,
+                    "primary_request_sha256": sha256_path(record_dir / "request.json"),
+                    "primary_result_sha256": sha256_path(record_dir / "primary_result.json"),
+                    "collector_attempt_id": collector_attempt,
+                    "collector_job_id": collector_job_id,
+                    "collector_request_sha256": sha256_path(record_dir / "collector_request.json"),
+                    "collector_result_sha256": sha256_path(record_dir / "collector_result.json"),
+                    "collector_dependency": f"afterany:{primary_job_id}",
+                    "primary_command": command,
+                    "collector_command": collector_command,
+                    "release_command": release_command,
+                    "config_sha256": context.config_sha256,
+                    "fire_lineage_sha256": plan.exports["P3_FIRE_LINEAGE_SHA256"],
+                    "fire_release_sha256": plan.exports["P3_FIRE_RELEASE_SHA256"],
+                    "workflow_sha256": load_json(record_dir / "request.json")[
+                        "workflow_sha256"
+                    ],
+                },
+            )
+            try:
+                released = subprocess.run(
+                    release_command,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+            except OSError as exc:
+                write_json_exclusive(
+                    record_dir / "primary_release_uncertain.json",
+                    {
+                        "command": release_command,
+                        "invocation_error": str(exc),
+                        "finished_utc": utc_now(),
+                    },
+                )
+                raise SubmissionError(
+                    "FIRE primary remains fail-closed without a proven scontrol release"
+                ) from exc
+            release_evidence = {
+                "command": release_command,
+                "returncode": released.returncode,
+                "stdout": released.stdout,
+                "stderr": released.stderr,
+                "finished_utc": utc_now(),
+            }
+            if released.returncode != 0:
+                write_json_exclusive(
+                    record_dir / "primary_release_rejected.json", release_evidence
+                )
+                raise SubmissionError(
+                    "FIRE primary remains held because scontrol release failed"
+                )
+            write_json_exclusive(
+                record_dir / "primary_release.json",
+                {
+                    **release_evidence,
+                    "primary_attempt_id": attempt_id,
+                    "primary_job_id": primary_job_id,
+                    "collector_attachment_sha256": sha256_path(
+                        record_dir / "collector_attachment.json"
+                    ),
+                },
+            )
         collector = {
             "attempt_id": collector_attempt,
             "job_id": collector_job_id,
@@ -1851,6 +1974,13 @@ def _execute_locked(
             "request_sha256": sha256_path(record_dir / "collector_request.json"),
             "result_sha256": sha256_path(record_dir / "collector_result.json"),
         }
+        if stage == "fire-pilot":
+            collector["attachment_sha256"] = sha256_path(
+                record_dir / "collector_attachment.json"
+            )
+            collector["primary_release_sha256"] = sha256_path(
+                record_dir / "primary_release.json"
+            )
 
     summary = {
         "healthy": True,
@@ -1866,6 +1996,9 @@ def _execute_locked(
         "polish_lineage_sha256": plan.exports.get(
             "P3_DIAGNOSTIC_LINEAGE_SHA256"
         ),
+        "fire_lineage_sha256": plan.exports.get("P3_FIRE_LINEAGE_SHA256"),
+        "fire_release_sha256": plan.exports.get("P3_FIRE_RELEASE_SHA256"),
+        "git_commit": plan.exports.get("P3_GIT_COMMIT"),
         "workflow_sha256": load_json(record_dir / "request.json")[
             "workflow_sha256"
         ],

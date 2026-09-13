@@ -191,6 +191,21 @@
   "reviewed_fire_recovery": {
     "status": "reviewed_planned_hypothesis_not_validated",
     "purpose": "A separate one-shot FIRE recovery lineage after the terminal BFGS lineage. It is not an extension, retry, or acceptance of the BFGS final state.",
+    "execution_policy": {
+      "version": 1,
+      "released_stages": [
+        "fire-pilot"
+      ],
+      "maximum_attempts": 1,
+      "lineage_must_be_prepared_by_current_workflow": true,
+      "release_receipt": "fire_pilot_execution_release.json",
+      "collector_dependency": "afterany",
+      "full_execution_released": false,
+      "structure_accepted": false,
+      "preflight_unlocked": false,
+      "force_execution_released": false,
+      "production_execution_released": false
+    },
     "seed_contract": {
       "required_source": "old_real_lineage/polish_reference.in",
       "forbidden_sources": ["polish_seed.in", "21848175_failed_terminal_state"],

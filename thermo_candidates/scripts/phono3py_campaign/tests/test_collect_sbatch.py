@@ -11,6 +11,15 @@ COLLECT_SCRIPT = Path(__file__).resolve().parents[1] / "slurm" / "collect.sbatch
 
 
 class CollectorSlurmScriptTests(unittest.TestCase):
+    def test_fire_pilot_is_explicit_afterany_evidence_only_stage(self) -> None:
+        text = COLLECT_SCRIPT.read_text()
+        self.assertIn('$PRIMARY_STAGE" == "fire-pilot"', text)
+        self.assertIn("PRIMARY_REQUEST_SHA256", text)
+        self.assertIn("PRIMARY_RESULT_SHA256", text)
+        self.assertIn("PRIMARY_STAGE_SCRIPT_SHA256", text)
+        self.assertIn("Account,Partition,NNodes,NCPUS,ReqMem,TimelimitRaw", text)
+        self.assertNotIn("finalize-pilot", text)
+
     def test_collector_uses_the_trusted_sacct_path_not_inherited_path(self) -> None:
         text = COLLECT_SCRIPT.read_text()
         self.assertIn('[[ -x "$P3_SACCT" ]]', text)

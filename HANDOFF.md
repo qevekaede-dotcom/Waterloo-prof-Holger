@@ -186,6 +186,27 @@ files with the checked hashes unchanged.  Nibi's queue was empty before and
 after.  No Slurm job or QE calculation ran, and no structure or scientific
 result was accepted.
 
+After that preserved plan-only record, the bounded FIRE pilot chain was
+implemented locally on 2026-09-14 and is pending independent review. Current
+code can release exactly one eight-step, 32-rank/two-hour pilot only from a
+new lineage plus a code-issued receipt binding the exact commit, config,
+policy, workflow hashes, seed, resources, and `afterany` collector. The old
+`aab9290` RUN_DIR is intentionally unusable after workflow/schema drift.
+Collection is evidence-only; independent raw replay/finalization can mark only
+`full_review_eligible`. Structure acceptance, preflight, full FIRE, force, and
+production remain false and hard-locked. No new lineage has been prepared with
+this implementation and no Slurm or QE job has run.
+
+Fresh review subsequently hardened that local-only FIRE implementation before
+execution: a code-owned atomic claim globally limits the trusted old lineage to
+one new RUN_DIR; exact old-lineage UPF bytes are copied and rehashed; the
+primary is held until an exact `afterany` collector attachment is recorded and
+then released with its own receipt; and replay distinguishes honest scheduler/
+startup failure from malformed provenance while binding QE 7.3.1, the eighth
+force step, and the final-coordinate ordering. Rb-focused FIRE/submission/
+collector tests pass locally. Full FIRE and every acceptance/downstream gate
+remain locked, and no job was submitted.
+
 For SrZrS3, the prior 3.70-A count-only result remains 1003 supercells for
 both reviewed supercells and is over the hard cap of 800.  The narrower
 2x1x1 count-only job `21850149` completed `0:0`: its raw YAML gives exactly

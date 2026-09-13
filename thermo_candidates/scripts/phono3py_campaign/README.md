@@ -34,12 +34,18 @@ The currently released path is:
 5. the Rb2Cu2SnS4 `reviewed_fire_recovery` is a dedicated FIRE lineage, not a
    BFGS fallback. It accepts only a byte-identical `polish_reference.in` and
    both archived reference records into a new non-nested RUN_DIR; pilot output
-   cannot seed full. This is a reviewed plan implementation only: `execute`,
-   both FIRE wrappers, and the direct FIRE run/finalize CLI are hard-locked.
-   The retained future gate specification requires QE 7.3.1's `FIRE:
-   convergence achieved in` and `End of FIRE minimization`, never merely `JOB
-   DONE`; independent replay/review and any count-only release are not yet
-   implemented and preflight remains locked;
+   cannot seed full. The locally implemented boundary releases exactly one
+   eight-step `fire-pilot` attempt only from a newly prepared lineage and its
+   code-issued execution-release receipt. The receipt binds the exact commit,
+   configuration, policy, workflow files, frozen seed and archived UPF bytes,
+   32-rank/two-hour allocation, and `afterany` collector. A code-owned atomic
+   claim beside the trusted old lineage permits only one new FIRE lineage
+   globally; a partially created claim fails closed. The old `aab9290` plan-only lineage
+   fails current schema/workflow replay and cannot be reused. Collection is
+   evidence-only; independent raw replay/finalization can mark only
+   `full_review_eligible`. Structure acceptance, preflight, full FIRE, force,
+   and production remain false and hard-locked. This implementation is local
+   and pending independent review; no job has run;
 6. fixed-cell tight `relax` plus a setting-matched independent pristine SCF
    inside a Nibi Slurm allocation;
 7. `finalize-relax`, which publishes a structure only if completion, BFGS,
@@ -88,7 +94,7 @@ module versions, Python environment, pseudopotential location, QE launcher,
 pool count, and OpenMP count from version-controlled values or the scheduler
 account identity; caller-provided runner/module overrides are not accepted.
 
-Diagnostic, relax, and force submissions receive a distinct `afterany`
+Diagnostic, relax, force, and the bounded FIRE-pilot submission receive a distinct `afterany`
 collector job. Preflight does not. Diagnostic resources are all passed as
 explicit `sbatch` overrides from the material configuration; the diagnostic
 script contains no hidden allocation defaults. Its collector preserves the
@@ -102,6 +108,32 @@ An `sbatch` success response without a parseable job ID is treated as
 potentially active and cannot be retried until manually reconciled with the
 scheduler. Force array bounds, when that stage is later released, must equal
 the exact `0..N-1` domain in an immutable task map.
+
+The FIRE pilot also receives an `afterany` collector. It binds the primary
+request/result, wrapper context, raw input/output/stderr/process records, exit
+code, collector request/result/context, full `sacct` allocation, and globally
+unique primary/collector job IDs. `FAILED`, `TIMEOUT`, and nonzero outcomes are
+still collectible evidence, but cannot pass replay. Collection never calls
+replay/finalization and never accepts a structure.
+
+The pilot primary is submitted held. Only after the collector has been
+accepted with the exact `afterany:<primary-job-id>` dependency does submission
+write an immutable attachment, release the held primary, and write the release
+receipt. The wrapper requires both receipts before loading QE or creating the
+attempt directory. Thus a submission-process crash cannot start uncollected
+QE work. Replay treats terminal scheduler/nonzero/startup interruption as an
+honest negative gate only when all artifacts that do exist have exact schemas,
+identities, and hashes; malformed or altered provenance fails hard.
+
+The pilot trend gate is intentionally different from a full relaxation gate.
+It requires eight healthy complete SCF/force steps, a decreasing maximum force
+component ending at or below `1e-4 Ry/bohr`, at most `0.02 A` cumulative shift,
+unchanged cell/atom order, strict Ibam No. 72 at `1e-6 A`, and terminal
+`COMPLETED/0:0` scheduler evidence. The full-run strings `FIRE: convergence
+achieved in` and `End of FIRE minimization` are not required for this bounded
+trend pilot. They remain mandatory for any future full FIRE finalization;
+`JOB DONE`, a step/time limit, or abnormal termination is insufficient. Full
+execution and finalization are not implemented or released.
 
 For a targeted preflight, repeat the same candidate arguments in `plan` and
 `execute`; `execute` still requires the plan's exact full config SHA256:

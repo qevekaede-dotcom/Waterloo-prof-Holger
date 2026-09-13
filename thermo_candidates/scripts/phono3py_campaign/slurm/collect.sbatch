@@ -22,8 +22,8 @@ p3_require_context
 : "${PRIMARY_STAGE:?submission must export the primary stage}"
 : "${PRIMARY_ATTEMPT_ID:?submission must export the primary attempt ID}"
 : "${PRIMARY_JOB_ID:?submission must export the primary Slurm job ID}"
-[[ "$PRIMARY_STAGE" == "diagnostic" || "$PRIMARY_STAGE" == "relax" || "$PRIMARY_STAGE" == "force" ]] \
-    || p3_die "PRIMARY_STAGE must be diagnostic, relax, or force"
+[[ "$PRIMARY_STAGE" == "diagnostic" || "$PRIMARY_STAGE" == "relax" || "$PRIMARY_STAGE" == "force" || "$PRIMARY_STAGE" == "fire-pilot" ]] \
+    || p3_die "PRIMARY_STAGE must be diagnostic, relax, force, or fire-pilot"
 [[ "$PRIMARY_ATTEMPT_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$ ]] \
     || p3_die "PRIMARY_ATTEMPT_ID has invalid characters"
 [[ "$PRIMARY_ATTEMPT_ID" != "$ATTEMPT_ID" ]] \
@@ -32,16 +32,16 @@ p3_require_context
     || p3_die "PRIMARY_JOB_ID must contain only digits"
 
 EXPECTED_ALLOCATIONS=1
-if [[ "$PRIMARY_STAGE" == "diagnostic" ]]; then
-    : "${PRIMARY_REQUEST_SHA256:?diagnostic collector requires the primary request hash}"
-    : "${PRIMARY_RESULT_SHA256:?diagnostic collector requires the primary response hash}"
-    : "${PRIMARY_STAGE_SCRIPT_SHA256:?diagnostic collector requires the primary stage-script hash}"
+if [[ "$PRIMARY_STAGE" == "diagnostic" || "$PRIMARY_STAGE" == "fire-pilot" ]]; then
+    : "${PRIMARY_REQUEST_SHA256:?collector requires the primary request hash}"
+    : "${PRIMARY_RESULT_SHA256:?collector requires the primary response hash}"
+    : "${PRIMARY_STAGE_SCRIPT_SHA256:?collector requires the primary stage-script hash}"
     for primary_hash in \
         "$PRIMARY_REQUEST_SHA256" \
         "$PRIMARY_RESULT_SHA256" \
         "$PRIMARY_STAGE_SCRIPT_SHA256"; do
         [[ "$primary_hash" =~ ^[0-9a-f]{64}$ ]] \
-            || p3_die "diagnostic primary submission hash is invalid"
+            || p3_die "primary submission hash is invalid"
     done
 fi
 if [[ "$PRIMARY_STAGE" == "force" ]]; then
@@ -90,7 +90,7 @@ SACCT_RECORD="$P3_ATTEMPT_DIR/primary_sacct.psv"
 SACCT_STATUS="$P3_ATTEMPT_DIR/primary_sacct_exit_code.txt"
 SACCT_HEADER='JobID|JobIDRaw|State|ExitCode|ElapsedRaw|AllocCPUS|MaxRSS'
 SACCT_FORMAT='JobID,JobIDRaw,State,ExitCode,ElapsedRaw,AllocCPUS,MaxRSS'
-if [[ "$PRIMARY_STAGE" == "diagnostic" ]]; then
+if [[ "$PRIMARY_STAGE" == "diagnostic" || "$PRIMARY_STAGE" == "fire-pilot" ]]; then
     SACCT_HEADER='JobID|JobIDRaw|State|ExitCode|ElapsedRaw|AllocCPUS|MaxRSS|Account|Partition|NNodes|NCPUS|ReqMem|TimelimitRaw'
     SACCT_FORMAT='JobID,JobIDRaw,State,ExitCode,ElapsedRaw,AllocCPUS,MaxRSS,Account,Partition,NNodes,NCPUS,ReqMem,TimelimitRaw'
 fi
@@ -174,7 +174,7 @@ collect_args=(
     --scheduler-accounting "$SACCT_RECORD"
     --scheduler-accounting-status "$SACCT_STATUS"
 )
-if [[ "$PRIMARY_STAGE" == "diagnostic" ]]; then
+if [[ "$PRIMARY_STAGE" == "diagnostic" || "$PRIMARY_STAGE" == "fire-pilot" ]]; then
     collect_args+=(
         --expect-primary-request-sha "$PRIMARY_REQUEST_SHA256"
         --expect-primary-result-sha "$PRIMARY_RESULT_SHA256"

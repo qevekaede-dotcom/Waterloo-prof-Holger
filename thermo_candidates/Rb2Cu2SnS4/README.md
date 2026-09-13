@@ -30,3 +30,11 @@ Workflow status: complete for the scalar-relativistic PBE first pass.
 On the sampled grid, p-type doping is favored by both `PF/tau` and `zT_e` at
 every temperature. Full zT is not available: the electronic calculation
 carries no relaxation time and no lattice thermal conductivity.
+
+Phonon-campaign note (2026-09-14): the failed one-shot BFGS polish remains
+terminal. A one-attempt, eight-step FIRE pilot chain is implemented locally
+and pending review, but no FIRE calculation has run. It cannot accept a
+structure or unlock preflight, force calculations, full FIRE, or production.
+Its fresh lineage atomically consumes the sole hypothesis, freezes the
+reviewed UPF bytes, and keeps the primary held until the exact `afterany`
+collector attachment and release receipt are verifiable before QE.

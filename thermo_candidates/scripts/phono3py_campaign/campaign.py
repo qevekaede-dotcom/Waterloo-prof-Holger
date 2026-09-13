@@ -5264,8 +5264,8 @@ def command_collect(
     """Collect one explicitly identified upstream attempt without rerunning it."""
 
     require_compute_node()
-    if primary_stage not in {"diagnostic", "relax", "force"}:
-        raise CampaignError("collector primary stage must be diagnostic, relax, or force")
+    if primary_stage not in {"diagnostic", "relax", "force", "fire-pilot"}:
+        raise CampaignError("collector primary stage must be diagnostic, relax, force, or fire-pilot")
     if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}", primary_attempt_id) is None:
         raise CampaignError("invalid primary attempt ID")
     if not primary_job_id.isdigit():
@@ -5281,6 +5281,10 @@ def command_collect(
                 "diagnostic collection must precede polish manifest release"
             )
         _load_lineage(config, run_dir)
+    elif primary_stage == "fire-pilot":
+        from fire_recovery import verify_fire_submission_ready
+
+        verify_fire_submission_ready(config_path, run_dir, "fire-pilot", require_unused=False)
     else:
         verify_upstream_manifest(
             config,
@@ -5307,7 +5311,7 @@ def command_collect(
     accounting_records, accounting_errors, accounting_metadata = _read_sacct_records(
         accounting_path,
         accounting_status_path,
-        DIAGNOSTIC_SACCT_FIELDS if primary_stage == "diagnostic" else SACCT_FIELDS,
+        DIAGNOSTIC_SACCT_FIELDS if primary_stage in {"diagnostic", "fire-pilot"} else SACCT_FIELDS,
     )
     if primary_stage == "force":
         if any(
@@ -5367,6 +5371,31 @@ def command_collect(
                 "diagnostic collection must not receive force-bundle paths"
             )
         report = _collect_diagnostic_attempt(
+            config=config,
+            config_path=config_path,
+            run_dir=run_dir,
+            current_attempt=current_attempt,
+            primary_attempt_id=primary_attempt_id,
+            primary_job_id=primary_job_id,
+            expected_primary_request_sha256=expected_primary_request_sha256,
+            expected_primary_result_sha256=expected_primary_result_sha256,
+            expected_primary_stage_script_sha256=expected_primary_stage_script_sha256,
+            accounting_records=accounting_records,
+            accounting_errors=accounting_errors,
+            accounting_metadata=accounting_metadata,
+        )
+    elif primary_stage == "fire-pilot":
+        if (
+            expected_primary_request_sha256 is None
+            or expected_primary_result_sha256 is None
+            or expected_primary_stage_script_sha256 is None
+        ):
+            raise CampaignError("FIRE pilot collection requires primary request/result/stage hashes")
+        if any(value is not None for value in (force_manifest, task_map, expected_force_manifest_sha256, expected_task_map_sha256)):
+            raise CampaignError("FIRE pilot collection must not receive force-bundle paths")
+        from fire_recovery import collect_pilot_evidence
+
+        report = collect_pilot_evidence(
             config=config,
             config_path=config_path,
             run_dir=run_dir,
@@ -6164,7 +6193,7 @@ def build_parser() -> argparse.ArgumentParser:
             subparser.add_argument("--expect-candidate-subset-sha")
         if name == "collect":
             subparser.add_argument(
-                "--primary-stage", choices=("diagnostic", "relax", "force"), required=True
+                "--primary-stage", choices=("diagnostic", "relax", "force", "fire-pilot"), required=True
             )
             subparser.add_argument("--primary-attempt-id", required=True)
             subparser.add_argument("--primary-job-id", required=True)
