@@ -57,6 +57,11 @@ _OLD_RUN_MANIFEST = "run_manifest.json"
 _PINNED_NIBI_GIT = "/cvmfs/soft.computecanada.ca/gentoo/2023/x86-64-v3/usr/bin/git"
 _PINNED_NIBI_GIT_SHA256 = "fee0fa5192046d970b854cc2a99a6c7fcc50d8ffedb453ad0c1f9294a2d796ea"
 _PINNED_NIBI_GIT_VERSION = "git version 2.41.0"
+_NIBI_4G_MEMORY_NOTE = (
+    "sbatch: NOTE: Your memory request of 4096.0M was likely submitted as 4.0G. "
+    "Please note that Slurm interprets memory requests denominated in G as "
+    "multiples of 1024M, not 1000M.\n"
+)
 
 # Code-owned trust root for the one real Rb lineage already replayed on Nibi.
 # A mutable campaign file may not redefine which historical run or evidence
@@ -770,7 +775,7 @@ def _authenticate_startup_incident(
         or str(collector_result.get("primary_job_id")) != primary_job_id
         or collector_result.get("returncode") != 0
         or not _sbatch_stdout_matches_job(collector_result.get("stdout"), collector_job_id)
-        or collector_result.get("stderr") != ""
+        or collector_result.get("stderr") != _NIBI_4G_MEMORY_NOTE
         or collector_result.get("command") != collector_request.get("command")
         or attachment.get("primary_attempt_id") != primary_attempt_id
         or str(attachment.get("primary_job_id")) != primary_job_id
@@ -1922,6 +1927,12 @@ def verify_fire_collector_attachment(
         attachment_keys.add("fire_replacement_sha256")
     collector_attempt_id = str(collector_result.get("attempt_id", ""))
     collector_job_id = str(collector_result.get("job_id", ""))
+    collector_stderr = collector_result.get("stderr")
+    allowed_collector_stderr = (
+        ("", _NIBI_4G_MEMORY_NOTE)
+        if replacement_authorization_sha256 is not None
+        else ("",)
+    )
     release_command = ["scontrol", "release", primary_job_id]
     primary_command = request.get("command")
     collector_command = collector_request.get("command")
@@ -1968,7 +1979,8 @@ def verify_fire_collector_attachment(
         or collector_result.get("command") != expected_collector_command
         or collector_result.get("returncode") != 0
         or not _sbatch_stdout_matches_job(collector_result.get("stdout"), collector_job_id)
-        or collector_result.get("stderr") != ""
+        or not isinstance(collector_stderr, str)
+        or collector_stderr not in allowed_collector_stderr
         or collector_result.get("primary_attempt_id") != primary_attempt_id
         or str(collector_result.get("primary_job_id")) != primary_job_id
         or not collector_job_id.isdigit()
@@ -2917,7 +2929,17 @@ def replay_pilot(config_path: Path, run_dir: Path, collection_path: Path, *, exp
     )
     if collector_request.get("command") != expected_collector_command or collector_result.get("command") != expected_collector_command:
         raise core.CampaignError("FIRE collector command/dependency/export reconstruction mismatch")
-    if not _sbatch_stdout_matches_job(collector_result.get("stdout"), collector_job_id) or collector_result.get("stderr") != "":
+    collector_stderr = collector_result.get("stderr")
+    allowed_collector_stderr = (
+        ("", _NIBI_4G_MEMORY_NOTE)
+        if replacement_sha256 is not None
+        else ("",)
+    )
+    if (
+        not _sbatch_stdout_matches_job(collector_result.get("stdout"), collector_job_id)
+        or not isinstance(collector_stderr, str)
+        or collector_stderr not in allowed_collector_stderr
+    ):
         raise core.CampaignError("FIRE collector sbatch response bytes do not prove its exact job ID")
     attachment = verify_fire_collector_attachment(
         config_path, run_dir, primary_attempt_id, primary_job_id,

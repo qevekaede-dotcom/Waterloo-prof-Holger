@@ -204,6 +204,19 @@ class FireRecoveryTests(unittest.TestCase):
 
         return run
 
+    def _successful_sbatch_with_collector_note(
+        self, primary_job_id: str, collector_job_id: str
+    ):
+        run = self._successful_sbatch(primary_job_id, collector_job_id)
+
+        def with_exact_nibi_note(command):
+            job_id, evidence = run(command)
+            if job_id == collector_job_id:
+                evidence["stderr"] = fire._NIBI_4G_MEMORY_NOTE
+            return job_id, evidence
+
+        return with_exact_nibi_note
+
     @staticmethod
     def _successful_release(command, *args, **kwargs):
         if list(command[:2]) == ["scontrol", "release"]:
@@ -215,7 +228,8 @@ class FireRecoveryTests(unittest.TestCase):
         fire.prepare_lineage(self.config_path, run, self.old)
         context = submit.resolve_context(self.config_path, run, "fire-pilot")
         with patch("submit.require_nibi_login"), patch(
-            "submit.run_sbatch", side_effect=self._successful_sbatch("101", "102")
+            "submit.run_sbatch",
+            side_effect=self._successful_sbatch_with_collector_note("101", "102"),
         ), patch("submit.subprocess.run", side_effect=self._successful_release):
             submitted = submit.execute_submission(
                 context, "fire-pilot", expected_config_sha=context.config_sha256,
@@ -504,6 +518,65 @@ class FireRecoveryTests(unittest.TestCase):
             core.sha256_path(context_path),
         )
 
+    def test_startup_incident_requires_exact_nibi_collector_memory_note(self) -> None:
+        self.assertEqual(
+            fire.TRUSTED_STARTUP_INCIDENT["hashes"]["collector_result.json"],
+            "79a943bd50be96687dc066dacfa44f3a770aeaedbe48751e25640bb4da48034b",
+        )
+        run, incident = self._startup_incident_fixture()
+        record = run / "submissions/fire-pilot" / incident["primary_attempt_id"]
+        collector_result_path = record / "collector_result.json"
+        collector_result = core.load_json(collector_result_path)
+        self.assertEqual(collector_result["stderr"], fire._NIBI_4G_MEMORY_NOTE)
+
+        # Even a coherently rehashed caller-controlled chain cannot replace the
+        # code-owned exact Nibi note with a fabricated blank stderr.
+        collector_result["stderr"] = ""
+        collector_result_path.write_text(json.dumps(collector_result))
+        attachment_path = record / "collector_attachment.json"
+        attachment = core.load_json(attachment_path)
+        attachment["collector_result_sha256"] = core.sha256_path(
+            collector_result_path
+        )
+        attachment_path.write_text(json.dumps(attachment))
+        release_path = record / "primary_release.json"
+        release = core.load_json(release_path)
+        release["collector_attachment_sha256"] = core.sha256_path(attachment_path)
+        release_path.write_text(json.dumps(release))
+        summary_path = record / "submission.json"
+        summary = core.load_json(summary_path)
+        summary["collector"]["result_sha256"] = core.sha256_path(
+            collector_result_path
+        )
+        summary["collector"]["attachment_sha256"] = core.sha256_path(
+            attachment_path
+        )
+        summary["collector"]["primary_release_sha256"] = core.sha256_path(
+            release_path
+        )
+        summary_path.write_text(json.dumps(summary))
+        for name, path in (
+            ("collector_result.json", collector_result_path),
+            ("collector_attachment.json", attachment_path),
+            ("primary_release.json", release_path),
+            ("submission.json", summary_path),
+        ):
+            incident["hashes"][name] = core.sha256_path(path)
+        rows = {
+            "101": incident["primary_allocation"],
+            "102": incident["collector_allocation"],
+        }
+        with patch.object(fire, "TRUSTED_STARTUP_INCIDENT", incident), patch(
+            "submit.require_nibi_login"
+        ), patch(
+            "fire_recovery._query_exact_incident_scheduler_rows",
+            return_value=rows,
+        ):
+            with self.assertRaisesRegex(core.CampaignError, "identity drift"):
+                fire.create_infrastructure_replacement_authorization(
+                    self.config_path, run
+                )
+
     def test_startup_incident_any_raw_hash_or_scheduler_row_drift_fails(self) -> None:
         run, incident = self._startup_incident_fixture()
         record = run / "submissions/fire-pilot" / incident["primary_attempt_id"]
@@ -613,7 +686,9 @@ class FireRecoveryTests(unittest.TestCase):
             )
             with patch(
                 "submit.run_sbatch",
-                side_effect=self._successful_sbatch("201", "202"),
+                side_effect=self._successful_sbatch_with_collector_note(
+                    "201", "202"
+                ),
             ), patch(
                 "submit.subprocess.run", side_effect=self._successful_release
             ):
@@ -749,6 +824,60 @@ class FireRecoveryTests(unittest.TestCase):
             self.assertFalse(replay["structure_accepted"])
             self.assertFalse(replay["preflight_unlocked"])
             self.assertFalse(replay["full_execution_released"])
+
+            # A future Nibi client may either emit the known 4G normalization
+            # note or remain silent.  Both are benign; every other stderr byte
+            # must still fail before QE can start.
+            collector_result_path = record / "collector_result.json"
+            attachment_path = record / "collector_attachment.json"
+            release_path = record / "primary_release.json"
+
+            def rewrite_collector_stderr(value: object) -> None:
+                collector_result = core.load_json(collector_result_path)
+                collector_result["stderr"] = value
+                collector_result_path.write_text(json.dumps(collector_result))
+                attachment = core.load_json(attachment_path)
+                attachment["collector_result_sha256"] = core.sha256_path(
+                    collector_result_path
+                )
+                attachment_path.write_text(json.dumps(attachment))
+                release = core.load_json(release_path)
+                release["collector_attachment_sha256"] = core.sha256_path(
+                    attachment_path
+                )
+                release_path.write_text(json.dumps(release))
+
+            rewrite_collector_stderr("")
+            fire.verify_fire_collector_attachment(
+                self.config_path,
+                run,
+                submitted["attempt_id"],
+                "201",
+                replacement_authorization_sha256=authorization[
+                    "authorization_sha256"
+                ],
+                allow_primary_attempt=True,
+                replacement_collector_attempt_id=collector_attempt_id,
+            )
+            for rejected_stderr in (
+                "unexpected scheduler warning\n",
+                ["unexpected non-string stderr"],
+            ):
+                rewrite_collector_stderr(rejected_stderr)
+                with self.assertRaisesRegex(
+                    core.CampaignError, "acceptance evidence"
+                ):
+                    fire.verify_fire_collector_attachment(
+                        self.config_path,
+                        run,
+                        submitted["attempt_id"],
+                        "201",
+                        replacement_authorization_sha256=authorization[
+                            "authorization_sha256"
+                        ],
+                        allow_primary_attempt=True,
+                        replacement_collector_attempt_id=collector_attempt_id,
+                    )
 
             with patch("submit.run_sbatch") as second_sbatch:
                 with self.assertRaises((core.CampaignError, submit.SubmissionError)):
