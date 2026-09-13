@@ -22,6 +22,7 @@ from typing import Any, Mapping, Sequence
 
 import campaign as core
 import relax_recovery
+import submit
 from qe_input import (
     FinalCoordinates,
     _set_namelist_values,
@@ -38,11 +39,63 @@ DIAGNOSTIC_RECEIPT = "diagnostic_receipt.json"
 UTC_RE = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z")
 SLURM_NODELIST_RE = re.compile(r"[A-Za-z0-9_.\[\],-]+")
 
+# Trust root for the already-executed Rb diagnostic and its later polish
+# submission.  Each digest was independently reproduced from the named Git
+# object with ``git show <commit>:<path>``; run-directory self-reports can only
+# select this snapshot by matching the complete stage-specific tuple.
+TRUSTED_EXECUTED_WORKFLOW_SNAPSHOTS: dict[str, dict[str, str]] = {
+    "cf0b1d1be318725015ed5d05f4ee3fb63d0fb89d": {
+        "submit.py": "399b84585045bec75aa3d2a175ce8069afa8f06eeb4672b17fd14ca36b248d95",
+        "campaign.py": "eeabcfed82076d1718b96c1b67b12864693dd5938174face8d8764663797a79d",
+        "polish_recovery.py": "5d72c59aaa2a773005c16ec3160745007890ca62d55bca22266b6bd56b852539",
+        "cluster.env": "037f859d802b79f56c71dcec6642601761f9cc75e0ae0881b58dfe2cf5d9ed11",
+        "diagnostic.sbatch": "7ed975a76217c80b9b7e12a70bd6ee9911010836d4d603c06b5ec5dc85b4ba6d",
+        "collect.sbatch": "762c989f54f5555f0848d1481e0121eb0510aa96147e7c9bdd0814b0a2a6ed78",
+        "relax.sbatch": "3eeada377dbe29c8e27b8a97ba19d7eba2c71215a284139d3bb5730676c54837",
+        "force_array.sbatch": "cbc4adb170fdb6b5a71069ee8a80931cc62d133b7b73c9abdadc4fc4d302b5c8",
+    }
+}
+
 
 def _digest(value: Any, label: str) -> str:
     if not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{64}", value) is None:
         raise core.CampaignError(f"{label} must be a lowercase SHA256")
     return value
+
+
+def _local_workflow_snapshot() -> dict[str, str]:
+    campaign_dir = Path(__file__).resolve().parent
+    slurm_dir = campaign_dir / "slurm"
+    return {
+        "submit.py": core.sha256_path(campaign_dir / "submit.py"),
+        "campaign.py": core.sha256_path(campaign_dir / "campaign.py"),
+        "polish_recovery.py": core.sha256_path(Path(__file__)),
+        "cluster.env": core.sha256_path(slurm_dir / "cluster.env"),
+        "diagnostic.sbatch": core.sha256_path(slurm_dir / "diagnostic.sbatch"),
+        "collect.sbatch": core.sha256_path(slurm_dir / "collect.sbatch"),
+        "relax.sbatch": core.sha256_path(slurm_dir / "relax.sbatch"),
+        "force_array.sbatch": core.sha256_path(slurm_dir / "force_array.sbatch"),
+    }
+
+
+def _trusted_workflow_snapshot(
+    recorded: Any, required_names: Sequence[str], label: str
+) -> dict[str, str]:
+    """Resolve a complete recorded tuple against code-owned trust anchors."""
+
+    required = tuple(required_names)
+    if not isinstance(recorded, Mapping) or set(recorded) != set(required):
+        raise core.CampaignError(f"{label} is not a complete workflow tuple")
+    for name in required:
+        _digest(recorded.get(name), f"{label} {name}")
+    snapshots = {
+        "current-versioned-source": _local_workflow_snapshot(),
+        **TRUSTED_EXECUTED_WORKFLOW_SNAPSHOTS,
+    }
+    for snapshot in snapshots.values():
+        if all(recorded.get(name) == snapshot[name] for name in required):
+            return snapshot
+    raise core.CampaignError(f"{label} is not an approved versioned workflow tuple")
 
 
 def _strict_run_path(
@@ -499,8 +552,17 @@ def _load_lineage(config: Mapping[str, Any], run_dir: Path) -> dict[str, Any]:
         run_dir, run_dir / LINEAGE_RECEIPT, "polish lineage receipt"
     )
     receipt = core.load_json(receipt_path)
-    if receipt.get("backend_sha256") != core.sha256_path(Path(__file__)):
-        raise core.CampaignError("polish-lineage backend changed after preparation")
+    trusted_backend_hashes = {
+        _local_workflow_snapshot()["polish_recovery.py"],
+        *(
+            snapshot["polish_recovery.py"]
+            for snapshot in TRUSTED_EXECUTED_WORKFLOW_SNAPSHOTS.values()
+        ),
+    }
+    if receipt.get("backend_sha256") not in trusted_backend_hashes:
+        raise core.CampaignError(
+            "polish-lineage backend is not an approved versioned source"
+        )
     if receipt.get("polish_policy_sha256") != core.canonical_sha256(
         core.required(config, "reviewed_bfgs_polish")
     ):
@@ -970,6 +1032,7 @@ def _audit_diagnostic_attempt(
     expected_execution_sha256: str,
     expected_slurm_job_id: str,
     expected_command: Sequence[str],
+    expected_workflow_sha256: Mapping[str, str],
 ) -> dict[str, Any]:
     """Replay exact diagnostic execution, process, and force evidence."""
 
@@ -1044,18 +1107,7 @@ def _audit_diagnostic_attempt(
         not in {"native_slurm_timelimit", "submitted_request_export"}
     ):
         raise core.CampaignError("diagnostic execution/allocation mismatch")
-    expected_workflow = {
-        "submit.py": core.sha256_path(Path(__file__).with_name("submit.py")),
-        "campaign.py": core.sha256_path(Path(__file__).with_name("campaign.py")),
-        "cluster.env": core.sha256_path(
-            Path(__file__).with_name("slurm") / "cluster.env"
-        ),
-        "diagnostic.sbatch": core.sha256_path(
-            Path(__file__).with_name("slurm") / "diagnostic.sbatch"
-        ),
-        "polish_recovery.py": core.sha256_path(Path(__file__)),
-    }
-    if execution.get("workflow_sha256") != expected_workflow:
+    if execution.get("workflow_sha256") != expected_workflow_sha256:
         raise core.CampaignError("diagnostic execution/workflow hash mismatch")
     labels = ("baseline-a", "baseline-b", "higher-ecutrho")
     runs = execution.get("runs")
@@ -1200,12 +1252,797 @@ def _command_exports(command: Any, label: str) -> dict[str, str]:
     return result
 
 
+_CAMPAIGN_DIR_FROM_CHECKOUT = Path(
+    "thermo_candidates/scripts/phono3py_campaign"
+)
+_SLURM_DIR_FROM_CHECKOUT = _CAMPAIGN_DIR_FROM_CHECKOUT / "slurm"
+
+
+def _recorded_absolute_path(value: Any, label: str) -> Path:
+    """Parse a historical path lexically without requiring that checkout locally."""
+
+    if not isinstance(value, str) or not value or value.startswith("//"):
+        raise core.CampaignError(f"{label} is not a normalized absolute path")
+    path = Path(value)
+    if (
+        not path.is_absolute()
+        or path == Path("/")
+        or any(part in {"", ".", ".."} for part in path.parts[1:])
+        or str(path) != value
+    ):
+        raise core.CampaignError(f"{label} is not a normalized absolute path")
+    return path
+
+
+def _current_checkout_root() -> Path:
+    campaign_dir = Path(__file__).resolve().parent
+    root = campaign_dir
+    for _ in _CAMPAIGN_DIR_FROM_CHECKOUT.parts:
+        root = root.parent
+    if campaign_dir != root / _CAMPAIGN_DIR_FROM_CHECKOUT or root == Path("/"):
+        raise core.CampaignError(
+            "current verifier is not in the expected repository layout"
+        )
+    return root
+
+
+def _verifier_config_from_recorded_path(
+    config: Mapping[str, Any],
+    recorded_config_path: Any,
+    recorded_config_sha256: Any,
+    *,
+    label: str,
+) -> tuple[Path, Path]:
+    """Project a recorded checkout path onto this verifier's checkout.
+
+    ``run_manifest.json`` deliberately preserves the absolute config path from
+    the checkout that released the run.  That path may no longer exist when a
+    later checkout replays the run, so it is used only to prove the fixed
+    repository-relative identity.  The bytes and policy authority always come
+    from the corresponding config in the current verifier checkout.
+    """
+
+    formula = str(core.required(config, "material.formula"))
+    if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._+-]{0,79}", formula) is None:
+        raise core.CampaignError(f"{label} material formula is not path-safe")
+    relative = Path("thermo_candidates") / formula / "phono3py/campaign.json"
+    recorded = _recorded_absolute_path(recorded_config_path, label)
+    if tuple(recorded.parts[-len(relative.parts) :]) != relative.parts:
+        raise core.CampaignError(
+            f"{label} has an unexpected repository-relative identity"
+        )
+    recorded_root = recorded
+    for _ in relative.parts:
+        recorded_root = recorded_root.parent
+    if recorded_root == Path("/") or recorded != recorded_root / relative:
+        raise core.CampaignError(f"{label} does not identify a checkout root")
+
+    current_root = _current_checkout_root()
+    verifier_candidate = current_root / relative
+    verifier = verifier_candidate.resolve(strict=True)
+    if verifier != verifier_candidate:
+        raise core.CampaignError(f"{label} current verifier path contains a symlink")
+    expected_sha = _digest(recorded_config_sha256, f"{label} hash")
+    if core.sha256_path(verifier) != expected_sha or core.load_json(verifier) != config:
+        raise core.CampaignError(
+            f"{label} does not match the current verifier config bytes"
+        )
+    return verifier, recorded_root
+
+
+def _recorded_checkout_paths(
+    config_path: Path,
+    exports: Mapping[str, str],
+    *,
+    recorded_config: Any,
+    recorded_stage_script: Any,
+    stage_script_name: str,
+    label: str,
+    expected_checkout_root: Path | None = None,
+) -> dict[str, Path]:
+    """Bind all historical code paths to one relocatable checkout root.
+
+    Historical paths are evidence strings and need not exist in the verifier's
+    checkout.  Their repository-relative layout is nevertheless fixed, and
+    every command, export, and wrapper path must select the same absolute root.
+    """
+
+    current_root = _current_checkout_root()
+    config_path = config_path.resolve(strict=True)
+    try:
+        config_relative = config_path.relative_to(current_root)
+    except ValueError as exc:
+        raise core.CampaignError(
+            f"{label} verifier config is outside the current checkout"
+        ) from exc
+    if (
+        len(config_relative.parts) < 2
+        or config_relative.parts[0] != "thermo_candidates"
+        or config_relative.name != "campaign.json"
+    ):
+        raise core.CampaignError(
+            f"{label} verifier config has an unexpected repository path"
+        )
+
+    slurm_dir = _recorded_absolute_path(
+        exports.get("P3_SLURM_DIR"), f"{label} P3_SLURM_DIR"
+    )
+    checkout_root = slurm_dir
+    for _ in _SLURM_DIR_FROM_CHECKOUT.parts:
+        checkout_root = checkout_root.parent
+    if (
+        checkout_root == Path("/")
+        or slurm_dir != checkout_root / _SLURM_DIR_FROM_CHECKOUT
+    ):
+        raise core.CampaignError(
+            f"{label} P3_SLURM_DIR is outside the versioned checkout layout"
+        )
+    if expected_checkout_root is not None and checkout_root != expected_checkout_root:
+        raise core.CampaignError(f"{label} mixes historical checkout roots")
+
+    campaign_dir = checkout_root / _CAMPAIGN_DIR_FROM_CHECKOUT
+    historical_config = checkout_root / config_relative
+    historical_stage_script = slurm_dir / stage_script_name
+    if (
+        _recorded_absolute_path(
+            exports.get("CAMPAIGN_CONFIG"), f"{label} CAMPAIGN_CONFIG"
+        )
+        != historical_config
+        or _recorded_absolute_path(recorded_config, f"{label} config path")
+        != historical_config
+        or _recorded_absolute_path(
+            recorded_stage_script, f"{label} stage script"
+        )
+        != historical_stage_script
+    ):
+        raise core.CampaignError(
+            f"{label} code/config paths do not share one historical checkout root"
+        )
+    return {
+        "checkout_root": checkout_root,
+        "campaign_dir": campaign_dir,
+        "slurm_dir": slurm_dir,
+        "config": historical_config,
+        "stage_script": historical_stage_script,
+        "collector_script": slurm_dir / "collect.sbatch",
+        "campaign_cli": campaign_dir / "campaign.py",
+    }
+
+
+def _replay_later_submission_commands(
+    run_dir: Path,
+    *,
+    config_path: Path,
+    primary_stage: str,
+    primary_attempt_id: str,
+    primary_job_id: str,
+    collector_attempt_id: str,
+    collector_job_id: str,
+    config_sha: str,
+    account: str,
+    request: Mapping[str, Any],
+    primary_result: Mapping[str, Any],
+    collector_request: Mapping[str, Any],
+    collector_result: Mapping[str, Any],
+    expected_checkout_root: Path,
+    expected_workflow_snapshot: Mapping[str, str],
+) -> dict[str, Path]:
+    """Reconstruct the submit.py primary and collector sbatch commands."""
+
+    config_path = config_path.resolve(strict=True)
+    script_name = "relax.sbatch" if primary_stage == "relax" else "force_array.sbatch"
+    workflow_names = ("submit.py", "campaign.py", "cluster.env", script_name)
+    trusted_snapshot = _trusted_workflow_snapshot(
+        request.get("workflow_sha256"),
+        workflow_names,
+        "extra collector primary workflow",
+    )
+    if trusted_snapshot != expected_workflow_snapshot:
+        raise core.CampaignError(
+            "extra collector workflow snapshot differs from diagnostic workflow snapshot"
+        )
+    workflow = {name: trusted_snapshot[name] for name in workflow_names}
+    collector_script_sha = trusted_snapshot["collect.sbatch"]
+    if (
+        request.get("workflow_sha256") != workflow
+        or request.get("submit_script_sha256") != workflow["submit.py"]
+        or request.get("cluster_env_sha256") != workflow["cluster.env"]
+        or request.get("stage_script_sha256") != workflow[script_name]
+    ):
+        raise core.CampaignError("extra collector primary workflow tuple mismatch")
+    if (
+        collector_request.get("collector_script_sha256") != collector_script_sha
+        or collector_request.get("campaign_cli_sha256") != workflow["campaign.py"]
+        or collector_request.get("cluster_env_sha256") != workflow["cluster.env"]
+        or collector_request.get("primary_stage_script_sha256") != workflow[script_name]
+    ):
+        raise core.CampaignError("extra collector workflow tuple differs from primary")
+
+    request_command = request.get("command")
+    request_exports = _command_exports(
+        request_command, "extra collector primary submission"
+    )
+    if not isinstance(request_command, list) or not request_command:
+        raise core.CampaignError("extra collector primary command is invalid")
+    historical_paths = _recorded_checkout_paths(
+        config_path,
+        request_exports,
+        recorded_config=request.get("config"),
+        recorded_stage_script=request_command[-1],
+        stage_script_name=script_name,
+        label="extra collector primary submission",
+        expected_checkout_root=expected_checkout_root,
+    )
+    slurm_dir = historical_paths["slurm_dir"]
+    script = historical_paths["stage_script"]
+    collect_script = historical_paths["collector_script"]
+
+    exports = {
+        "CAMPAIGN_CONFIG": str(historical_paths["config"]),
+        "RUN_DIR": str(run_dir),
+        "ATTEMPT_ID": primary_attempt_id,
+        "P3_SLURM_DIR": str(slurm_dir),
+        "P3_EXPECTED_CONFIG_SHA256": config_sha,
+        "P3_SUBMIT_SCRIPT_SHA256": workflow["submit.py"],
+        "P3_STAGE_SCRIPT_SHA256": workflow[script_name],
+        "P3_CLUSTER_ENV_SHA256": workflow["cluster.env"],
+        "P3_CAMPAIGN_CLI_SHA256": workflow["campaign.py"],
+    }
+    scheduler_options: tuple[str, ...] = ()
+    array: str | None = None
+    task_map: Path | None = None
+    task_map_sha: str | None = None
+    force_manifest: Path | None = None
+    force_manifest_sha: str | None = None
+    budget_receipt: Path | None = None
+    budget_receipt_sha: str | None = None
+    force_mode: str | None = None
+    task_count: int | None = None
+    if primary_stage == "force":
+        candidate_task_map = _strict_run_path(
+            run_dir,
+            Path(str(request.get("task_map", ""))),
+            "extra collector force task map",
+        )
+        try:
+            trusted_config, _ = core.validate_config(config_path)
+            force_context = submit.SubmissionContext(
+                config_path=config_path,
+                run_dir=run_dir,
+                config=trusted_config,
+                manifest={},
+                config_sha256=config_sha,
+            )
+            (
+                task_map,
+                task_count,
+                task_map_sha,
+                force_manifest,
+                manifest,
+                budget_receipt,
+                budget,
+            ) = submit.validate_force_bundle(force_context, candidate_task_map)
+        except (core.CampaignError, submit.SubmissionError, OSError, ValueError) as exc:
+            raise core.CampaignError(
+                f"extra collector force bundle replay failed: {exc}"
+            ) from exc
+        force_manifest_sha = core.sha256_path(force_manifest)
+        budget_receipt_sha = core.sha256_path(budget_receipt)
+        if (
+            request.get("task_map") != str(task_map)
+            or request.get("task_map_sha256") != task_map_sha
+            or request.get("task_count") != task_count
+            or request.get("force_manifest") != str(force_manifest)
+            or request.get("force_manifest_sha256") != force_manifest_sha
+            or request.get("budget_receipt") != str(budget_receipt)
+            or request.get("budget_receipt_sha256") != budget_receipt_sha
+            or request.get("force_mode") != manifest.get("mode")
+            or not isinstance(budget.get("mpi_ranks"), int)
+            or not isinstance(budget.get("maximum_concurrency"), int)
+        ):
+            raise core.CampaignError("extra collector force bundle binding mismatch")
+        ranks = int(budget["mpi_ranks"])
+        concurrency = int(budget["maximum_concurrency"])
+        if ranks <= 0 or not 1 <= concurrency <= 2:
+            raise core.CampaignError("extra collector force budget is invalid")
+        scheduler_options = (
+            f"--ntasks={ranks}",
+            f"--time={submit.format_slurm_time(budget.get('walltime_hours'))}",
+        )
+        array = f"0-{task_count - 1}%{min(concurrency, task_count)}"
+        exports.update(
+            {
+                "TASK_MAP": str(task_map),
+                "FORCE_MANIFEST": str(force_manifest),
+                "FORCE_BUDGET_RECEIPT": str(budget_receipt),
+            }
+        )
+        force_mode = str(manifest["mode"])
+    plan = submit.StagePlan(
+        stage=primary_stage,
+        script=script,
+        account=str(request.get("slurm_account", "")),
+        exports=exports,
+        array=array,
+        task_count=task_count,
+        task_map=task_map,
+        task_map_sha256=task_map_sha,
+        force_manifest=force_manifest,
+        force_manifest_sha256=force_manifest_sha,
+        budget_receipt=budget_receipt,
+        budget_receipt_sha256=budget_receipt_sha,
+        force_mode=force_mode,
+        scheduler_options=scheduler_options,
+    )
+    expected_primary = submit.sbatch_command(plan)
+    if (
+        request.get("slurm_account") != account
+        or request.get("scheduler_options") != list(scheduler_options)
+        or request.get("array") != array
+        or request.get("command") != expected_primary
+    ):
+        raise core.CampaignError("extra collector primary sbatch command mismatch")
+    collector_exports = dict(exports)
+    collector_exports.update(
+        {
+            "ATTEMPT_ID": collector_attempt_id,
+            "P3_STAGE_SCRIPT_SHA256": collector_request["collector_script_sha256"],
+            "PRIMARY_STAGE": primary_stage,
+            "PRIMARY_ATTEMPT_ID": primary_attempt_id,
+            "PRIMARY_JOB_ID": primary_job_id,
+            "PRIMARY_REQUEST_SHA256": collector_request["primary_request_sha256"],
+            "PRIMARY_RESULT_SHA256": collector_request["primary_result_sha256"],
+            "PRIMARY_STAGE_SCRIPT_SHA256": workflow[script_name],
+        }
+    )
+    if primary_stage == "force":
+        collector_exports.update(
+            {
+                "PRIMARY_TASK_MAP_SHA256": task_map_sha,
+                "PRIMARY_FORCE_MANIFEST_SHA256": force_manifest_sha,
+            }
+        )
+    collector_plan = submit.StagePlan(
+        stage="collect",
+        script=collect_script,
+        account=plan.account,
+        exports=collector_exports,
+        array=None,
+        task_count=task_count,
+        task_map=task_map,
+        task_map_sha256=task_map_sha,
+    )
+    expected_collector = submit.sbatch_command(
+        collector_plan, dependency=f"afterany:{primary_job_id}"
+    )
+    if collector_request.get("command") != expected_collector:
+        raise core.CampaignError("extra collector sbatch command mismatch")
+    for result, job_id, label, command in (
+        (primary_result, primary_job_id, "primary", expected_primary),
+        (collector_result, collector_job_id, "collector", expected_collector),
+    ):
+        stdout = str(result.get("stdout", ""))
+        line = next((item.strip() for item in stdout.splitlines() if item.strip()), "")
+        if (
+            result.get("returncode") != 0
+            or result.get("command") != command
+            or UTC_RE.fullmatch(str(result.get("finished_utc", ""))) is None
+            or re.fullmatch(rf"{re.escape(job_id)}(?:;[^\s;]+)?", line) is None
+        ):
+            raise core.CampaignError(f"extra collector {label} submission response mismatch")
+    return historical_paths
+
+
+def _audit_later_collector_binding(
+    run_dir: Path,
+    collector_wrapper: Path,
+    collector_context: Mapping[str, str],
+    *,
+    config_path: Path,
+    config_sha: str,
+    account: str,
+    expected_checkout_root: Path,
+    expected_workflow_snapshot: Mapping[str, str],
+) -> tuple[str, str]:
+    """Prove that a non-diagnostic collector belongs to its own submission.
+
+    A later relax/force collector must not invalidate an earlier diagnostic
+    replay.  It is nevertheless unsafe to simply ignore an extra directory:
+    its wrapper context is accepted only when the primary wrapper and the
+    immutable submission request/result/summary bind it to another stage.
+    """
+
+    primary_stage = str(collector_context.get("primary_stage", ""))
+    primary_attempt_id = str(collector_context.get("primary_attempt_id", ""))
+    primary_job_id = str(collector_context.get("primary_job_id", ""))
+    collector_attempt_id = str(collector_context.get("attempt_id", ""))
+    collector_job_id = str(collector_context.get("slurm_job_id", ""))
+    if primary_stage not in {"relax", "force"}:
+        raise core.CampaignError(
+            "extra collector is not a permitted later relax/force collector"
+        )
+    for value, label in (
+        (primary_attempt_id, "extra collector primary attempt ID"),
+        (collector_attempt_id, "extra collector attempt ID"),
+    ):
+        if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}", value) is None:
+            raise core.CampaignError(f"{label} is invalid")
+    for value, label in (
+        (primary_job_id, "extra collector primary Slurm job ID"),
+        (collector_job_id, "extra collector Slurm job ID"),
+    ):
+        if re.fullmatch(r"[1-9][0-9]*", value) is None:
+            raise core.CampaignError(f"{label} is invalid")
+    if (
+        collector_context.get("stage") != "collect"
+        or collector_attempt_id != collector_wrapper.name
+        or collector_attempt_id == primary_attempt_id
+        or collector_context.get("run_dir") != str(run_dir)
+        or collector_context.get("config_sha256") != config_sha
+        or collector_context.get("slurm_job_account") != account
+    ):
+        raise core.CampaignError("extra collector context identity mismatch")
+
+    primary_wrapper = _strict_run_path(
+        run_dir,
+        run_dir / "slurm_attempts" / primary_stage / primary_attempt_id,
+        "extra collector primary Slurm attempt",
+    )
+    _reject_symlinks_below(
+        run_dir, primary_wrapper, "extra collector primary Slurm attempt"
+    )
+    primary_context = _context(
+        _strict_run_path(
+            run_dir,
+            primary_wrapper / "context.tsv",
+            "extra collector primary context",
+        )
+    )
+    if any(
+        primary_context.get(key) != value
+        for key, value in {
+            "stage": primary_stage,
+            "attempt_id": primary_attempt_id,
+            "slurm_job_id": primary_job_id,
+            "run_dir": str(run_dir),
+            "config_sha256": config_sha,
+            "slurm_job_account": account,
+        }.items()
+    ):
+        raise core.CampaignError("extra collector primary context identity mismatch")
+
+    submission_dir = _strict_run_path(
+        run_dir,
+        run_dir / "submissions" / primary_stage / primary_attempt_id,
+        "extra collector submission record",
+    )
+    _reject_symlinks_below(run_dir, submission_dir, "extra collector submission record")
+    expected_files = {
+        "request.json",
+        "primary_result.json",
+        "submission.json",
+        "collector_request.json",
+        "collector_result.json",
+    }
+    if {item.name for item in submission_dir.iterdir()} != expected_files:
+        raise core.CampaignError("extra collector submission record has an ambiguous file inventory")
+    request_path, request = _strict_json(
+        run_dir, submission_dir / "request.json", "extra collector primary request"
+    )
+    primary_result_path, primary_result = _strict_json(
+        run_dir,
+        submission_dir / "primary_result.json",
+        "extra collector primary response",
+    )
+    summary_path, summary = _strict_json(
+        run_dir, submission_dir / "submission.json", "extra collector submission summary"
+    )
+    collector_request_path, collector_request = _strict_json(
+        run_dir,
+        submission_dir / "collector_request.json",
+        "extra collector request",
+    )
+    collector_result_path, collector_result = _strict_json(
+        run_dir,
+        submission_dir / "collector_result.json",
+        "extra collector response",
+    )
+    expected_request_fields = {
+        "created_utc", "stage", "attempt_id", "slurm_account", "config",
+        "config_sha256", "run_dir", "run_manifest_sha256", "polish_lineage_sha256",
+        "submit_script_sha256", "stage_script_sha256", "cluster_env_sha256",
+        "workflow_sha256", "task_map", "task_map_sha256", "task_count", "array",
+        "force_mode", "force_manifest", "force_manifest_sha256", "budget_receipt",
+        "budget_receipt_sha256", "scheduler_options", "candidate_ids",
+        "candidate_subset_sha256", "diagnostic_resource_sha256",
+        "diagnostic_requested_walltime_minutes", "diagnostic_lineage_sha256", "command",
+    }
+    expected_primary_result_fields = {
+        "command", "returncode", "stdout", "stderr", "finished_utc", "stage",
+        "attempt_id", "job_id", "config_sha256",
+    }
+    expected_collector_request_fields = {
+        "created_utc", "stage", "attempt_id", "slurm_account", "config_sha256",
+        "primary_stage", "primary_attempt_id", "primary_job_id",
+        "primary_request_sha256", "primary_result_sha256",
+        "primary_stage_script_sha256", "collector_script_sha256",
+        "cluster_env_sha256", "campaign_cli_sha256", "diagnostic_lineage_sha256",
+        "diagnostic_resource_sha256", "diagnostic_requested_walltime_minutes",
+        "dependency", "command",
+    }
+    expected_collector_result_fields = {
+        "command", "returncode", "stdout", "stderr", "finished_utc", "stage",
+        "attempt_id", "job_id", "primary_stage", "primary_attempt_id",
+        "primary_job_id", "config_sha256",
+    }
+    expected_summary_fields = {
+        "healthy", "mode", "submitted_utc", "stage", "attempt_id",
+        "primary_job_id", "primary_command", "collector", "config_sha256",
+        "slurm_account", "polish_lineage_sha256", "workflow_sha256", "run_dir",
+        "task_map_sha256", "task_count", "array", "force_mode",
+        "force_manifest_sha256", "budget_receipt_sha256", "scheduler_options",
+        "candidate_ids", "candidate_subset_sha256", "diagnostic_resource_sha256",
+        "diagnostic_requested_walltime_minutes", "record_dir",
+    }
+    if (
+        set(request) != expected_request_fields
+        or set(primary_result) != expected_primary_result_fields
+        or set(collector_request) != expected_collector_request_fields
+        or set(collector_result) != expected_collector_result_fields
+        or set(summary) != expected_summary_fields
+        or UTC_RE.fullmatch(str(request.get("created_utc", ""))) is None
+        or UTC_RE.fullmatch(str(collector_request.get("created_utc", ""))) is None
+        or UTC_RE.fullmatch(str(summary.get("submitted_utc", ""))) is None
+        or request.get("run_manifest_sha256")
+        != core.sha256_path(run_dir / core.RUN_MANIFEST)
+        or request.get("polish_lineage_sha256") is not None
+        or request.get("candidate_ids") is not None
+        or request.get("candidate_subset_sha256") is not None
+        or request.get("diagnostic_resource_sha256") is not None
+        or request.get("diagnostic_requested_walltime_minutes") is not None
+        or request.get("diagnostic_lineage_sha256") is not None
+        or collector_request.get("slurm_account") != account
+        or collector_request.get("diagnostic_lineage_sha256") is not None
+        or collector_request.get("diagnostic_resource_sha256") is not None
+        or collector_request.get("diagnostic_requested_walltime_minutes") is not None
+    ):
+        raise core.CampaignError("extra collector submission schema binding mismatch")
+    primary_expected = {
+        "stage": primary_stage,
+        "attempt_id": primary_attempt_id,
+        "job_id": primary_job_id,
+        "config_sha256": config_sha,
+    }
+    if (
+        any(request.get(key) != value for key, value in primary_expected.items() if key != "job_id")
+        or request.get("run_dir") != str(run_dir)
+        or any(primary_result.get(key) != value for key, value in primary_expected.items())
+        or primary_result.get("returncode") != 0
+        or primary_result.get("command") != request.get("command")
+        or not isinstance(request.get("command"), list)
+    ):
+        raise core.CampaignError("extra collector primary submission binding mismatch")
+
+    collector = summary.get("collector")
+    expected_collector_summary_fields = {
+        "attempt_id",
+        "job_id",
+        "primary_stage",
+        "primary_attempt_id",
+        "primary_job_id",
+        "dependency",
+        "command",
+        "request_sha256",
+        "result_sha256",
+    }
+    collector_expected = {
+        "attempt_id": collector_attempt_id,
+        "job_id": collector_job_id,
+        "primary_stage": primary_stage,
+        "primary_attempt_id": primary_attempt_id,
+        "primary_job_id": primary_job_id,
+        "dependency": f"afterany:{primary_job_id}",
+    }
+    if (
+        summary.get("healthy") is not True
+        or summary.get("mode") != "execute"
+        or any(
+            summary.get(key) != value
+            for key, value in {
+                "stage": primary_stage,
+                "attempt_id": primary_attempt_id,
+                "primary_job_id": primary_job_id,
+                "config_sha256": config_sha,
+            }.items()
+        )
+        or summary.get("run_dir") != str(run_dir)
+        or summary.get("record_dir") != str(submission_dir)
+        or summary.get("primary_command") != request.get("command")
+        or summary.get("slurm_account") != account
+        or summary.get("polish_lineage_sha256") is not None
+        or summary.get("workflow_sha256") != request.get("workflow_sha256")
+        or any(
+            summary.get(key) != request.get(key)
+            for key in (
+                "task_map_sha256", "task_count", "array", "force_mode",
+                "force_manifest_sha256", "budget_receipt_sha256", "scheduler_options",
+                "candidate_ids", "candidate_subset_sha256", "diagnostic_resource_sha256",
+                "diagnostic_requested_walltime_minutes",
+            )
+        )
+        or not isinstance(collector, Mapping)
+        or set(collector) != expected_collector_summary_fields
+        or any(collector.get(key) != value for key, value in collector_expected.items())
+        or collector.get("command") != collector_request.get("command")
+        or collector.get("request_sha256") != core.sha256_path(collector_request_path)
+        or collector.get("result_sha256") != core.sha256_path(collector_result_path)
+    ):
+        raise core.CampaignError("extra collector submission summary binding mismatch")
+    collector_request_expected = {
+        key: value for key, value in collector_expected.items() if key != "job_id"
+    }
+    if (
+        any(
+            collector_request.get(key) != value
+            for key, value in collector_request_expected.items()
+        )
+        or collector_request.get("stage") != "collect"
+        or collector_request.get("config_sha256") != config_sha
+        or collector_request.get("primary_request_sha256") != core.sha256_path(request_path)
+        or collector_request.get("primary_result_sha256")
+        != core.sha256_path(primary_result_path)
+        or collector_result.get("stage") != "collect"
+        or collector_result.get("attempt_id") != collector_attempt_id
+        or collector_result.get("job_id") != collector_job_id
+        or collector_result.get("primary_stage") != primary_stage
+        or collector_result.get("primary_attempt_id") != primary_attempt_id
+        or collector_result.get("primary_job_id") != primary_job_id
+        or collector_result.get("config_sha256") != config_sha
+        or collector_result.get("returncode") != 0
+        or collector_result.get("command") != collector_request.get("command")
+        or not isinstance(collector_request.get("command"), list)
+    ):
+        raise core.CampaignError("extra collector request/result binding mismatch")
+    historical_paths = _replay_later_submission_commands(
+        run_dir,
+        config_path=config_path,
+        primary_stage=primary_stage,
+        primary_attempt_id=primary_attempt_id,
+        primary_job_id=primary_job_id,
+        collector_attempt_id=collector_attempt_id,
+        collector_job_id=collector_job_id,
+        config_sha=config_sha,
+        account=account,
+        request=request,
+        primary_result=primary_result,
+        collector_request=collector_request,
+        collector_result=collector_result,
+        expected_checkout_root=expected_checkout_root,
+        expected_workflow_snapshot=expected_workflow_snapshot,
+    )
+    primary_code_context = {
+        "config": str(historical_paths["config"]),
+        "campaign_cli": str(historical_paths["campaign_cli"]),
+        "campaign_cli_sha256": request["workflow_sha256"]["campaign.py"],
+        "submit_script_sha256": request["workflow_sha256"]["submit.py"],
+        "stage_script_sha256": request["workflow_sha256"][
+            "relax.sbatch" if primary_stage == "relax" else "force_array.sbatch"
+        ],
+        "cluster_env_sha256": request["workflow_sha256"]["cluster.env"],
+    }
+    if any(
+        primary_context.get(key) != value
+        for key, value in primary_code_context.items()
+    ):
+        raise core.CampaignError(
+            "extra collector primary wrapper code path/workflow mismatch"
+        )
+    workflow_context = {
+        "primary_stage_script_sha256": collector_request.get(
+            "primary_stage_script_sha256"
+        ),
+        "stage_script_sha256": collector_request.get("collector_script_sha256"),
+        "campaign_cli_sha256": collector_request.get("campaign_cli_sha256"),
+        "submit_script_sha256": request.get("submit_script_sha256"),
+        "cluster_env_sha256": collector_request.get("cluster_env_sha256"),
+    }
+    for key, value in workflow_context.items():
+        _digest(value, f"extra collector {key}")
+    if any(
+        collector_context.get(key) != value
+        for key, value in {
+            "config": str(historical_paths["config"]),
+            "campaign_cli": str(historical_paths["campaign_cli"]),
+            "primary_request_sha256": core.sha256_path(request_path),
+            "primary_result_sha256": core.sha256_path(primary_result_path),
+            **workflow_context,
+        }.items()
+    ):
+        raise core.CampaignError("extra collector workflow context binding mismatch")
+    return primary_job_id, collector_job_id
+
+
+def _select_diagnostic_collector(
+    run_dir: Path,
+    *,
+    config_path: Path,
+    config_sha: str,
+    diagnostic_attempt_id: str,
+    diagnostic_job_id: str,
+    collector_attempt_id: str,
+    collector_job_id: str,
+    account: str,
+    expected_checkout_root: Path,
+    expected_workflow_snapshot: Mapping[str, str],
+) -> Path:
+    """Return the one diagnostic collector while auditing every peer entry."""
+
+    collector_root = _strict_run_path(
+        run_dir, run_dir / "slurm_attempts/collect", "diagnostic collector root"
+    )
+    _reject_symlinks_below(run_dir, collector_root, "diagnostic collector root")
+    if not collector_root.is_dir():
+        raise core.CampaignError("diagnostic collector root is not a directory")
+    selected: Path | None = None
+    used_job_ids = {diagnostic_job_id, collector_job_id}
+    for entry in sorted(collector_root.iterdir(), key=lambda item: item.name):
+        collector_wrapper = _strict_run_path(
+            run_dir, entry, "collector Slurm attempt"
+        )
+        if not collector_wrapper.is_dir():
+            raise core.CampaignError("collector root contains a non-directory entry")
+        collector_context = _context(
+            _strict_run_path(
+                run_dir,
+                collector_wrapper / "context.tsv",
+                "collector Slurm context",
+            )
+        )
+        if collector_context.get("primary_stage") == "diagnostic":
+            if (
+                collector_context.get("primary_attempt_id") != diagnostic_attempt_id
+                or collector_wrapper.name != collector_attempt_id
+                or collector_context.get("attempt_id") != collector_attempt_id
+                or collector_context.get("slurm_job_id") != collector_job_id
+                or collector_context.get("primary_job_id") != diagnostic_job_id
+            ):
+                raise core.CampaignError("diagnostic collector context identity mismatch")
+            if selected is not None:
+                raise core.CampaignError("multiple collectors claim the diagnostic attempt")
+            selected = collector_wrapper
+        else:
+            later_primary_job_id, later_collector_job_id = _audit_later_collector_binding(
+                run_dir,
+                collector_wrapper,
+                collector_context,
+                config_path=config_path,
+                config_sha=config_sha,
+                account=account,
+                expected_checkout_root=expected_checkout_root,
+                expected_workflow_snapshot=expected_workflow_snapshot,
+            )
+            if (
+                later_primary_job_id == later_collector_job_id
+                or later_primary_job_id in used_job_ids
+                or later_collector_job_id in used_job_ids
+            ):
+                raise core.CampaignError(
+                    "collector Slurm job identity is reused or self-referential"
+                )
+            used_job_ids.update({later_primary_job_id, later_collector_job_id})
+    if selected is None:
+        raise core.CampaignError("diagnostic collector referenced by submission is missing")
+    return selected
+
+
 def _audit_diagnostic_dispatch_chain(
     config: Mapping[str, Any],
     config_path: Path,
     run_dir: Path,
     attempt_id: str,
     expected_execution_sha256: str,
+    *,
+    expected_checkout_root: Path | None = None,
 ) -> dict[str, Any]:
     """Replay the unique submit, wrapper, collector, and accounting chain."""
 
@@ -1317,16 +2154,23 @@ def _audit_diagnostic_dispatch_chain(
             "diagnostic submission record has an ambiguous file inventory"
         )
 
-    campaign_dir = Path(__file__).resolve().parent
-    workflow = {
-        "submit.py": core.sha256_path(campaign_dir / "submit.py"),
-        "campaign.py": core.sha256_path(campaign_dir / "campaign.py"),
-        "cluster.env": core.sha256_path(campaign_dir / "slurm/cluster.env"),
-        "diagnostic.sbatch": core.sha256_path(
-            campaign_dir / "slurm/diagnostic.sbatch"
-        ),
-        "polish_recovery.py": core.sha256_path(Path(__file__)),
-    }
+    workflow_names = (
+        "submit.py",
+        "campaign.py",
+        "cluster.env",
+        "diagnostic.sbatch",
+        "polish_recovery.py",
+    )
+    trusted_snapshot = _trusted_workflow_snapshot(
+        request.get("workflow_sha256"),
+        workflow_names,
+        "diagnostic submission workflow",
+    )
+    workflow = {name: trusted_snapshot[name] for name in workflow_names}
+    if workflow["polish_recovery.py"] != lineage.get("backend_sha256"):
+        raise core.CampaignError(
+            "diagnostic workflow does not match the frozen polish-lineage backend"
+        )
     scheduler_options = [
         f"--partition={resources['partition']}",
         f"--nodes={resources['nodes']}",
@@ -1337,11 +2181,22 @@ def _audit_diagnostic_dispatch_chain(
     ]
     request_command = request.get("command")
     exports = _command_exports(request_command, "diagnostic submission")
+    if not isinstance(request_command, list) or not request_command:
+        raise core.CampaignError("diagnostic submission command is invalid")
+    historical_paths = _recorded_checkout_paths(
+        config_path,
+        exports,
+        recorded_config=request.get("config"),
+        recorded_stage_script=request_command[-1],
+        stage_script_name="diagnostic.sbatch",
+        label="diagnostic submission",
+        expected_checkout_root=expected_checkout_root,
+    )
     expected_exports = {
-        "CAMPAIGN_CONFIG": str(config_path),
+        "CAMPAIGN_CONFIG": str(historical_paths["config"]),
         "RUN_DIR": str(run_dir),
         "ATTEMPT_ID": attempt_id,
-        "P3_SLURM_DIR": str(campaign_dir / "slurm"),
+        "P3_SLURM_DIR": str(historical_paths["slurm_dir"]),
         "P3_EXPECTED_CONFIG_SHA256": config_sha,
         "P3_SUBMIT_SCRIPT_SHA256": workflow["submit.py"],
         "P3_STAGE_SCRIPT_SHA256": workflow["diagnostic.sbatch"],
@@ -1366,14 +2221,14 @@ def _audit_diagnostic_dispatch_chain(
     if (
         request_command[:export_index] != expected_command_without_export
         or request_command[export_index + 1 :]
-        != [str(campaign_dir / "slurm/diagnostic.sbatch")]
+        != [str(historical_paths["stage_script"])]
     ):
         raise core.CampaignError("diagnostic submission command/resource mismatch")
     if (
         request.get("stage") != "diagnostic"
         or request.get("attempt_id") != attempt_id
         or request.get("slurm_account") != account
-        or request.get("config") != str(config_path)
+        or request.get("config") != str(historical_paths["config"])
         or request.get("config_sha256") != config_sha
         or request.get("run_dir") != str(run_dir)
         or request.get("run_manifest_sha256") is not None
@@ -1459,7 +2314,7 @@ def _audit_diagnostic_dispatch_chain(
         or collector_request.get("primary_stage_script_sha256")
         != workflow["diagnostic.sbatch"]
         or collector_request.get("collector_script_sha256")
-        != core.sha256_path(campaign_dir / "slurm/collect.sbatch")
+        != trusted_snapshot["collect.sbatch"]
         or collector_request.get("cluster_env_sha256") != workflow["cluster.env"]
         or collector_request.get("campaign_cli_sha256") != workflow["campaign.py"]
         or collector_request.get("diagnostic_lineage_sha256") != lineage_sha
@@ -1470,11 +2325,11 @@ def _audit_diagnostic_dispatch_chain(
         raise core.CampaignError("diagnostic collector request evidence mismatch")
     collector_command = collector_request.get("command")
     collector_exports = _command_exports(collector_command, "diagnostic collector")
-    collect_script = campaign_dir / "slurm/collect.sbatch"
+    collect_script = historical_paths["collector_script"]
     expected_collector_exports = {
         **expected_exports,
         "ATTEMPT_ID": collector_attempt_id,
-        "P3_STAGE_SCRIPT_SHA256": core.sha256_path(collect_script),
+        "P3_STAGE_SCRIPT_SHA256": trusted_snapshot["collect.sbatch"],
         "PRIMARY_STAGE": "diagnostic",
         "PRIMARY_ATTEMPT_ID": attempt_id,
         "PRIMARY_JOB_ID": primary_job_id,
@@ -1516,16 +2371,6 @@ def _audit_diagnostic_dispatch_chain(
     ):
         raise core.CampaignError("diagnostic collector submission response mismatch")
 
-    collector_root = _strict_run_path(
-        run_dir, run_dir / "slurm_attempts/collect", "diagnostic collector root"
-    )
-    if not collector_root.is_dir() or {
-        item.name for item in collector_root.iterdir()
-    } != {collector_attempt_id}:
-        raise core.CampaignError(
-            "diagnostic finalization requires exactly one referenced collector attempt"
-        )
-
     claim_context = _context(
         _strict_run_path(
             run_dir, claim / "context.tsv", "diagnostic dispatch claim context"
@@ -1560,9 +2405,9 @@ def _audit_diagnostic_dispatch_chain(
         "slurm_job_num_nodes": str(resources["nodes"]),
         "slurm_ntasks": str(resources["ntasks"]),
         "slurm_cpus_per_task": str(resources["cpus_per_task"]),
-        "config": str(config_path),
+        "config": str(historical_paths["config"]),
         "config_sha256": config_sha,
-        "campaign_cli": str(campaign_dir / "campaign.py"),
+        "campaign_cli": str(historical_paths["campaign_cli"]),
         "campaign_cli_sha256": workflow["campaign.py"],
         "submit_script_sha256": workflow["submit.py"],
         "stage_script_sha256": workflow["diagnostic.sbatch"],
@@ -1643,10 +2488,17 @@ def _audit_diagnostic_dispatch_chain(
     ):
         raise core.CampaignError("diagnostic execution/submission chain hash mismatch")
 
-    collector_wrapper = _strict_run_path(
+    collector_wrapper = _select_diagnostic_collector(
         run_dir,
-        run_dir / "slurm_attempts/collect" / collector_attempt_id,
-        "diagnostic collector Slurm attempt",
+        config_path=config_path,
+        config_sha=config_sha,
+        diagnostic_attempt_id=attempt_id,
+        diagnostic_job_id=primary_job_id,
+        collector_attempt_id=collector_attempt_id,
+        collector_job_id=collector_job_id,
+        account=account,
+        expected_checkout_root=historical_paths["checkout_root"],
+        expected_workflow_snapshot=trusted_snapshot,
     )
     _reject_symlinks_below(
         run_dir, collector_wrapper, "diagnostic collector Slurm attempt"
@@ -1661,6 +2513,8 @@ def _audit_diagnostic_dispatch_chain(
         "attempt_id": collector_attempt_id,
         "slurm_job_id": collector_job_id,
         "slurm_job_account": account,
+        "config": str(historical_paths["config"]),
+        "campaign_cli": str(historical_paths["campaign_cli"]),
         "config_sha256": config_sha,
         "run_dir": str(run_dir),
         "primary_stage": "diagnostic",
@@ -1672,9 +2526,7 @@ def _audit_diagnostic_dispatch_chain(
         "campaign_cli_sha256": workflow["campaign.py"],
         "submit_script_sha256": workflow["submit.py"],
         "cluster_env_sha256": workflow["cluster.env"],
-        "stage_script_sha256": core.sha256_path(
-            campaign_dir / "slurm/collect.sbatch"
-        ),
+        "stage_script_sha256": trusted_snapshot["collect.sbatch"],
         "diagnostic_resource_sha256": resource_sha,
         "diagnostic_lineage_sha256": lineage_sha,
         "diagnostic_backend_sha256": workflow["polish_recovery.py"],
@@ -1927,6 +2779,7 @@ def finalize_diagnostic(
         expected_execution_sha256=expected_execution_sha256,
         expected_slurm_job_id=submission_chain["primary_job_id"],
         expected_command=submission_chain["qe_command"],
+        expected_workflow_sha256=submission_chain["workflow_sha256"],
     )
     checks = audit["checks"]
     policy = core.required(config, "reviewed_bfgs_polish.force_consistency_diagnostic")
@@ -1985,7 +2838,12 @@ def finalize_diagnostic(
 
 
 def _audit_final_diagnostic(
-    config: Mapping[str, Any], config_path: Path, run_dir: Path, gate_path: Path
+    config: Mapping[str, Any],
+    config_path: Path,
+    run_dir: Path,
+    gate_path: Path,
+    *,
+    expected_checkout_root: Path | None = None,
 ) -> dict[str, Any]:
     """Replay the finalized diagnostic from raw files and immutable records."""
 
@@ -2030,6 +2888,7 @@ def _audit_final_diagnostic(
         run_dir,
         attempt_id,
         execution_sha256,
+        expected_checkout_root=expected_checkout_root,
     )
     if (
         gate.get("submission_chain") != submission_chain
@@ -2044,6 +2903,7 @@ def _audit_final_diagnostic(
         expected_execution_sha256=execution_sha256,
         expected_slurm_job_id=submission_chain["primary_job_id"],
         expected_command=submission_chain["qe_command"],
+        expected_workflow_sha256=submission_chain["workflow_sha256"],
     )
     _require_gate_matches_audit(gate, audit)
     return gate
@@ -2138,7 +2998,19 @@ def load_polish_start(
     config_path_raw = manifest.get("config_path")
     if not isinstance(config_path_raw, str):
         raise core.CampaignError("polish manifest lacks its campaign config path")
-    _audit_final_diagnostic(config, Path(config_path_raw), run_dir, gate_path)
+    verifier_config_path, recorded_checkout_root = _verifier_config_from_recorded_path(
+        config,
+        config_path_raw,
+        manifest.get("config_sha256"),
+        label="polish manifest config path",
+    )
+    _audit_final_diagnostic(
+        config,
+        verifier_config_path,
+        run_dir,
+        gate_path,
+        expected_checkout_root=recorded_checkout_root,
+    )
     seed_path = _strict_run_path(run_dir, run_dir / "polish_seed.in", "polish seed")
     reference_path = _strict_run_path(
         run_dir, run_dir / "polish_reference.in", "polish reference"

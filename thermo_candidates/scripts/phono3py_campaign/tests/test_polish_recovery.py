@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import tempfile
+from contextlib import contextmanager
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -225,6 +226,182 @@ class PolishRecoveryTests(unittest.TestCase):
             "polish_recovery.py": core.sha256_path(Path(polish.__file__)),
         }
 
+    @contextmanager
+    def _workflow_source_hashes(self, snapshot: dict[str, str]) -> object:
+        """Emit records as if the named immutable workflow bytes executed them."""
+
+        campaign_dir = Path(polish.__file__).resolve().parent
+        path_hashes = {
+            (campaign_dir / "submit.py").resolve(): snapshot["submit.py"],
+            (campaign_dir / "campaign.py").resolve(): snapshot["campaign.py"],
+            Path(polish.__file__).resolve(): snapshot["polish_recovery.py"],
+            (campaign_dir / "slurm/cluster.env").resolve(): snapshot["cluster.env"],
+            (campaign_dir / "slurm/diagnostic.sbatch").resolve(): snapshot[
+                "diagnostic.sbatch"
+            ],
+            (campaign_dir / "slurm/collect.sbatch").resolve(): snapshot[
+                "collect.sbatch"
+            ],
+            (campaign_dir / "slurm/relax.sbatch").resolve(): snapshot[
+                "relax.sbatch"
+            ],
+            (campaign_dir / "slurm/force_array.sbatch").resolve(): snapshot[
+                "force_array.sbatch"
+            ],
+        }
+        core_sha256 = core.sha256_path
+        submit_sha256 = submit.sha256_path
+
+        def core_hash(path: Path) -> str:
+            return path_hashes.get(Path(path).resolve(), core_sha256(Path(path)))
+
+        def submit_hash(path: Path) -> str:
+            return path_hashes.get(Path(path).resolve(), submit_sha256(Path(path)))
+
+        with patch.object(core, "sha256_path", side_effect=core_hash), patch.object(
+            submit, "sha256_path", side_effect=submit_hash
+        ):
+            yield
+
+    def _set_lineage_backend(self, backend_sha256: str) -> None:
+        lineage_path = self.polish_run / polish.LINEAGE_RECEIPT
+        lineage = core.load_json(lineage_path)
+        lineage["backend_sha256"] = backend_sha256
+        self._write_json(lineage_path, lineage)
+
+    def _relocate_manifest_config_checkout(
+        self, historical_checkout_root: Path
+    ) -> None:
+        """Preserve a release manifest's config identity from an old checkout."""
+
+        manifest_path = self.polish_run / core.RUN_MANIFEST
+        manifest = core.load_json(manifest_path)
+        relative = CONFIG.resolve().relative_to(
+            Path(polish.__file__).resolve().parents[3]
+        )
+        manifest["config_path"] = str(historical_checkout_root / relative)
+        self._write_json(manifest_path, manifest)
+
+    def _relocate_recorded_checkout(
+        self,
+        primary_stage: str,
+        primary_attempt_id: str,
+        historical_checkout_root: Path,
+    ) -> None:
+        """Move only recorded code/config paths to a nonexistent old checkout."""
+
+        current_root = Path(polish.__file__).resolve().parents[3]
+        self.assertNotEqual(current_root, historical_checkout_root)
+        current_prefix = str(current_root)
+        historical_prefix = str(historical_checkout_root)
+
+        def relocate(value: str) -> str:
+            return value.replace(current_prefix, historical_prefix)
+
+        record = (
+            self.polish_run
+            / "submissions"
+            / primary_stage
+            / primary_attempt_id
+        )
+        request_path = record / "request.json"
+        primary_result_path = record / "primary_result.json"
+        old_request_sha = core.sha256_path(request_path)
+        old_primary_result_sha = core.sha256_path(primary_result_path)
+
+        request = core.load_json(request_path)
+        request["config"] = relocate(request["config"])
+        request["command"] = [relocate(item) for item in request["command"]]
+        self._write_json(request_path, request)
+        request_sha = core.sha256_path(request_path)
+
+        primary_result = core.load_json(primary_result_path)
+        primary_result["command"] = request["command"]
+        self._write_json(primary_result_path, primary_result)
+        primary_result_sha = core.sha256_path(primary_result_path)
+
+        collector_request_path = record / "collector_request.json"
+        collector_request = core.load_json(collector_request_path)
+        collector_request.update(
+            primary_request_sha256=request_sha,
+            primary_result_sha256=primary_result_sha,
+        )
+        collector_request["command"] = [
+            relocate(item)
+            .replace(old_request_sha, request_sha)
+            .replace(old_primary_result_sha, primary_result_sha)
+            for item in collector_request["command"]
+        ]
+        self._write_json(collector_request_path, collector_request)
+
+        collector_result_path = record / "collector_result.json"
+        collector_result = core.load_json(collector_result_path)
+        collector_result["command"] = collector_request["command"]
+        self._write_json(collector_result_path, collector_result)
+
+        summary_path = record / "submission.json"
+        summary = core.load_json(summary_path)
+        summary["primary_command"] = request["command"]
+        summary["collector"].update(
+            command=collector_request["command"],
+            request_sha256=core.sha256_path(collector_request_path),
+            result_sha256=core.sha256_path(collector_result_path),
+        )
+        self._write_json(summary_path, summary)
+
+        primary_wrapper = (
+            self.polish_run
+            / "slurm_attempts"
+            / primary_stage
+            / primary_attempt_id
+        )
+        primary_context_path = primary_wrapper / "context.tsv"
+        primary_context = polish._context(primary_context_path)
+        primary_context["config"] = relocate(primary_context["config"])
+        primary_context["campaign_cli"] = relocate(
+            primary_context["campaign_cli"]
+        )
+        primary_context_path.write_text(
+            "".join(f"{key}\t{value}\n" for key, value in primary_context.items())
+        )
+
+        collector_attempt_id = summary["collector"]["attempt_id"]
+        collector_wrapper = (
+            self.polish_run / "slurm_attempts/collect" / collector_attempt_id
+        )
+        collector_context_path = collector_wrapper / "context.tsv"
+        collector_context = polish._context(collector_context_path)
+        collector_context.update(
+            config=relocate(collector_context["config"]),
+            campaign_cli=relocate(collector_context["campaign_cli"]),
+            primary_request_sha256=request_sha,
+            primary_result_sha256=primary_result_sha,
+        )
+        collector_context_path.write_text(
+            "".join(f"{key}\t{value}\n" for key, value in collector_context.items())
+        )
+
+        if primary_stage == "diagnostic":
+            for filename in ("collection.json", "collection_receipt.json"):
+                collection_path = collector_wrapper / filename
+                collection = core.load_json(collection_path)
+                collection["submission"].update(
+                    request_sha256=request_sha,
+                    primary_result_sha256=primary_result_sha,
+                )
+                collection["entry"]["context"] = primary_context
+                collection["entry"]["evidence"] = core._hash_present_evidence(
+                    primary_wrapper,
+                    (
+                        "context.tsv",
+                        "exit_code.txt",
+                        "finished_utc.txt",
+                        "stdout.log",
+                        "stderr.log",
+                    ),
+                )
+                self._write_json(collection_path, collection)
+
     def _diagnostic_environment(self) -> dict[str, str]:
         resources = self.config["scheduler"]["diagnostic_resources"]
         workflow = self._workflow_hashes()
@@ -377,6 +554,8 @@ class PolishRecoveryTests(unittest.TestCase):
             "attempt_id": collector["attempt_id"],
             "slurm_job_id": collector["job_id"],
             "slurm_job_account": self.config["scheduler"]["slurm_account"],
+            "config": str(CONFIG.resolve()),
+            "campaign_cli": str(Path(core.__file__).resolve()),
             "config_sha256": core.sha256_path(CONFIG),
             "run_dir": str(self.polish_run),
             "primary_stage": "diagnostic",
@@ -458,6 +637,519 @@ class PolishRecoveryTests(unittest.TestCase):
         (collector_attempt / "exit_code.txt").write_text("0\n")
         (collector_attempt / "finished_utc.txt").write_text(
             "2026-09-11T08:32:00Z\n"
+        )
+
+    def _diagnostic_collector_attempt(self) -> Path:
+        summary = core.load_json(
+            self.polish_run / "submissions/diagnostic/diag-1/submission.json"
+        )
+        collector = summary["collector"]
+        return self.polish_run / "slurm_attempts/collect" / collector["attempt_id"]
+
+    def _write_bound_later_collector(
+        self,
+        primary_stage: str = "relax",
+        *,
+        primary_attempt_id: str | None = None,
+        primary_job_id: str = "123470",
+        collector_attempt_id: str | None = None,
+        collector_job_id: str = "123471",
+    ) -> Path:
+        """Create a completed-submission, not necessarily completed-collection, peer."""
+
+        self.assertIn(primary_stage, {"relax", "force"})
+        primary_attempt_id = primary_attempt_id or (
+            "polish-1" if primary_stage == "relax" else "force-1"
+        )
+        collector_attempt_id = collector_attempt_id or f"collect-{primary_stage}-1"
+        config_sha = core.sha256_path(CONFIG)
+        workflow = self._workflow_hashes()
+        slurm_dir = Path(submit.__file__).resolve().parent / "slurm"
+        stage_script = slurm_dir / (
+            "relax.sbatch" if primary_stage == "relax" else "force_array.sbatch"
+        )
+        primary_workflow = {
+            "submit.py": workflow["submit.py"],
+            "campaign.py": workflow["campaign.py"],
+            "cluster.env": workflow["cluster.env"],
+            stage_script.name: core.sha256_path(stage_script),
+        }
+        exports = {
+            "CAMPAIGN_CONFIG": str(CONFIG.resolve()),
+            "RUN_DIR": str(self.polish_run),
+            "ATTEMPT_ID": primary_attempt_id,
+            "P3_SLURM_DIR": str(slurm_dir),
+            "P3_EXPECTED_CONFIG_SHA256": config_sha,
+            "P3_SUBMIT_SCRIPT_SHA256": workflow["submit.py"],
+            "P3_STAGE_SCRIPT_SHA256": primary_workflow[stage_script.name],
+            "P3_CLUSTER_ENV_SHA256": workflow["cluster.env"],
+            "P3_CAMPAIGN_CLI_SHA256": workflow["campaign.py"],
+        }
+        account = self.config["scheduler"]["slurm_account"]
+        scheduler_options: tuple[str, ...] = ()
+        array = None
+        task_count = None
+        task_map = None
+        task_map_sha = None
+        force_manifest = None
+        force_manifest_sha = None
+        budget_receipt = None
+        budget_receipt_sha = None
+        force_mode = None
+        if primary_stage == "force":
+            bundle = self.polish_run / "force_bundle"
+            bundle.mkdir()
+            input_path = bundle / "input-00000.in"
+            input_path.write_text("synthetic force input\n")
+            displaced_input = bundle / "input-00001.in"
+            displaced_input.write_text("synthetic displaced force input\n")
+            task_map = bundle / "task_map.tsv"
+            task = {
+                "task_id": 0,
+                "displacement_id": 0,
+                "role": "pristine",
+                "input_path": str(input_path),
+                "input_sha256": core.sha256_path(input_path),
+            }
+            displaced_task = {
+                "task_id": 1,
+                "displacement_id": 1,
+                "role": "displacement",
+                "input_path": str(displaced_input),
+                "input_sha256": core.sha256_path(displaced_input),
+            }
+            columns = (
+                "task_id", "displacement_id", "role", "input_path", "input_sha256"
+            )
+            task_map.write_text(
+                "\t".join(columns)
+                + "\n"
+                + "\t".join(str(task[key]) for key in columns)
+                + "\n"
+                + "\t".join(str(displaced_task[key]) for key in columns)
+                + "\n"
+            )
+            task_map_sha = core.sha256_path(task_map)
+            signed_dir = bundle / "signed_dataset"
+            signed_dir.mkdir()
+            (self.polish_run / ".force_budget").mkdir()
+            signed_manifest = signed_dir / "pilot_dataset_manifest.json"
+            signed_manifest.write_text('{"synthetic": true}\n')
+            signed = {
+                "dataset_dir": str(signed_dir),
+                "expected_manifest_sha256": core.sha256_path(signed_manifest),
+                "audit_result": {"healthy": True, "pilot_only": True},
+                "files_sha256": {
+                    str(signed_manifest): core.sha256_path(signed_manifest)
+                },
+                "task_kinds": {"0": "pristine", "1": "single"},
+            }
+            force_manifest = bundle / "force_manifest.json"
+            budget_receipt = bundle / "budget_receipt.json"
+            self._write_json(
+                budget_receipt,
+                {
+                    "schema_version": 1,
+                    "material": self.config["material"]["formula"],
+                    "phase": "validation",
+                    "task_map_sha256": task_map_sha,
+                    "task_count": 2,
+                    "mpi_ranks": 2,
+                    "maximum_concurrency": 1,
+                    "walltime_hours": 1,
+                    "maximum_technical_retries_per_task": 1,
+                    "reserved_core_hours": 8,
+                    "reserved_core_hours_before": 0,
+                    "charged_core_hours_before": 0,
+                    "used_core_hours": 0,
+                    "resource_policy_sha256": core.canonical_sha256(
+                        self.config["resource_budget"]
+                    ),
+                    "production_batch_number": None,
+                },
+            )
+            budget_receipt_sha = core.sha256_path(budget_receipt)
+            self._write_json(
+                force_manifest,
+                {
+                    "schema_version": 1,
+                    "stage": "force",
+                    "mode": "pilot",
+                    "material": self.config["material"]["formula"],
+                    "config_sha256": config_sha,
+                    "task_map_sha256": task_map_sha,
+                    "task_count": 2,
+                    "tasks": [task, displaced_task],
+                    "settings": {"synthetic": True},
+                    "pilot_spec": {
+                        "displacement_ids": [1],
+                        "duplicate_displacement_ids": [],
+                        "pristine_repetitions": 1,
+                    },
+                    "backend_sha256": core.sha256_path(
+                        Path(submit.__file__).resolve().with_name("force_backend.py")
+                    ),
+                    "workflow_sha256": {
+                        str(Path(submit.__file__).resolve().with_name(name)): core.sha256_path(
+                            Path(submit.__file__).resolve().with_name(name)
+                        )
+                        for name in ("campaign.py", "pilot_dataset.py")
+                    },
+                    "budget_receipt_sha256": budget_receipt_sha,
+                    "signed_pilot_dataset": signed,
+                    "evidence_sha256": signed["files_sha256"],
+                    "selection_validation": None,
+                    "selection_evidence_sha256": {},
+                },
+            )
+            force_manifest_sha = core.sha256_path(force_manifest)
+            force_mode = "pilot"
+            scheduler_options = ("--ntasks=2", "--time=01:00:00")
+            array = "0-1%1"
+            task_count = 2
+            exports.update(
+                {
+                    "TASK_MAP": str(task_map),
+                    "FORCE_MANIFEST": str(force_manifest),
+                    "FORCE_BUDGET_RECEIPT": str(budget_receipt),
+                }
+            )
+        primary_command = submit.sbatch_command(
+            submit.StagePlan(
+                stage=primary_stage,
+                script=stage_script,
+                account=account,
+                exports=exports,
+                array=array,
+                task_count=task_count,
+                task_map=task_map,
+                task_map_sha256=task_map_sha,
+                force_manifest=force_manifest,
+                force_manifest_sha256=force_manifest_sha,
+                budget_receipt=budget_receipt,
+                budget_receipt_sha256=budget_receipt_sha,
+                force_mode=force_mode,
+                scheduler_options=scheduler_options,
+            )
+        )
+        primary = self.polish_run / "slurm_attempts" / primary_stage / primary_attempt_id
+        primary.mkdir(parents=True)
+        primary_context = {
+            "stage": primary_stage,
+            "attempt_id": primary_attempt_id,
+            "slurm_job_id": primary_job_id,
+            "slurm_job_account": account,
+            "config": str(CONFIG.resolve()),
+            "campaign_cli": str(Path(core.__file__).resolve()),
+            "campaign_cli_sha256": workflow["campaign.py"],
+            "submit_script_sha256": workflow["submit.py"],
+            "stage_script_sha256": primary_workflow[stage_script.name],
+            "cluster_env_sha256": workflow["cluster.env"],
+            "config_sha256": config_sha,
+            "run_dir": str(self.polish_run),
+        }
+        (primary / "context.tsv").write_text(
+            "".join(f"{key}\t{value}\n" for key, value in primary_context.items())
+        )
+
+        record = self.polish_run / "submissions" / primary_stage / primary_attempt_id
+        record.mkdir(parents=True)
+        request = {
+            "created_utc": "2026-09-11T08:26:00Z",
+            "stage": primary_stage,
+            "attempt_id": primary_attempt_id,
+            "slurm_account": account,
+            "config": str(CONFIG.resolve()),
+            "config_sha256": config_sha,
+            "run_dir": str(self.polish_run),
+            "run_manifest_sha256": core.sha256_path(
+                self.polish_run / core.RUN_MANIFEST
+            ),
+            "polish_lineage_sha256": None,
+            "command": primary_command,
+            "submit_script_sha256": workflow["submit.py"],
+            "cluster_env_sha256": workflow["cluster.env"],
+            "stage_script_sha256": primary_workflow[stage_script.name],
+            "workflow_sha256": primary_workflow,
+            "scheduler_options": list(scheduler_options),
+            "array": array,
+            "task_map": str(task_map) if task_map else None,
+            "task_map_sha256": task_map_sha,
+            "task_count": task_count,
+            "force_manifest": str(force_manifest) if force_manifest else None,
+            "force_manifest_sha256": force_manifest_sha,
+            "budget_receipt": str(budget_receipt) if budget_receipt else None,
+            "budget_receipt_sha256": budget_receipt_sha,
+            "force_mode": force_mode,
+            "candidate_ids": None,
+            "candidate_subset_sha256": None,
+            "diagnostic_resource_sha256": None,
+            "diagnostic_requested_walltime_minutes": None,
+            "diagnostic_lineage_sha256": None,
+        }
+        self._write_json(record / "request.json", request)
+        primary_result = {
+            "stage": primary_stage,
+            "attempt_id": primary_attempt_id,
+            "job_id": primary_job_id,
+            "config_sha256": config_sha,
+            "returncode": 0,
+            "command": primary_command,
+            "stdout": f"{primary_job_id};nibi\n",
+            "stderr": "",
+            "finished_utc": "2026-09-11T08:27:00Z",
+        }
+        self._write_json(record / "primary_result.json", primary_result)
+        collector_exports = {
+            **exports,
+            "ATTEMPT_ID": collector_attempt_id,
+            "P3_STAGE_SCRIPT_SHA256": core.sha256_path(slurm_dir / "collect.sbatch"),
+            "PRIMARY_STAGE": primary_stage,
+            "PRIMARY_ATTEMPT_ID": primary_attempt_id,
+            "PRIMARY_JOB_ID": primary_job_id,
+            "PRIMARY_REQUEST_SHA256": core.sha256_path(record / "request.json"),
+            "PRIMARY_RESULT_SHA256": core.sha256_path(record / "primary_result.json"),
+            "PRIMARY_STAGE_SCRIPT_SHA256": primary_workflow[stage_script.name],
+        }
+        if primary_stage == "force":
+            collector_exports.update(
+                {
+                    "PRIMARY_TASK_MAP_SHA256": task_map_sha,
+                    "PRIMARY_FORCE_MANIFEST_SHA256": force_manifest_sha,
+                }
+            )
+        collector_command = submit.sbatch_command(
+            submit.StagePlan(
+                stage="collect",
+                script=slurm_dir / "collect.sbatch",
+                account=account,
+                exports=collector_exports,
+                array=None,
+                task_count=task_count,
+                task_map=task_map,
+                task_map_sha256=task_map_sha,
+            ),
+            dependency=f"afterany:{primary_job_id}",
+        )
+        collector_request = {
+            "created_utc": "2026-09-11T08:27:00Z",
+            "stage": "collect",
+            "attempt_id": collector_attempt_id,
+            "slurm_account": account,
+            "config_sha256": config_sha,
+            "primary_stage": primary_stage,
+            "primary_attempt_id": primary_attempt_id,
+            "primary_job_id": primary_job_id,
+            "dependency": f"afterany:{primary_job_id}",
+            "primary_request_sha256": core.sha256_path(record / "request.json"),
+            "primary_result_sha256": core.sha256_path(record / "primary_result.json"),
+            "primary_stage_script_sha256": primary_workflow[stage_script.name],
+            "collector_script_sha256": core.sha256_path(
+                Path(core.__file__).resolve().parent / "slurm/collect.sbatch"
+            ),
+            "campaign_cli_sha256": workflow["campaign.py"],
+            "cluster_env_sha256": workflow["cluster.env"],
+            "diagnostic_lineage_sha256": None,
+            "diagnostic_resource_sha256": None,
+            "diagnostic_requested_walltime_minutes": None,
+            "command": collector_command,
+        }
+        self._write_json(record / "collector_request.json", collector_request)
+        collector_result = {
+            "stage": "collect",
+            "attempt_id": collector_attempt_id,
+            "job_id": collector_job_id,
+            "primary_stage": primary_stage,
+            "primary_attempt_id": primary_attempt_id,
+            "primary_job_id": primary_job_id,
+            "config_sha256": config_sha,
+            "returncode": 0,
+            "command": collector_command,
+            "stdout": f"{collector_job_id};nibi\n",
+            "stderr": "",
+            "finished_utc": "2026-09-11T08:27:01Z",
+        }
+        self._write_json(record / "collector_result.json", collector_result)
+        summary = {
+            "healthy": True,
+            "mode": "execute",
+            "submitted_utc": "2026-09-11T08:27:02Z",
+            "stage": primary_stage,
+            "attempt_id": primary_attempt_id,
+            "primary_job_id": primary_job_id,
+            "config_sha256": config_sha,
+            "slurm_account": account,
+            "polish_lineage_sha256": None,
+            "workflow_sha256": primary_workflow,
+            "run_dir": str(self.polish_run),
+            "record_dir": str(record),
+            "primary_command": primary_command,
+            "task_map_sha256": task_map_sha,
+            "task_count": task_count,
+            "array": array,
+            "force_mode": force_mode,
+            "force_manifest_sha256": force_manifest_sha,
+            "budget_receipt_sha256": budget_receipt_sha,
+            "scheduler_options": list(scheduler_options),
+            "candidate_ids": None,
+            "candidate_subset_sha256": None,
+            "diagnostic_resource_sha256": None,
+            "diagnostic_requested_walltime_minutes": None,
+            "collector": {
+                "attempt_id": collector_attempt_id,
+                "job_id": collector_job_id,
+                "primary_stage": primary_stage,
+                "primary_attempt_id": primary_attempt_id,
+                "primary_job_id": primary_job_id,
+                "dependency": f"afterany:{primary_job_id}",
+                "command": collector_command,
+                "request_sha256": core.sha256_path(record / "collector_request.json"),
+                "result_sha256": core.sha256_path(record / "collector_result.json"),
+            },
+        }
+        self._write_json(record / "submission.json", summary)
+
+        collector = self.polish_run / "slurm_attempts/collect" / collector_attempt_id
+        collector.mkdir(parents=True)
+        collector_context = {
+            "stage": "collect",
+            "attempt_id": collector_attempt_id,
+            "slurm_job_id": collector_job_id,
+            "slurm_job_account": account,
+            "config": str(CONFIG.resolve()),
+            "campaign_cli": str(Path(core.__file__).resolve()),
+            "config_sha256": config_sha,
+            "run_dir": str(self.polish_run),
+            "primary_stage": primary_stage,
+            "primary_attempt_id": primary_attempt_id,
+            "primary_job_id": primary_job_id,
+            "primary_request_sha256": collector_request["primary_request_sha256"],
+            "primary_result_sha256": collector_request["primary_result_sha256"],
+            "primary_stage_script_sha256": collector_request[
+                "primary_stage_script_sha256"
+            ],
+            "stage_script_sha256": collector_request["collector_script_sha256"],
+            "campaign_cli_sha256": workflow["campaign.py"],
+            "submit_script_sha256": workflow["submit.py"],
+            "cluster_env_sha256": workflow["cluster.env"],
+        }
+        (collector / "context.tsv").write_text(
+            "".join(f"{key}\t{value}\n" for key, value in collector_context.items())
+        )
+        return collector
+
+    @contextmanager
+    def _force_bundle_validation_adapter(self) -> object:
+        """Keep the replay test's synthetic signed leaf and ledger deterministic."""
+
+        bundle = self.polish_run / "force_bundle"
+        manifest = core.load_json(bundle / "force_manifest.json")
+        receipt_path = bundle / "budget_receipt.json"
+        receipt = core.load_json(receipt_path)
+        ledger_record = {
+            "path": self.polish_run / ".force_budget/reservation-000000.json",
+            "record": {
+                "receipt_path": str(receipt_path.resolve()),
+                "receipt_sha256": core.sha256_path(receipt_path),
+            },
+            "receipt": receipt,
+            "manifest": manifest,
+        }
+        with (
+            patch(
+                "force_backend.audit_signed_pilot_dataset",
+                return_value=manifest["signed_pilot_dataset"],
+            ),
+            patch("force_backend.replay_budget_ledger", return_value=[ledger_record]),
+        ):
+            yield
+
+    def _rebind_later_job_ids(
+        self,
+        collector: Path,
+        *,
+        primary_stage: str = "relax",
+        primary_attempt_id: str = "polish-1",
+        old_primary_job_id: str = "123470",
+        old_collector_job_id: str = "123471",
+        primary_job_id: str,
+        collector_job_id: str,
+    ) -> None:
+        """Synchronize every current submit.py record field after a test ID rewrite."""
+
+        record = self.polish_run / "submissions" / primary_stage / primary_attempt_id
+
+        def replace_ids(command: list[str]) -> list[str]:
+            return [
+                item.replace(old_primary_job_id, primary_job_id).replace(
+                    old_collector_job_id, collector_job_id
+                )
+                for item in command
+            ]
+
+        primary_result_path = record / "primary_result.json"
+        old_primary_result_sha = core.sha256_path(primary_result_path)
+        primary_result = core.load_json(primary_result_path)
+        primary_result.update(
+            job_id=primary_job_id,
+            stdout=f"{primary_job_id};nibi\n",
+        )
+        self._write_json(primary_result_path, primary_result)
+
+        collector_request_path = record / "collector_request.json"
+        collector_request = core.load_json(collector_request_path)
+        primary_result_sha = core.sha256_path(primary_result_path)
+        collector_request.update(
+            primary_job_id=primary_job_id,
+            dependency=f"afterany:{primary_job_id}",
+            primary_result_sha256=primary_result_sha,
+            command=[
+                item.replace(old_primary_result_sha, primary_result_sha)
+                for item in replace_ids(collector_request["command"])
+            ],
+        )
+        self._write_json(collector_request_path, collector_request)
+
+        collector_result_path = record / "collector_result.json"
+        collector_result = core.load_json(collector_result_path)
+        collector_result.update(
+            job_id=collector_job_id,
+            primary_job_id=primary_job_id,
+            command=collector_request["command"],
+            stdout=f"{collector_job_id};nibi\n",
+        )
+        self._write_json(collector_result_path, collector_result)
+
+        summary_path = record / "submission.json"
+        summary = core.load_json(summary_path)
+        summary.update(primary_job_id=primary_job_id)
+        summary["collector"].update(
+            job_id=collector_job_id,
+            primary_job_id=primary_job_id,
+            dependency=f"afterany:{primary_job_id}",
+            command=collector_request["command"],
+            request_sha256=core.sha256_path(collector_request_path),
+            result_sha256=core.sha256_path(collector_result_path),
+        )
+        self._write_json(summary_path, summary)
+
+        primary_context_path = (
+            self.polish_run / "slurm_attempts" / primary_stage / primary_attempt_id / "context.tsv"
+        )
+        primary_context = polish._context(primary_context_path)
+        primary_context["slurm_job_id"] = primary_job_id
+        primary_context_path.write_text(
+            "".join(f"{key}\t{value}\n" for key, value in primary_context.items())
+        )
+        collector_context_path = collector / "context.tsv"
+        collector_context = polish._context(collector_context_path)
+        collector_context.update(
+            slurm_job_id=collector_job_id,
+            primary_job_id=primary_job_id,
+            primary_result_sha256=primary_result_sha,
+        )
+        collector_context_path.write_text(
+            "".join(f"{key}\t{value}\n" for key, value in collector_context.items())
         )
 
     def _write_diagnostic_execution(
@@ -565,12 +1257,8 @@ class PolishRecoveryTests(unittest.TestCase):
 
     def _rebind_collected_execution_sha(self, execution_path: Path) -> str:
         execution_sha = core.sha256_path(execution_path)
-        collector_attempts = list(
-            (self.polish_run / "slurm_attempts/collect").iterdir()
-        )
-        self.assertEqual(len(collector_attempts), 1)
         for filename in ("collection.json", "collection_receipt.json"):
-            path = collector_attempts[0] / filename
+            path = self._diagnostic_collector_attempt() / filename
             collection = core.load_json(path)
             collection["primary"]["diagnostic_execution_sha256"] = execution_sha
             self._write_json(path, collection)
@@ -1007,9 +1695,7 @@ class PolishRecoveryTests(unittest.TestCase):
         (wrapper / "context.tsv").write_text(
             "".join(f"{key}\t{value}\n" for key, value in wrapper_context.items())
         )
-        collector_attempt = next(
-            (self.polish_run / "slurm_attempts/collect").iterdir()
-        )
+        collector_attempt = self._diagnostic_collector_attempt()
         collector_context = polish._context(collector_attempt / "context.tsv")
         collector_context["p3_venv"] = wrapper_context["p3_venv"]
         collector_context["p3_pseudo_dir"] = wrapper_context["p3_pseudo_dir"]
@@ -1066,9 +1752,7 @@ class PolishRecoveryTests(unittest.TestCase):
     def test_finalize_binds_collection_scope_and_nonpublication_claims(self) -> None:
         self._prepare()
         attempt = self._write_diagnostic_execution()
-        collector_attempt = next(
-            (self.polish_run / "slurm_attempts/collect").iterdir()
-        )
+        collector_attempt = self._diagnostic_collector_attempt()
         for filename in ("collection.json", "collection_receipt.json"):
             path = collector_attempt / filename
             collection = core.load_json(path)
@@ -1136,6 +1820,537 @@ class PolishRecoveryTests(unittest.TestCase):
                 self.reference,
                 self.pseudos,
             )
+
+    def test_post_polish_replay_allows_bound_later_relax_collector(self) -> None:
+        for primary_stage in ("relax", "force"):
+            with self.subTest(primary_stage=primary_stage):
+                if primary_stage != "relax":
+                    self.tearDown()
+                    self.setUp()
+                self._prepare()
+                self._write_passing_diagnostic()
+                polish.release_polish(CONFIG, self.polish_run)
+                self._write_bound_later_collector(primary_stage)
+                if primary_stage == "force":
+                    with self._force_bundle_validation_adapter():
+                        seed, review = polish.load_polish_start(
+                            self.config,
+                            self.polish_run,
+                            core.load_json(self.polish_run / core.RUN_MANIFEST),
+                            self.reference,
+                            self.pseudos,
+                        )
+                else:
+                    seed, review = polish.load_polish_start(
+                        self.config,
+                        self.polish_run,
+                        core.load_json(self.polish_run / core.RUN_MANIFEST),
+                        self.reference,
+                        self.pseudos,
+                    )
+                self.assertTrue(seed)
+                self.assertEqual(review["maximum_attempts"], 1)
+
+    def test_cf0b1d1_old_checkout_diagnostic_and_relax_replay_under_current_verifier(self) -> None:
+        snapshot = polish.TRUSTED_EXECUTED_WORKFLOW_SNAPSHOTS[
+            "cf0b1d1be318725015ed5d05f4ee3fb63d0fb89d"
+        ]
+        historical_root = Path(
+            "/scratch/yuhansun/phono3py-runs/cf0b1d1-source-checkout"
+        )
+        self._prepare()
+        self._set_lineage_backend(snapshot["polish_recovery.py"])
+        with self._workflow_source_hashes(snapshot):
+            attempt = self._write_diagnostic_execution()
+        self._relocate_recorded_checkout("diagnostic", "diag-1", historical_root)
+        receipt = polish.finalize_diagnostic(
+            CONFIG,
+            self.polish_run,
+            attempt_id="diag-1",
+            expected_execution_sha256=core.sha256_path(
+                attempt / polish.DIAGNOSTIC_EXECUTION
+            ),
+        )
+        self.assertTrue(receipt["pass"])
+        polish.release_polish(CONFIG, self.polish_run)
+        self._relocate_manifest_config_checkout(historical_root)
+        with self._workflow_source_hashes(snapshot):
+            self._write_bound_later_collector("relax")
+        self._relocate_recorded_checkout("relax", "polish-1", historical_root)
+        seed, review = polish.load_polish_start(
+            self.config,
+            self.polish_run,
+            core.load_json(self.polish_run / core.RUN_MANIFEST),
+            self.reference,
+            self.pseudos,
+        )
+        self.assertTrue(seed)
+        self.assertEqual(review["maximum_attempts"], 1)
+
+    def test_cross_checkout_replay_rejects_mixed_diagnostic_and_relax_roots(self) -> None:
+        snapshot = polish.TRUSTED_EXECUTED_WORKFLOW_SNAPSHOTS[
+            "cf0b1d1be318725015ed5d05f4ee3fb63d0fb89d"
+        ]
+        diagnostic_root = Path(
+            "/scratch/yuhansun/phono3py-runs/cf0b1d1-diagnostic-checkout"
+        )
+        later_root = Path(
+            "/scratch/yuhansun/phono3py-runs/cf0b1d1-mixed-relax-checkout"
+        )
+        self._prepare()
+        self._set_lineage_backend(snapshot["polish_recovery.py"])
+        with self._workflow_source_hashes(snapshot):
+            attempt = self._write_diagnostic_execution()
+        self._relocate_recorded_checkout("diagnostic", "diag-1", diagnostic_root)
+        polish.finalize_diagnostic(
+            CONFIG,
+            self.polish_run,
+            attempt_id="diag-1",
+            expected_execution_sha256=core.sha256_path(
+                attempt / polish.DIAGNOSTIC_EXECUTION
+            ),
+        )
+        polish.release_polish(CONFIG, self.polish_run)
+        self._relocate_manifest_config_checkout(diagnostic_root)
+        with self._workflow_source_hashes(snapshot):
+            self._write_bound_later_collector("relax")
+        self._relocate_recorded_checkout("relax", "polish-1", later_root)
+        with self.assertRaisesRegex(core.CampaignError, "mixes historical checkout roots"):
+            polish.load_polish_start(
+                self.config,
+                self.polish_run,
+                core.load_json(self.polish_run / core.RUN_MANIFEST),
+                self.reference,
+                self.pseudos,
+            )
+
+    def test_cross_checkout_replay_rejects_same_root_mixed_workflow_snapshots(self) -> None:
+        snapshot = polish.TRUSTED_EXECUTED_WORKFLOW_SNAPSHOTS[
+            "cf0b1d1be318725015ed5d05f4ee3fb63d0fb89d"
+        ]
+        historical_root = Path(
+            "/scratch/yuhansun/phono3py-runs/cf0b1d1-mixed-version-checkout"
+        )
+        self._prepare()
+        self._set_lineage_backend(snapshot["polish_recovery.py"])
+        with self._workflow_source_hashes(snapshot):
+            attempt = self._write_diagnostic_execution()
+        self._relocate_recorded_checkout("diagnostic", "diag-1", historical_root)
+        polish.finalize_diagnostic(
+            CONFIG,
+            self.polish_run,
+            attempt_id="diag-1",
+            expected_execution_sha256=core.sha256_path(
+                attempt / polish.DIAGNOSTIC_EXECUTION
+            ),
+        )
+        polish.release_polish(CONFIG, self.polish_run)
+        self._relocate_manifest_config_checkout(historical_root)
+
+        # The later collector is internally coherent and uses the same path
+        # root, but its tuple comes from today's different approved snapshot.
+        self._write_bound_later_collector("relax")
+        self._relocate_recorded_checkout("relax", "polish-1", historical_root)
+        with self.assertRaisesRegex(
+            core.CampaignError,
+            "workflow snapshot differs from diagnostic workflow snapshot",
+        ):
+            polish.load_polish_start(
+                self.config,
+                self.polish_run,
+                core.load_json(self.polish_run / core.RUN_MANIFEST),
+                self.reference,
+                self.pseudos,
+            )
+
+    def test_cross_checkout_replay_rejects_manifest_config_on_different_root(self) -> None:
+        snapshot = polish.TRUSTED_EXECUTED_WORKFLOW_SNAPSHOTS[
+            "cf0b1d1be318725015ed5d05f4ee3fb63d0fb89d"
+        ]
+        execution_root = Path(
+            "/scratch/yuhansun/phono3py-runs/cf0b1d1-execution-checkout"
+        )
+        manifest_root = Path(
+            "/scratch/yuhansun/phono3py-runs/cf0b1d1-manifest-checkout"
+        )
+        self._prepare()
+        self._set_lineage_backend(snapshot["polish_recovery.py"])
+        with self._workflow_source_hashes(snapshot):
+            attempt = self._write_diagnostic_execution()
+        self._relocate_recorded_checkout("diagnostic", "diag-1", execution_root)
+        polish.finalize_diagnostic(
+            CONFIG,
+            self.polish_run,
+            attempt_id="diag-1",
+            expected_execution_sha256=core.sha256_path(
+                attempt / polish.DIAGNOSTIC_EXECUTION
+            ),
+        )
+        polish.release_polish(CONFIG, self.polish_run)
+        self._relocate_manifest_config_checkout(manifest_root)
+        with self._workflow_source_hashes(snapshot):
+            self._write_bound_later_collector("relax")
+        self._relocate_recorded_checkout("relax", "polish-1", execution_root)
+
+        with self.assertRaisesRegex(core.CampaignError, "mixes historical checkout roots"):
+            polish.load_polish_start(
+                self.config,
+                self.polish_run,
+                core.load_json(self.polish_run / core.RUN_MANIFEST),
+                self.reference,
+                self.pseudos,
+            )
+
+    def test_cross_version_replay_rejects_unapproved_self_reported_backend(self) -> None:
+        approved = polish.TRUSTED_EXECUTED_WORKFLOW_SNAPSHOTS[
+            "cf0b1d1be318725015ed5d05f4ee3fb63d0fb89d"
+        ]
+        self._prepare()
+        self._set_lineage_backend(approved["polish_recovery.py"])
+        with self._workflow_source_hashes(approved):
+            attempt = self._write_diagnostic_execution()
+        request_path = (
+            self.polish_run / "submissions/diagnostic/diag-1/request.json"
+        )
+        request = core.load_json(request_path)
+        request["workflow_sha256"]["polish_recovery.py"] = "f" * 64
+        self._write_json(request_path, request)
+        with self.assertRaisesRegex(
+            core.CampaignError, "not an approved versioned workflow tuple"
+        ):
+            polish.finalize_diagnostic(
+                CONFIG,
+                self.polish_run,
+                attempt_id="diag-1",
+                expected_execution_sha256=core.sha256_path(
+                    attempt / polish.DIAGNOSTIC_EXECUTION
+                ),
+            )
+
+    def test_post_polish_replay_rejects_unbound_or_ambiguous_collectors(self) -> None:
+        for case in ("missing-context", "file-entry", "unbound-relax"):
+            with self.subTest(case=case):
+                self.tearDown()
+                self.setUp()
+                self._prepare()
+                self._write_passing_diagnostic()
+                polish.release_polish(CONFIG, self.polish_run)
+                root = self.polish_run / "slurm_attempts/collect"
+                if case == "file-entry":
+                    (root / "not-a-collector").write_text("ambiguous\n")
+                else:
+                    extra = root / "collect-extra"
+                    extra.mkdir()
+                    if case == "unbound-relax":
+                        extra.joinpath("context.tsv").write_text(
+                            "stage\tcollect\n"
+                            "attempt_id\tcollect-extra\n"
+                            "slurm_job_id\t123472\n"
+                            f"config_sha256\t{core.sha256_path(CONFIG)}\n"
+                            f"run_dir\t{self.polish_run}\n"
+                            "primary_stage\trelax\n"
+                            "primary_attempt_id\tpolish-2\n"
+                            "primary_job_id\t123471\n"
+                        )
+                with self.assertRaisesRegex(core.CampaignError, "collector"):
+                    polish.load_polish_start(
+                        self.config,
+                        self.polish_run,
+                        core.load_json(self.polish_run / core.RUN_MANIFEST),
+                        self.reference,
+                        self.pseudos,
+                    )
+
+    def test_post_polish_replay_rejects_reused_later_slurm_job_ids(self) -> None:
+        cases = (
+            "same-relax-pair",
+            "same-force-pair",
+            "diagnostic-primary",
+            "diagnostic-collector",
+            "later-primary-collision",
+            "later-collector-collision",
+        )
+        for case in cases:
+            with self.subTest(case=case):
+                self.tearDown()
+                self.setUp()
+                self._prepare()
+                self._write_passing_diagnostic()
+                polish.release_polish(CONFIG, self.polish_run)
+                primary_stage = "force" if case == "same-force-pair" else "relax"
+                collector = self._write_bound_later_collector(primary_stage)
+                if case == "same-relax-pair":
+                    self._rebind_later_job_ids(
+                        collector, primary_job_id="123470", collector_job_id="123470"
+                    )
+                elif case == "same-force-pair":
+                    self._rebind_later_job_ids(
+                        collector,
+                        primary_stage="force",
+                        primary_attempt_id="force-1",
+                        primary_job_id="123470",
+                        collector_job_id="123470",
+                    )
+                elif case == "diagnostic-primary":
+                    self._rebind_later_job_ids(
+                        collector, primary_job_id="123460", collector_job_id="123471"
+                    )
+                elif case == "diagnostic-collector":
+                    self._rebind_later_job_ids(
+                        collector, primary_job_id="123470", collector_job_id="123461"
+                    )
+                else:
+                    second = self._write_bound_later_collector(
+                        "relax",
+                        primary_attempt_id="polish-2",
+                        primary_job_id="123472",
+                        collector_attempt_id="collect-relax-2",
+                        collector_job_id="123473",
+                    )
+                    self._rebind_later_job_ids(
+                        second,
+                        primary_attempt_id="polish-2",
+                        old_primary_job_id="123472",
+                        old_collector_job_id="123473",
+                        primary_job_id="123470" if case == "later-primary-collision" else "123474",
+                        collector_job_id="123475" if case == "later-primary-collision" else "123471",
+                    )
+                with self.assertRaisesRegex(
+                    core.CampaignError, "job identity is reused or self-referential"
+                ):
+                    if primary_stage == "force":
+                        with self._force_bundle_validation_adapter():
+                            polish.load_polish_start(
+                                self.config,
+                                self.polish_run,
+                                core.load_json(self.polish_run / core.RUN_MANIFEST),
+                                self.reference,
+                                self.pseudos,
+                            )
+                    else:
+                        polish.load_polish_start(
+                            self.config,
+                            self.polish_run,
+                            core.load_json(self.polish_run / core.RUN_MANIFEST),
+                            self.reference,
+                            self.pseudos,
+                        )
+
+    def test_post_polish_replay_rejects_mismatched_later_collector_binding(self) -> None:
+        for case in (
+            "summary-hash",
+            "summary-collector-extra",
+            "request-primary",
+            "arbitrary-primary-command",
+            "untrusted-config-path",
+            "primary-workflow-tuple",
+            "cross-record-workflow",
+            "synchronized-fake-workflow",
+            "shallow-force-bundle",
+            "swapped-context",
+        ):
+            with self.subTest(case=case):
+                self.tearDown()
+                self.setUp()
+                self._prepare()
+                self._write_passing_diagnostic()
+                polish.release_polish(CONFIG, self.polish_run)
+                primary_stage = "force" if case == "shallow-force-bundle" else "relax"
+                collector = self._write_bound_later_collector(primary_stage)
+                record = self.polish_run / "submissions" / primary_stage / (
+                    "force-1" if primary_stage == "force" else "polish-1"
+                )
+                if case == "summary-hash":
+                    summary = core.load_json(record / "submission.json")
+                    summary["collector"]["request_sha256"] = "0" * 64
+                    self._write_json(record / "submission.json", summary)
+                elif case == "summary-collector-extra":
+                    summary = core.load_json(record / "submission.json")
+                    summary["collector"]["forged_extra"] = True
+                    self._write_json(record / "submission.json", summary)
+                elif case == "request-primary":
+                    request = core.load_json(record / "collector_request.json")
+                    request["primary_attempt_id"] = "wrong-attempt"
+                    self._write_json(record / "collector_request.json", request)
+                elif case == "arbitrary-primary-command":
+                    request = core.load_json(record / "request.json")
+                    request["command"] = ["sbatch", "--parsable", "/tmp/forged.sbatch"]
+                    self._write_json(record / "request.json", request)
+                    primary_result = core.load_json(record / "primary_result.json")
+                    primary_result["command"] = request["command"]
+                    self._write_json(record / "primary_result.json", primary_result)
+                    collector_request = core.load_json(record / "collector_request.json")
+                    collector_request["primary_request_sha256"] = core.sha256_path(
+                        record / "request.json"
+                    )
+                    collector_request["primary_result_sha256"] = core.sha256_path(
+                        record / "primary_result.json"
+                    )
+                    self._write_json(record / "collector_request.json", collector_request)
+                    summary = core.load_json(record / "submission.json")
+                    summary["primary_command"] = request["command"]
+                    summary["collector"]["request_sha256"] = core.sha256_path(
+                        record / "collector_request.json"
+                    )
+                    self._write_json(record / "submission.json", summary)
+                elif case == "untrusted-config-path":
+                    request = core.load_json(record / "request.json")
+                    request["config"] = str(self.polish_run / "forged-campaign.json")
+                    self._write_json(record / "request.json", request)
+                    collector_request = core.load_json(record / "collector_request.json")
+                    collector_request["primary_request_sha256"] = core.sha256_path(
+                        record / "request.json"
+                    )
+                    self._write_json(record / "collector_request.json", collector_request)
+                    summary = core.load_json(record / "submission.json")
+                    summary["collector"]["request_sha256"] = core.sha256_path(
+                        record / "collector_request.json"
+                    )
+                    self._write_json(record / "submission.json", summary)
+                    context = polish._context(collector / "context.tsv")
+                    context["primary_request_sha256"] = collector_request[
+                        "primary_request_sha256"
+                    ]
+                    (collector / "context.tsv").write_text(
+                        "".join(f"{key}\t{value}\n" for key, value in context.items())
+                    )
+                elif case == "primary-workflow-tuple":
+                    request = core.load_json(record / "request.json")
+                    request["workflow_sha256"]["campaign.py"] = "0" * 64
+                    self._write_json(record / "request.json", request)
+                elif case == "cross-record-workflow":
+                    collector_request = core.load_json(record / "collector_request.json")
+                    collector_request["campaign_cli_sha256"] = "0" * 64
+                    self._write_json(record / "collector_request.json", collector_request)
+                    summary = core.load_json(record / "submission.json")
+                    summary["collector"]["request_sha256"] = core.sha256_path(
+                        record / "collector_request.json"
+                    )
+                    self._write_json(record / "submission.json", summary)
+                    context = polish._context(collector / "context.tsv")
+                    context["campaign_cli_sha256"] = "0" * 64
+                    (collector / "context.tsv").write_text(
+                        "".join(f"{key}\t{value}\n" for key, value in context.items())
+                    )
+                elif case == "synchronized-fake-workflow":
+                    forged = "f" * 64
+                    request = core.load_json(record / "request.json")
+                    request.update(
+                        submit_script_sha256=forged,
+                        cluster_env_sha256=forged,
+                        stage_script_sha256=forged,
+                        workflow_sha256={key: forged for key in request["workflow_sha256"]},
+                    )
+                    self._write_json(record / "request.json", request)
+                    primary_result = core.load_json(record / "primary_result.json")
+                    self._write_json(record / "primary_result.json", primary_result)
+                    collector_request = core.load_json(record / "collector_request.json")
+                    collector_request.update(
+                        primary_request_sha256=core.sha256_path(record / "request.json"),
+                        primary_result_sha256=core.sha256_path(record / "primary_result.json"),
+                        primary_stage_script_sha256=forged,
+                        collector_script_sha256=forged,
+                        campaign_cli_sha256=forged,
+                        cluster_env_sha256=forged,
+                    )
+                    self._write_json(record / "collector_request.json", collector_request)
+                    summary = core.load_json(record / "submission.json")
+                    summary.update(
+                        workflow_sha256=request["workflow_sha256"],
+                        collector={
+                            **summary["collector"],
+                            "request_sha256": core.sha256_path(
+                                record / "collector_request.json"
+                            ),
+                        },
+                    )
+                    self._write_json(record / "submission.json", summary)
+                    context = polish._context(collector / "context.tsv")
+                    context.update(
+                        primary_request_sha256=collector_request["primary_request_sha256"],
+                        primary_result_sha256=collector_request["primary_result_sha256"],
+                        primary_stage_script_sha256=forged,
+                        stage_script_sha256=forged,
+                        campaign_cli_sha256=forged,
+                        submit_script_sha256=forged,
+                        cluster_env_sha256=forged,
+                    )
+                    (collector / "context.tsv").write_text(
+                        "".join(f"{key}\t{value}\n" for key, value in context.items())
+                    )
+                elif case == "shallow-force-bundle":
+                    bundle = self.polish_run / "force_bundle"
+                    task_map = bundle / "task_map.tsv"
+                    task_map.write_text("task_id\tdisplacement\n0\tdisp-00001\n")
+                    manifest_path = bundle / "force_manifest.json"
+                    manifest = core.load_json(manifest_path)
+                    manifest.update(task_map_sha256=core.sha256_path(task_map), task_count=1)
+                    self._write_json(manifest_path, manifest)
+                    receipt_path = bundle / "budget_receipt.json"
+                    receipt = core.load_json(receipt_path)
+                    receipt.update(task_map_sha256=core.sha256_path(task_map), task_count=1)
+                    self._write_json(receipt_path, receipt)
+                else:
+                    diagnostic = self._diagnostic_collector_attempt()
+                    diagnostic_context = diagnostic / "context.tsv"
+                    later_context = collector / "context.tsv"
+                    diagnostic_text = diagnostic_context.read_text()
+                    diagnostic_context.write_text(later_context.read_text())
+                    later_context.write_text(diagnostic_text)
+                with self.assertRaisesRegex(core.CampaignError, "collector"):
+                    if case == "shallow-force-bundle":
+                        with self._force_bundle_validation_adapter():
+                            polish.load_polish_start(
+                                self.config,
+                                self.polish_run,
+                                core.load_json(self.polish_run / core.RUN_MANIFEST),
+                                self.reference,
+                                self.pseudos,
+                            )
+                    else:
+                        polish.load_polish_start(
+                            self.config,
+                            self.polish_run,
+                            core.load_json(self.polish_run / core.RUN_MANIFEST),
+                            self.reference,
+                            self.pseudos,
+                        )
+
+    def test_post_polish_replay_rejects_duplicate_diagnostic_or_symlinked_collector(self) -> None:
+        for case in ("duplicate", "symlink"):
+            with self.subTest(case=case):
+                self.tearDown()
+                self.setUp()
+                self._prepare()
+                self._write_passing_diagnostic()
+                polish.release_polish(CONFIG, self.polish_run)
+                root = self.polish_run / "slurm_attempts/collect"
+                if case == "duplicate":
+                    duplicate = root / "collect-duplicate"
+                    duplicate.mkdir()
+                    duplicate.joinpath("context.tsv").write_text(
+                        "stage\tcollect\n"
+                        "attempt_id\tcollect-duplicate\n"
+                        "slurm_job_id\t123472\n"
+                        f"config_sha256\t{core.sha256_path(CONFIG)}\n"
+                        f"run_dir\t{self.polish_run}\n"
+                        "primary_stage\tdiagnostic\n"
+                        "primary_attempt_id\tdiag-1\n"
+                        "primary_job_id\t123460\n"
+                    )
+                else:
+                    target = self._diagnostic_collector_attempt()
+                    backup = target.with_name("collector-backup")
+                    target.rename(backup)
+                    target.symlink_to(backup, target_is_directory=True)
+                with self.assertRaisesRegex(core.CampaignError, "collector"):
+                    polish.load_polish_start(
+                        self.config,
+                        self.polish_run,
+                        core.load_json(self.polish_run / core.RUN_MANIFEST),
+                        self.reference,
+                        self.pseudos,
+                    )
 
     def test_terminal_recovery_to_polish_uses_fresh_scratch_and_ordinary_gate(self) -> None:
         self._prepare()

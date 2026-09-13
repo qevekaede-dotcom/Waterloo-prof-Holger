@@ -223,3 +223,23 @@ collector, so replay after the later relax collector can fail for the wrong
 reason.  Repair and independently review that code before using the diagnostic
 lineage as evidence for any future method.  This is a software/evidence fix,
 not authorization for another calculation.
+
+---
+
+## 2026-09-14 — replay-validator repair completed locally; remote lineage replay remains required
+
+The diagnostic replay-validator defect has been repaired and locally validated.
+The validator now binds the approved historical workflow snapshot `cf0b1d1`
+through its full hash set, while treating the current config and policy as the
+authority.  It requires a single historical checkout root, validates nested
+collectors against their exact schema, rejects globally duplicated Slurm IDs,
+and supports cross-checkout relocation.  Local tests and fresh reviews passed.
+
+This is a software/provenance repair only.  The final commit has not yet been
+used for a read-only replay of the real Nibi lineage, so it must not be claimed
+as final remote lineage validation.  The terminal scientific block is unchanged:
+`21848175` remains `FAILED/2:0`, `21848176` remains the completed collector of
+that failed attempt, no structure is accepted, and no preflight, pilot, or
+production force work is released.  The next permitted evidence action is the
+final-commit read-only replay; a different relaxation method would still need a
+new lineage and prior scientific review.
