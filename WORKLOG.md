@@ -105,3 +105,18 @@ phono3py, force, FC2/FC3, or transport result was generated or altered.  Units
 are explicitly retained where applicable.  Count-only evidence and software
 tests do not establish an fc3 cutoff, convergence, a structure, kappa_L, or
 full thermoelectric zT.
+
+## 2026-09-14 — final Rb replay repair verified read-only on Nibi
+
+Exact commit `824cbcf0c91bd8b4f9abcd8c53266dcecd2f3cc7` was checked out
+cleanly under `/scratch/yuhansun/codex-verify-824cbcf`.  The Nibi phono3py
+environment passed all 333 campaign tests.  The repaired validator then
+replayed the real Rb2Cu2SnS4 diagnostic lineage under
+`/scratch/yuhansun/phono3py-runs/20260911-continuation-cf0b1d1/` and returned
+`PASS`, with `structure_accepted=false` and `preflight_unlocked=false`.
+
+The old run contained 963 files both before and after replay.  SHA-256 values
+for `diagnostic/final/gate.json`, its provenance, `polish_lineage.json`, and
+`run_manifest.json` were identical before and after.  No Slurm job was
+submitted and no old evidence was changed.  This closes the replay software
+defect only; the failed BFGS polish remains scientifically blocked.

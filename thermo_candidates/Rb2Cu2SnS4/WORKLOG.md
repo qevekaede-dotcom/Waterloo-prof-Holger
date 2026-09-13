@@ -243,3 +243,19 @@ that failed attempt, no structure is accepted, and no preflight, pilot, or
 production force work is released.  The next permitted evidence action is the
 final-commit read-only replay; a different relaxation method would still need a
 new lineage and prior scientific review.
+
+---
+
+## 2026-09-14 — final-commit Nibi replay passed without changing the run
+
+Exact clean checkout `824cbcf0c91bd8b4f9abcd8c53266dcecd2f3cc7` passed all
+333 campaign tests in the Nibi phono3py environment.  The repaired validator
+then read-only replayed the real diagnostic lineage and returned `PASS` while
+retaining `structure_accepted=false` and `preflight_unlocked=false`.
+
+The lineage contained 963 files both before and after the replay.  SHA-256
+values for the final diagnostic gate, diagnostic provenance, polish lineage,
+and run manifest were unchanged; no Slurm job was submitted.  This establishes
+that the original diagnostic evidence can be replayed after the later failed
+relax collector.  It does not change the BFGS failure, accept a structure, or
+release any preflight, pilot, or production force work.

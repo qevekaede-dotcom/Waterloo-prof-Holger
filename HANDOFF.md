@@ -151,9 +151,12 @@ approved historical workflow snapshot `cf0b1d1` by its full hash set; treats
 the current config/policy as authoritative; requires one historical checkout
 root; validates nested collectors against their exact schema; enforces global
 Slurm-ID uniqueness; and handles cross-checkout relocation.  Local tests and
-fresh reviews passed.  It has **not** yet been read-only replayed on the real
-Nibi lineage using the final commit, so it is not yet final lineage evidence
-and does not authorize another relaxation.
+fresh reviews passed.  Exact commit `824cbcf` then passed all 333 tests in a
+clean Nibi checkout and passed a read-only replay of the real lineage.  The
+replay returned `structure_accepted=false` and `preflight_unlocked=false`;
+the old run remained at 963 files and its four checked gate/provenance/lineage/
+manifest hashes were unchanged.  This validates evidence replay only and does
+not authorize another relaxation.
 
 For SrZrS3, the prior 3.70-A count-only result remains 1003 supercells for
 both reviewed supercells and is over the hard cap of 800.  The narrower
@@ -383,9 +386,10 @@ a separate clean checkout that consumes the original hashed evidence.
 
 ## Next research work, when requested
 
-1. For Rb2Cu2SnS4, use the final repair commit for a read-only replay against
-   the real Nibi lineage.  Do not treat the local repair as remote evidence,
-   resubmit the polish, accept its RUN_DIR, or perform another automatic reset.
+1. For Rb2Cu2SnS4, design a genuinely different relaxation method as a new
+   lineage and obtain prior scientific review.  Do not resubmit the failed
+   polish, accept its RUN_DIR, or perform another automatic reset merely
+   because the diagnostic evidence now replays cleanly.
 2. For SrZrS3, retain `21850149` as count-only contract evidence and obtain a
    separate scientific decision before any pilot or production action.  Count
    agreement alone cannot select the cutoff.
