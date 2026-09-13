@@ -1226,6 +1226,8 @@ class CampaignConfigTests(unittest.TestCase):
             "--pilot-spec", "/tmp/p3-cli-run/pilot.json",
             "--expect-pilot-manifest-sha", "c" * 64,
             "--resource-request", "/tmp/p3-cli-run/resources.json",
+            "--pilot-release", "/tmp/p3-cli-run/pilot_release.json",
+            "--expect-pilot-release-sha", "d" * 64,
         ]
         with patch.object(
             campaign_module,
@@ -1240,7 +1242,15 @@ class CampaignConfigTests(unittest.TestCase):
         )
         self.assertEqual(keywords["pilot_dataset_manifest_sha256"], "c" * 64)
         self.assertIsNone(keywords["selection_evidence"])
-        self.assertEqual(keywords["resource_request_path"], Path(arguments[-1]))
+        self.assertEqual(
+            keywords["resource_request_path"],
+            Path("/tmp/p3-cli-run/resources.json"),
+        )
+        self.assertEqual(
+            keywords["pilot_release"],
+            Path("/tmp/p3-cli-run/pilot_release.json"),
+        )
+        self.assertEqual(keywords["pilot_release_sha256"], "d" * 64)
 
     def test_preflight_cli_forwards_signed_candidate_subset(self) -> None:
         candidate_ids = [
@@ -1280,6 +1290,8 @@ class CampaignConfigTests(unittest.TestCase):
             "pilot_spec_path": Path("/tmp/p3-cli-run/pilot.json"),
             "selection_evidence": None,
             "resource_request_path": Path("/tmp/p3-cli-run/resources.json"),
+            "pilot_release": Path("/tmp/p3-cli-run/pilot_release.json"),
+            "pilot_release_sha256": "e" * 64,
         }
         with self.assertRaisesRegex(CampaignError, "expect-pilot-manifest-sha"):
             campaign_module.command_prepare_force(
@@ -1326,22 +1338,31 @@ class CampaignConfigTests(unittest.TestCase):
                 pilot_dataset_manifest_sha256="d" * 64,
                 selection_evidence=None,
                 resource_request_path=Path("/tmp/p3-cli-run/resources.json"),
+                pilot_release=Path("/tmp/p3-cli-run/pilot_release.json"),
+                pilot_release_sha256="e" * 64,
             )
 
         self.assertEqual(result, {"healthy": True})
         self.assertEqual(
             prepare.call_args.kwargs["pilot_dataset_manifest_sha256"], "d" * 64
         )
+        self.assertEqual(
+            prepare.call_args.kwargs["pilot_release"],
+            Path("/tmp/p3-cli-run/pilot_release.json"),
+        )
+        self.assertEqual(prepare.call_args.kwargs["pilot_release_sha256"], "e" * 64)
 
     def test_pilot_dataset_cli_requires_explicit_probe_plan(self) -> None:
         arguments = [
             "prepare-pilot-dataset",
-            "--config", str(RB_CONFIG),
+            "--config", str(SR_CONFIG),
             "--run-dir", "/tmp/p3-pilot-run",
             "--candidate-dir", "/tmp/p3-pilot-run/preflight/candidate",
             "--preflight-inventory", "/tmp/p3-pilot-run/preflight/inventory.json",
             "--output-dir", "/tmp/p3-pilot-run/pilot",
             "--probe-spec", "/tmp/p3-pilot-run/probe.json",
+            "--pilot-release", "/tmp/p3-pilot-run/pilot_release.json",
+            "--expect-pilot-release-sha", "a" * 64,
         ]
         with patch.object(
             campaign_module,
@@ -1349,7 +1370,106 @@ class CampaignConfigTests(unittest.TestCase):
             return_value={"healthy": True},
         ) as command, patch.object(campaign_module, "print_json"):
             self.assertEqual(campaign_module.main(arguments), 0)
-        self.assertEqual(command.call_args.kwargs["probe_spec_path"], Path(arguments[-1]))
+        self.assertEqual(
+            command.call_args.kwargs["probe_spec_path"],
+            Path("/tmp/p3-pilot-run/probe.json"),
+        )
+        self.assertEqual(
+            command.call_args.kwargs["pilot_release"],
+            Path("/tmp/p3-pilot-run/pilot_release.json"),
+        )
+        self.assertEqual(command.call_args.kwargs["pilot_release_sha256"], "a" * 64)
+
+    def test_validation_pilot_dataset_cli_does_not_require_initial_release(self) -> None:
+        arguments = [
+            "prepare-pilot-dataset", "--config", str(SR_CONFIG),
+            "--run-dir", "/tmp/p3-validation", "--candidate-dir", "/tmp/p3-validation/candidate",
+            "--preflight-inventory", "/tmp/p3-validation/inventory.json",
+            "--output-dir", "/tmp/p3-validation/pilot-0p02",
+            "--probe-spec", "/tmp/p3-validation/probe-0p02.json",
+        ]
+        with patch.object(campaign_module, "command_prepare_pilot_dataset",
+                          return_value={"healthy": True}) as command, \
+             patch.object(campaign_module, "print_json"):
+            self.assertEqual(campaign_module.main(arguments), 0)
+        self.assertIsNone(command.call_args.kwargs["pilot_release"])
+        self.assertIsNone(command.call_args.kwargs["pilot_release_sha256"])
+
+    def test_initial_pilot_lifecycle_cli_forwards_all_trusted_hashes(self) -> None:
+        cases = (
+            (
+                ["create-initial-pilot-release", "--config", str(SR_CONFIG),
+                 "--run-dir", "/tmp/p3-initial", "--output", "/tmp/p3-initial/release.json"],
+                "command_create_initial_pilot_release",
+                {"output_path": Path("/tmp/p3-initial/release.json")},
+            ),
+            (
+                ["replay-initial-pilot-release", "--config", str(SR_CONFIG),
+                 "--run-dir", "/tmp/p3-initial", "--release", "/tmp/p3-initial/release.json",
+                 "--expect-release-sha", "b" * 64],
+                "command_replay_initial_pilot_release",
+                {"release_path": Path("/tmp/p3-initial/release.json"),
+                 "expected_release_sha256": "b" * 64},
+            ),
+            (
+                ["replay-initial-pilot-result", "--config", str(SR_CONFIG),
+                 "--run-dir", "/tmp/p3-initial", "--result", "/tmp/p3-initial/result.json",
+                 "--expect-result-sha", "c" * 64],
+                "command_replay_initial_pilot_result",
+                {"result_path": Path("/tmp/p3-initial/result.json"),
+                 "expected_result_sha256": "c" * 64},
+            ),
+        )
+        for arguments, command_name, expected in cases:
+            with self.subTest(command=arguments[0]), patch.object(
+                campaign_module, command_name, return_value={"healthy": True}
+            ) as command, patch.object(campaign_module, "print_json"):
+                self.assertEqual(campaign_module.main(arguments), 0)
+                self.assertEqual(command.call_args.kwargs, expected)
+
+        arguments = [
+            "finalize-initial-pilot", "--config", str(SR_CONFIG),
+            "--run-dir", "/tmp/p3-initial", "--release", "/tmp/p3-initial/release.json",
+            "--expect-release-sha", "d" * 64,
+            "--force-manifest", "/tmp/p3-initial/force/force_manifest.json",
+            "--collection", "/tmp/p3-initial/collection.json",
+            "--expect-collection-sha", "e" * 64,
+            "--output", "/tmp/p3-initial/result.json",
+        ]
+        with patch.object(
+            campaign_module, "command_finalize_initial_pilot",
+            return_value={"healthy": True},
+        ) as command, patch.object(campaign_module, "print_json"):
+            self.assertEqual(campaign_module.main(arguments), 0)
+        self.assertEqual(command.call_args.kwargs["expected_release_sha256"], "d" * 64)
+        self.assertEqual(command.call_args.kwargs["expected_collection_sha256"], "e" * 64)
+
+    def test_initial_prepare_force_rejects_missing_or_out_of_scope_release(self) -> None:
+        common = dict(
+            preflight_inventory=Path("/tmp/p3-cli-run/preflight.json"),
+            dataset_dir=Path("/tmp/p3-cli-run/dataset"),
+            output_dir=Path("/tmp/p3-cli-run/force-bundle"),
+            pseudo_dir=Path("/tmp/pseudos"),
+            pilot_spec_path=Path("/tmp/p3-cli-run/pilot.json"),
+            pilot_dataset_manifest_sha256="f" * 64,
+            selection_evidence=None,
+            resource_request_path=Path("/tmp/p3-cli-run/resources.json"),
+        )
+        with patch.object(
+            campaign_module, "load_json", side_effect=[{}, {"phase": "initial"}]
+        ), self.assertRaisesRegex(CampaignError, "requires --pilot-release"):
+            campaign_module.command_prepare_force(
+                SR_CONFIG, Path("/tmp/p3-cli-run"), mode="pilot",
+                pilot_release=None, pilot_release_sha256=None, **common
+            )
+        with patch.object(
+            campaign_module, "load_json", side_effect=[{}, {"phase": "validation"}]
+        ), self.assertRaisesRegex(CampaignError, "only with pilot mode and phase=initial"):
+            campaign_module.command_prepare_force(
+                SR_CONFIG, Path("/tmp/p3-cli-run"), mode="pilot",
+                pilot_release=Path("/tmp/p3-cli-run/release.json"),
+                pilot_release_sha256="f" * 64, **common
+            )
 
     def test_force_task_cli_forwards_optional_retry_evidence(self) -> None:
         arguments = [

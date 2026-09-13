@@ -421,6 +421,60 @@
     "selected_conv_thr_Ry": null,
     "selected_k_points": null
   },
+  "initial_timing_noise_pilot": {
+    "schema_version": 1,
+    "material": "SrZrS3",
+    "mode": "pilot",
+    "phase": "initial",
+    "source_supercell_id": "sr_fc3_2x1x1",
+    "source_cutoff_id": "sr_cutoff_3p5541348625A",
+    "atom_count": 40,
+    "atom_1_based": [33, 35],
+    "species": ["S", "S"],
+    "unit_vector_33_to_35": [0.5442795443484355, 0.06343291855365582, 0.836502266851456],
+    "atom_33_direction": "+unit_vector_33_to_35",
+    "atom_35_direction": "-unit_vector_33_to_35",
+    "pair_distance_bohr": 6.663510948767675,
+    "pair_distance_angstrom": 3.526178138690481,
+    "amplitude_angstrom": 0.03,
+    "amplitude_bohr": 0.0566917837388,
+    "synthetic_role_ids": {
+      "single": {"plus": 1, "minus": 2},
+      "double": {"pp": 3, "pm": 4, "mp": 5, "mm": 6}
+    },
+    "task_displacement_ids": [0, 0, 1, 3, 1, 3],
+    "settings": {
+      "ecutwfc_Ry": 80,
+      "ecutrho_Ry": 640,
+      "conv_thr_Ry": 1e-10,
+      "kmesh": [3, 3, 3],
+      "kshift": [0, 0, 0],
+      "nosym": true,
+      "noinv": true
+    },
+    "resources": {
+      "mpi_ranks": 32,
+      "walltime_hours": 2,
+      "max_concurrency": 2,
+      "maximum_technical_retries_per_task": 1,
+      "maximum_reserved_core_hours": 768
+    },
+    "acceptance": {
+      "component_count": 120,
+      "remove_component_mean": false,
+      "maximum_each_duplicate_rms_Ry_per_bohr": 5e-6,
+      "epsilon_Ry_per_bohr": 1e-15,
+      "minimum_incremental_signal_to_propagated_noise": 10.0
+    },
+    "validation_authorized": false,
+    "production_authorized": false,
+    "scope": "exactly six initial SCFs; timing, repeatability, and resolvable incremental force response only",
+    "limitations": [
+      "This pilot does not validate a mixed second derivative or D2.",
+      "This pilot does not validate FC3, displacement amplitude, pair cutoff, kappa, or production.",
+      "The production core-hour budget remains null and production remains unauthorized."
+    ]
+  },
   "resource_budget": {
     "selection_required_before_force_submission": true,
     "approved_total_core_hours_per_material": null,

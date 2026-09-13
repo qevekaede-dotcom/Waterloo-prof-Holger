@@ -705,7 +705,10 @@ def _fragment(path: Path, settings: Mapping[str, Any], pseudo_dir: Path) -> str:
     return text
 
 
-def _settings(config: Mapping[str, Any], mode: str, pilot: Mapping[str, Any] | None) -> dict[str, Any]:
+def _settings(config: Mapping[str, Any], mode: str, pilot: Mapping[str, Any] | None,
+              *, allow_count_only_initial: bool = False) -> dict[str, Any]:
+    if allow_count_only_initial and mode != "pilot":
+        raise ForceError("count-only initial exception is restricted to pilot mode")
     force = config["force_and_amplitude_validation"]
     production = config["production"]
     flags = force.get("production_symmetry_flags")
@@ -749,9 +752,11 @@ def _settings(config: Mapping[str, Any], mode: str, pilot: Mapping[str, Any] | N
     if result["supercell_id"] not in matrices or result["cutoff_id"] not in cutoffs:
         raise ForceError("explicit configured supercell and finite cutoff IDs required")
     matrix, cutoff = matrices[result["supercell_id"]], cutoffs[result["cutoff_id"]]
-    if matrix.get("production_fc3_eligible_without_new_review") is False:
+    if (matrix.get("production_fc3_eligible_without_new_review") is False
+            and not allow_count_only_initial):
         raise ForceError("count-only escalation matrix requires a new scientific policy")
-    if cutoff.get("production_fc3_eligible_without_new_review") is False:
+    if (cutoff.get("production_fc3_eligible_without_new_review") is False
+            and not allow_count_only_initial):
         raise ForceError("count-only cutoff requires a new scientific review")
     if mode == "production":
         for key, expected in (("selected_fc3_supercell_matrix", matrix["matrix"]),
@@ -799,7 +804,8 @@ def _imported_acceptance_provenance(
 
 
 def _provenance(config: Mapping[str, Any], config_path: Path, run_dir: Path,
-                inventory_path: Path, dataset: Path) -> tuple[dict[str, str], dict[str, Any]]:
+                inventory_path: Path, dataset: Path, *,
+                allow_count_only_initial: bool = False) -> tuple[dict[str, str], dict[str, Any]]:
     saved = core.load_json(run_dir / core.RUN_MANIFEST)
     if saved.get("schema_version") != 2 or saved.get("material") != config["material"]["formula"] or saved.get("preflight_policy_sha256") != core.policy_sha256(config, "preflight"):
         raise ForceError("saved upstream manifest schema/material/preflight policy mismatch")
@@ -831,7 +837,8 @@ def _provenance(config: Mapping[str, Any], config_path: Path, run_dir: Path,
     result = core.load_json(result_path)
     if result not in inventory.get("results", []):
         raise ForceError("dataset result absent from supplied preflight inventory")
-    if result.get("within_hard_cap") is not True or result.get("count_only") or result.get("count_only_no_cutoff"):
+    if result.get("within_hard_cap") is not True or result.get("count_only_no_cutoff") or (
+            result.get("count_only") and not allow_count_only_initial):
         raise ForceError("dataset is count-only or exceeds hard cap")
     _match(dataset / "phono3py_disp.yaml", result.get("yaml_sha256", ""))
     _match(dataset / "unitcell.in", gate["final_unitcell_sha256"])
@@ -993,7 +1000,9 @@ def prepare_force(config_path: Path, run_dir: Path, *, preflight_inventory: Path
                   mode: str = "production", pilot_spec: Mapping[str, Any] | None = None,
                   selection_evidence: Path | None = None,
                   resource_request: Mapping[str, Any] | None = None,
-                  pilot_dataset_manifest_sha256: str | None = None) -> dict[str, Any]:
+                  pilot_dataset_manifest_sha256: str | None = None,
+                  pilot_release: Path | None = None,
+                  pilot_release_sha256: str | None = None) -> dict[str, Any]:
     """Prepare a new immutable force bundle, including a matched pristine task.
 
     A pilot_spec explicitly supplies settings, rationale and displacement_ids;
@@ -1005,7 +1014,21 @@ def prepare_force(config_path: Path, run_dir: Path, *, preflight_inventory: Path
     """
     config_path, run_dir = Path(config_path).resolve(), core.safe_run_dir(Path(run_dir))
     config, _ = core.validate_config(config_path)
-    settings = _settings(config, mode, pilot_spec)
+    release = None
+    release_path = None
+    if pilot_release is not None or pilot_release_sha256 is not None:
+        if mode != "pilot" or pilot_release is None or pilot_release_sha256 is None:
+            raise ForceError("initial pilot release requires pilot mode plus path and SHA256")
+        from initial_pilot import replay_initial_pilot_release, validate_release_use
+        release_path = _under(Path(pilot_release), run_dir)
+        release = replay_initial_pilot_release(release_path, config_path=config_path,
+            run_dir=run_dir, expected_release_sha256=pilot_release_sha256)
+        validate_release_use(release, force_spec=pilot_spec,
+                             resource_request=resource_request)
+        if selection_evidence is not None:
+            raise ForceError("initial exact-six pilot cannot carry production selection evidence")
+    settings = _settings(config, mode, pilot_spec,
+                         allow_count_only_initial=release is not None)
     dataset, inventory_path = _under(Path(dataset_dir), run_dir), _under(Path(preflight_inventory), run_dir)
     destination, pseudo_dir = _under(Path(output_dir), run_dir), Path(pseudo_dir).resolve()
     if destination.exists():
@@ -1014,11 +1037,24 @@ def prepare_force(config_path: Path, run_dir: Path, *, preflight_inventory: Path
     if mode == "pilot":
         signed_pilot = audit_signed_pilot_dataset(dataset, run_dir, config, settings, pilot_spec,
             expected_manifest_sha256=pilot_dataset_manifest_sha256)
+        dataset_release = core.load_json(dataset / "pilot_dataset_manifest.json").get(
+            "initial_pilot_release")
+        if release is not None:
+            if not isinstance(dataset_release, Mapping) or dataset_release.get("sha256") != pilot_release_sha256 \
+                    or dataset_release.get("consumption_identity") != release["consumption_identity"]:
+                raise ForceError("signed pilot dataset does not bind this initial pilot release")
+        elif dataset_release is not None:
+            raise ForceError("release-bound pilot dataset requires explicit release replay")
         if isinstance(resource_request, Mapping) and resource_request.get("phase") == "initial":
             validate_initial_pilot_composition(pilot_spec, signed_pilot["task_kinds"])
     provenance, execution = _provenance(config, config_path, run_dir, inventory_path, dataset)
     if signed_pilot:
         provenance.update(signed_pilot["files_sha256"])
+    if release is not None:
+        provenance[str(release_path)] = core.sha256_path(release_path)
+        consumption = Path(dataset_release["consumption_path"])
+        _match(consumption, dataset_release["consumption_sha256"])
+        provenance[str(consumption)] = core.sha256_path(consumption)
     preflight = core.load_json(dataset / "preflight_result.json")
     if any(preflight.get(k) != settings[v] for k, v in (("supercell_id", "supercell_id"), ("cutoff_id", "cutoff_id"), ("generated_atoms", "atoms"))):
         raise ForceError("preflight dataset differs from explicit selection")
@@ -1077,6 +1113,15 @@ def prepare_force(config_path: Path, run_dir: Path, *, preflight_inventory: Path
     writer = csv.DictWriter(stream, fieldnames=FIELDS, delimiter="\t", lineterminator="\n")
     writer.writeheader()
     writer.writerows(rows)
+    if release is not None:
+        if [task["displacement_id"] for task in tasks] != release["scope"]["task_displacement_ids"]:
+            raise ForceError("prepared task order differs from exact-six release")
+        expected_resources = release["contract"]["resources"]
+        requested_reservation = (len(tasks) * resource_request["walltime_hours"]
+                                 * resource_request["mpi_ranks"]
+                                 * (1 + expected_resources["maximum_technical_retries_per_task"]))
+        if requested_reservation != expected_resources["maximum_reserved_core_hours"]:
+            raise ForceError("initial pilot reservation differs from exact release ceiling")
     receipt = _reserve_budget(config, run_dir, destination, len(tasks), _hash_text(stream.getvalue()), mode, resource_request,
                               [t["input_sha256"] for t in tasks if t["displacement_id"] != 0] if mode == "production" else [], settings)
     for task in tasks:
@@ -1086,15 +1131,20 @@ def prepare_force(config_path: Path, run_dir: Path, *, preflight_inventory: Path
     manifest = {"schema_version": 1, "stage": "force", "mode": mode, "material": config["material"]["formula"],
                 "config_sha256": core.sha256_path(config_path), "force_policy_sha256": core.canonical_sha256({"production": config["production"], "force": config["force_and_amplitude_validation"]}),
                 "settings": settings, "pilot_spec": dict(pilot_spec) if mode == "pilot" and pilot_spec else None,
+                "initial_pilot_release": ({"path": str(release_path),
+                    "sha256": pilot_release_sha256,
+                    "consumption_identity": release["consumption_identity"]} if release is not None else None),
                 "selection_validation": selection,
                 "signed_pilot_dataset": signed_pilot,
                 "budget_receipt_sha256": core.sha256_path(destination / "budget_receipt.json"),
                 "pseudopotentials": pseudo_hashes, "evidence_sha256": provenance,
                 "selection_evidence_sha256": dict(selection["evidence_sha256"]) if selection else {},
-                "workflow_sha256": {str(Path(__file__).with_name(name)): core.sha256_path(Path(__file__).with_name(name)) for name in (("campaign.py", "qe_input.py", "qe_output.py", "pilot_analysis.py", "pilot_dataset.py", "pilot_evidence.py", "postprocess_backend.py") if selection else ("campaign.py", "qe_input.py", "qe_output.py", "pilot_dataset.py") if signed_pilot else ("campaign.py", "qe_input.py", "qe_output.py"))},
+                "workflow_sha256": {str(Path(__file__).with_name(name)): core.sha256_path(Path(__file__).with_name(name)) for name in (("campaign.py", "qe_input.py", "qe_output.py", "pilot_analysis.py", "pilot_dataset.py", "pilot_evidence.py", "postprocess_backend.py") if selection else ("campaign.py", "qe_input.py", "qe_output.py", "pilot_dataset.py", "initial_pilot.py") if release else ("campaign.py", "qe_input.py", "qe_output.py", "pilot_dataset.py") if signed_pilot else ("campaign.py", "qe_input.py", "qe_output.py"))},
                 "backend_sha256": core.sha256_path(Path(__file__)), "task_map_sha256": core.sha256_path(destination / "task_map.tsv"),
                 "tasks": tasks, "task_count": len(tasks), "created_utc": core.utc_now(),
-                "limitations": ["Force collection is not a convergence or thermal-conductivity result.", "Every displaced force must be paired with this bundle's pristine task."]}
+                "limitations": (["Force collection is not a convergence or thermal-conductivity result.",
+                                 "Every displaced force must be paired with this bundle's pristine task."]
+                                + (list(release["limitations"]) if release is not None else []))}
     core.write_json_immutable(destination / "force_manifest.json", manifest)
     return {"healthy": True, "mode": mode, "task_count": len(tasks), "task_map": str(destination / "task_map.tsv"), "manifest": str(destination / "force_manifest.json"), "budget_receipt": str(destination / "budget_receipt.json"), "maximum_concurrency": receipt["maximum_concurrency"]}
 
@@ -1162,12 +1212,41 @@ def _claim_execution(run_dir, manifest, receipt, task_id, attempt, retry_evidenc
                 raise ForceError("successful task cannot be retried")
             if retry_evidence is None:
                 raise ForceError("retry needs scheduler evidence of a technical failure")
-            evidence = core.load_json(_under(Path(retry_evidence), run_dir))
-            accounting = _under(Path(evidence["accounting_path"]), run_dir)
-            _match(accounting, evidence["accounting_sha256"])
-            rows = list(csv.DictReader(io.StringIO(accounting.read_text()), delimiter="|"))
-            matched = [r for r in rows if r.get("JobIDRaw") == prior["job_id"]]
-            if len(matched) != 1 or matched[0].get("State") not in ("NODE_FAIL", "BOOT_FAIL", "PREEMPTED"):
+            retry_path = _under(Path(retry_evidence), run_dir)
+            evidence = core.load_json(retry_path)
+            if evidence.get("collection_kind") == "force_array_batch":
+                primary = evidence.get("primary")
+                entries = evidence.get("entries")
+                if (
+                    evidence.get("schema_version") != 1
+                    or evidence.get("stage") != "collect"
+                    or not isinstance(primary, Mapping)
+                    or primary.get("force_manifest_sha256")
+                    != core.sha256_path(Path(manifest["tasks"][0]["input_path"]).parent.parent / "force_manifest.json")
+                    or primary.get("task_map_sha256") != manifest["task_map_sha256"]
+                    or not isinstance(entries, list)
+                ):
+                    raise ForceError("retry collection does not bind this force bundle")
+                matches = [
+                    entry for entry in entries
+                    if isinstance(entry, Mapping) and entry.get("task_id") == task_id
+                ]
+                if len(matches) != 1 or matches[0].get("outcome") != "upstream_failed":
+                    raise ForceError("retry collection does not prove this failed task")
+                if Path(str(matches[0].get("attempt_path", ""))).resolve() != Path(
+                    prior["attempt_path"]
+                ).resolve():
+                    raise ForceError("retry collection does not bind the prior attempt")
+                matched = [
+                    row for row in matches[0].get("scheduler_records", [])
+                    if isinstance(row, Mapping) and row.get("JobIDRaw") == prior["job_id"]
+                ]
+            else:
+                accounting = _under(Path(evidence["accounting_path"]), run_dir)
+                _match(accounting, evidence["accounting_sha256"])
+                rows = list(csv.DictReader(io.StringIO(accounting.read_text()), delimiter="|"))
+                matched = [r for r in rows if r.get("JobIDRaw") == prior["job_id"]]
+            if len(matched) != 1 or str(matched[0].get("State", "")).rstrip("+") not in ("NODE_FAIL", "BOOT_FAIL", "PREEMPTED"):
                 raise ForceError("retry is not a proven node/boot/preemption technical failure")
         active = 0
         for path in claims.glob("*.json"):

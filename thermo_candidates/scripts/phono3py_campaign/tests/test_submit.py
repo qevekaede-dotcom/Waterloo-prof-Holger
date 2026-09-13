@@ -12,7 +12,7 @@ from contextlib import redirect_stderr
 from pathlib import Path
 from unittest.mock import patch
 
-from campaign import CampaignError
+from campaign import CampaignError, _force_submission_binding
 from submit import (
     SLURM_DIR,
     StagePlan,
@@ -180,7 +180,12 @@ class SubmissionTests(unittest.TestCase):
         )
         self.signed_audits = {}
         self.selection_audits = {}
+        self.initial_releases = {}
         self.signed_auditor = patch("force_backend.audit_signed_pilot_dataset", side_effect=self.audit_signed_fixture).start()
+        self.initial_release_replayer = patch(
+            "initial_pilot.replay_initial_pilot_release",
+            side_effect=self.replay_initial_release_fixture,
+        ).start()
         patch("force_backend.core.validate_config", return_value=(self.config, {})).start()
         self.selection_auditor = patch("force_backend.validate_selection_evidence", side_effect=lambda path, *args:
               copy.deepcopy(self.selection_audits[str(path)])).start()
@@ -190,6 +195,14 @@ class SubmissionTests(unittest.TestCase):
         from force_backend import _match
         _match(Path(dataset)/"pilot_dataset_manifest.json", expected_manifest_sha256)
         return copy.deepcopy(self.signed_audits[str(Path(dataset).resolve())])
+
+    def replay_initial_release_fixture(
+        self, path: Path, *, expected_release_sha256: str, **kwargs
+    ):
+        resolved = Path(path).resolve()
+        if sha256_path(resolved) != expected_release_sha256:
+            raise CampaignError("pilot release hash mismatch")
+        return copy.deepcopy(self.initial_releases[str(resolved)])
 
     def tearDown(self) -> None:
         self.temp_dir.cleanup()
@@ -298,7 +311,24 @@ class SubmissionTests(unittest.TestCase):
         bundle = path.parent.resolve()
         duplicate_ids = duplicate_ids or []
         original_count = count - pristine_count - len(duplicate_ids)
-        original_ids = list(range(1, original_count+1))
+        original_ids = (
+            [1, 3]
+            if mode == "pilot"
+            and count == 6
+            and pristine_count == 2
+            and duplicate_ids == [1, 3]
+            else list(range(1, original_count + 1))
+        )
+        is_initial = (
+            mode == "pilot"
+            and count == 6
+            and pristine_count == 2
+            and duplicate_ids == [1, 3]
+        )
+        if is_initial:
+            self.config["resource_budget"][
+                "approved_total_core_hours_per_material"
+            ] = None
         displacement_ids = [0]*pristine_count + original_ids + duplicate_ids
         for index, displacement_id in enumerate(displacement_ids):
             # Inputs are real files with measured hashes; duplicates intentionally
@@ -320,7 +350,7 @@ class SubmissionTests(unittest.TestCase):
         receipt = {
             "schema_version": 1,
             "material": "Example",
-            "phase": "production" if mode == "production" else "initial" if count == 6 and pristine_count == 2 and len(duplicate_ids) == 2 else "validation",
+            "phase": "production" if mode == "production" else "initial" if is_initial else "validation",
             "task_map_sha256": sha256_path(path),
             "task_count": count,
             "mpi_ranks": 32,
@@ -370,6 +400,81 @@ class SubmissionTests(unittest.TestCase):
             pilot_code = SLURM_DIR.parent / "pilot_dataset.py"
             manifest["workflow_sha256"][str(pilot_code)] = sha256_path(pilot_code)
             self.signed_audits[str(signed_dir)] = copy.deepcopy(signed)
+            if receipt["phase"] == "initial":
+                receipt.update(
+                    walltime_hours=2,
+                    reserved_core_hours=768,
+                    approved_total_core_hours=None,
+                )
+                receipt_path.write_text(json.dumps(receipt))
+                manifest["budget_receipt_sha256"] = sha256_path(receipt_path)
+                release_path = self.run_dir / "initial_pilot_release.json"
+                release_path.write_text('{"synthetic_release":true}\n')
+                identity = "9" * 64
+                release = {
+                    "scope": {
+                        "mode": "pilot",
+                        "phase": "initial",
+                        "task_count": 6,
+                        "task_displacement_ids": [0, 0, 1, 3, 1, 3],
+                        "validation_authorized": False,
+                        "production_authorized": False,
+                    },
+                    "force_pilot_spec": copy.deepcopy(manifest["pilot_spec"]),
+                    "contract": {
+                        "resources": {
+                            "mpi_ranks": 32,
+                            "walltime_hours": 2,
+                            "max_concurrency": 2,
+                            "maximum_technical_retries_per_task": 1,
+                            "maximum_reserved_core_hours": 768,
+                        }
+                    },
+                    "consumption_identity": identity,
+                }
+                self.initial_releases[str(release_path.resolve())] = release
+                release_binding = {
+                    "path": str(release_path.resolve()),
+                    "sha256": sha256_path(release_path),
+                    "consumption_identity": identity,
+                }
+                consumption_path = (
+                    self.run_dir / ".initial_pilot_releases" / f"{identity}.json"
+                )
+                consumption_path.parent.mkdir(exist_ok=True)
+                consumption_path.write_text(json.dumps({
+                    "schema_version": 1,
+                    "stage": "initial_pilot_release_consumption",
+                    "consumption_identity": identity,
+                    "release_path": str(release_path.resolve()),
+                    "release_sha256": sha256_path(release_path),
+                    "dataset_dir": str(signed_dir.resolve()),
+                    "created_utc": "2026-09-14T00:00:00Z",
+                }))
+                signed_binding = {
+                    **release_binding,
+                    "consumption_path": str(consumption_path.resolve()),
+                    "consumption_sha256": sha256_path(consumption_path),
+                }
+                signed_manifest.write_text(json.dumps({
+                    "synthetic": True,
+                    "ids": original_ids,
+                    "initial_pilot_release": signed_binding,
+                }))
+                signed["expected_manifest_sha256"] = sha256_path(signed_manifest)
+                signed["files_sha256"] = {
+                    str(signed_manifest): sha256_path(signed_manifest)
+                }
+                manifest["signed_pilot_dataset"] = signed
+                manifest["initial_pilot_release"] = release_binding
+                manifest["evidence_sha256"] = {
+                    **signed["files_sha256"],
+                    str(release_path.resolve()): sha256_path(release_path),
+                    str(consumption_path.resolve()): sha256_path(consumption_path),
+                }
+                initial_code = SLURM_DIR.parent / "initial_pilot.py"
+                manifest["workflow_sha256"][str(initial_code)] = sha256_path(initial_code)
+                self.signed_audits[str(signed_dir)] = copy.deepcopy(signed)
         else:
             selection_source = bundle / "selection-audit.json"
             selection_source.write_text('{"synthetic_audit_source":true}')
@@ -716,7 +821,7 @@ class SubmissionTests(unittest.TestCase):
         self.assertEqual([x["displacement_id"] for x in validated[4]["tasks"]], [0,0,1,2,1])
 
     def test_initial_pilot_reaudits_bound_sha_and_accepts_only_six(self) -> None:
-        task_map = self.write_force_bundle(6, mode="pilot", pristine_count=2, duplicate_ids=[1,2])
+        task_map = self.write_force_bundle(6, mode="pilot", pristine_count=2, duplicate_ids=[1,3])
         validated = validate_force_bundle(self.context, task_map)
         self.assertEqual(validated[1], 6)
         signed = validated[4]["signed_pilot_dataset"]
@@ -725,6 +830,268 @@ class SubmissionTests(unittest.TestCase):
         Path(signed["dataset_dir"], "pilot_dataset_manifest.json").write_text("altered signed plan")
         with self.assertRaisesRegex(SubmissionError, "signed pilot dataset gate"):
             validate_force_bundle(self.context, task_map)
+
+    def test_initial_pilot_rejects_changed_release_and_escaped_release(self) -> None:
+        task_map = self.write_force_bundle(
+            6, mode="pilot", pristine_count=2, duplicate_ids=[1, 3]
+        )
+        manifest_path = task_map.parent / "force_manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        release_path = Path(manifest["initial_pilot_release"]["path"])
+        release_path.write_text('{"changed":true}\n')
+        with self.assertRaisesRegex(SubmissionError, "release replay.*hash mismatch"):
+            validate_force_bundle(self.context, task_map)
+
+        task_map = self.write_force_bundle(
+            6, mode="pilot", pristine_count=2, duplicate_ids=[1, 3]
+        )
+        manifest = json.loads(manifest_path.read_text())
+        escaped = Path(self.temp_dir.name) / "escaped-release.json"
+        escaped.write_text('{"synthetic_release":true}\n')
+        old_path = manifest["initial_pilot_release"]["path"]
+        manifest["initial_pilot_release"].update(
+            path=str(escaped.resolve()), sha256=sha256_path(escaped)
+        )
+        manifest["evidence_sha256"].pop(old_path)
+        manifest["evidence_sha256"][str(escaped.resolve())] = sha256_path(escaped)
+        manifest_path.write_text(json.dumps(manifest))
+        with self.assertRaisesRegex(SubmissionError, "strict descendant"):
+            validate_force_bundle(self.context, task_map)
+
+    def test_initial_release_is_rejected_for_validation_and_production(self) -> None:
+        validation = self.write_force_bundle(4, mode="pilot")
+        manifest_path = validation.parent / "force_manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["initial_pilot_release"] = {
+            "path": str((self.run_dir / "bogus-release.json").resolve()),
+            "sha256": "a" * 64,
+            "consumption_identity": "b" * 64,
+        }
+        manifest_path.write_text(json.dumps(manifest))
+        with self.assertRaisesRegex(SubmissionError, "validation pilot may not"):
+            validate_force_bundle(self.context, validation)
+
+        production = self.write_force_bundle(3, mode="production")
+        manifest_path = production.parent / "force_manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["initial_pilot_release"] = {
+            "path": str((self.run_dir / "bogus-release.json").resolve()),
+            "sha256": "a" * 64,
+            "consumption_identity": "b" * 64,
+        }
+        manifest_path.write_text(json.dumps(manifest))
+        with self.assertRaisesRegex(SubmissionError, "production force manifest may not"):
+            validate_force_bundle(self.context, production)
+
+    def test_initial_pilot_rejects_resource_or_consumption_claim_drift(self) -> None:
+        task_map = self.write_force_bundle(
+            6, mode="pilot", pristine_count=2, duplicate_ids=[1, 3]
+        )
+        receipt_path = task_map.parent / "budget_receipt.json"
+        receipt = json.loads(receipt_path.read_text())
+        receipt["maximum_concurrency"] = 3
+        receipt_path.write_text(json.dumps(receipt))
+        self.rewrite_bundle(task_map)
+        with self.assertRaisesRegex(SubmissionError, "release replay failed"):
+            validate_force_bundle(self.context, task_map)
+
+        task_map = self.write_force_bundle(
+            6, mode="pilot", pristine_count=2, duplicate_ids=[1, 3]
+        )
+        manifest = json.loads((task_map.parent / "force_manifest.json").read_text())
+        signed_manifest_path = Path(
+            manifest["signed_pilot_dataset"]["dataset_dir"]
+        ) / "pilot_dataset_manifest.json"
+        signed_manifest = json.loads(signed_manifest_path.read_text())
+        consumption_path = Path(
+            signed_manifest["initial_pilot_release"]["consumption_path"]
+        )
+        claim = json.loads(consumption_path.read_text())
+        claim["dataset_dir"] = str(self.run_dir / "copied-dataset")
+        consumption_path.write_text(json.dumps(claim))
+        signed_manifest["initial_pilot_release"]["consumption_sha256"] = sha256_path(
+            consumption_path
+        )
+        signed_manifest_path.write_text(json.dumps(signed_manifest))
+        signed = manifest["signed_pilot_dataset"]
+        signed["expected_manifest_sha256"] = sha256_path(signed_manifest_path)
+        signed["files_sha256"] = {
+            str(signed_manifest_path): sha256_path(signed_manifest_path)
+        }
+        manifest["evidence_sha256"].update(signed["files_sha256"])
+        manifest["evidence_sha256"][str(consumption_path)] = sha256_path(
+            consumption_path
+        )
+        (task_map.parent / "force_manifest.json").write_text(json.dumps(manifest))
+        self.signed_audits[str(Path(signed["dataset_dir"]).resolve())] = copy.deepcopy(
+            signed
+        )
+        with self.assertRaisesRegex(SubmissionError, "consumption claim is invalid"):
+            validate_force_bundle(self.context, task_map)
+
+    def test_retry_plan_submits_only_proven_technical_failure_subset(self) -> None:
+        task_map = self.write_force_bundle(
+            6, mode="pilot", pristine_count=2, duplicate_ids=[1, 3]
+        )
+        manifest_path = task_map.parent / "force_manifest.json"
+        records = {}
+        for name in ("primary_request", "primary_result", "collector_request",
+                     "collector_result"):
+            path = self.run_dir / f"retry-{name}.json"
+            path.write_text(json.dumps({"stage_script_sha256": "f" * 64}))
+            records[name] = {"path": str(path.resolve()), "sha256": sha256_path(path)}
+        entries = [
+            {"task_id": task_id,
+             "outcome": "upstream_failed" if task_id in (1, 4) else "accepted_success",
+             "errors": [],
+             "resource_usage": {"elapsed_seconds": 60, "allocated_cpus": 32,
+                                "timelimit_minutes": 120, "core_hours": 32 / 60},
+             "scheduler_records": ([{"State": "NODE_FAIL", "JobIDRaw": str(9000 + task_id)}]
+                                   if task_id in (1, 4) else [{"State": "COMPLETED"}])}
+            for task_id in range(6)
+        ]
+        collector_attempt = self.run_dir / "slurm_attempts/collect/primary-collector"
+        collector_attempt.mkdir(parents=True)
+        collection = {
+            "schema_version": 1, "stage": "collect",
+            "collection_kind": "force_array_batch", "material": "Example",
+            "force_mode": "pilot", "expected_task_count": 6,
+            "submitted_task_ids": list(range(6)),
+            "submitted_task_count": 6,
+            "collector_attempt": str(collector_attempt),
+            "accepted_success_count": 4, "upstream_failure_count": 2,
+            "unfinished_or_invalid_count": 0,
+            "collection_integrity_complete": True, "global_errors": [],
+            "primary": {"attempt_id": "primary-1", "job_id": "99",
+                        "force_manifest_sha256": sha256_path(manifest_path),
+                        "task_map_sha256": sha256_path(task_map),
+                        "submission_records": records},
+            "entries": entries,
+        }
+        collection_path = self.run_dir / "primary-collection.json"
+        collection_path.write_text(json.dumps(collection))
+        self.pass_relax_gate()
+        with patch("campaign._force_submission_binding", return_value=records):
+            plan = stage_plan(
+                self.context, "force", attempt_id="retry-1", task_map=task_map,
+                max_in_flight=2, retry_collection=collection_path,
+                expected_retry_collection_sha256=sha256_path(collection_path),
+            )
+        self.assertEqual(plan.submitted_task_ids, (1, 4))
+        self.assertEqual(plan.array, "1,4%2")
+        self.assertEqual(plan.retry_collection, collection_path.resolve())
+
+        for field, value in (
+            ("allocated_cpus", 31),
+            ("timelimit_minutes", 121),
+            ("elapsed_seconds", 7201),
+            ("core_hours", 65),
+        ):
+            with self.subTest(invalid_retry_resource=field):
+                invalid_entries = copy.deepcopy(entries)
+                invalid_entries[1]["resource_usage"][field] = value
+                collection["entries"] = invalid_entries
+                collection_path.write_text(json.dumps(collection))
+                with patch("campaign._force_submission_binding", return_value=records), \
+                     self.assertRaisesRegex(SubmissionError, "resource evidence"):
+                    stage_plan(
+                        self.context, "force", attempt_id=f"retry-bad-{field}",
+                        task_map=task_map, retry_collection=collection_path,
+                        expected_retry_collection_sha256=sha256_path(collection_path),
+                    )
+        collection["entries"] = entries
+
+        successful_entry_mutations = (
+            ("errors", ["forged successful-entry error"]),
+            ("allocated_cpus", 31),
+            ("timelimit_minutes", 121),
+            ("elapsed_seconds", 7201),
+            ("core_hours", 65),
+            ("malformed_usage", "not-an-object"),
+        )
+        for field, value in successful_entry_mutations:
+            with self.subTest(invalid_success_resource=field):
+                invalid_entries = copy.deepcopy(entries)
+                if field == "errors":
+                    invalid_entries[0]["errors"] = value
+                elif field == "malformed_usage":
+                    invalid_entries[0]["resource_usage"] = value
+                else:
+                    invalid_entries[0]["resource_usage"][field] = value
+                collection["entries"] = invalid_entries
+                collection_path.write_text(json.dumps(collection))
+                with patch("campaign._force_submission_binding", return_value=records), \
+                     self.assertRaisesRegex(SubmissionError, "resource evidence"):
+                    stage_plan(
+                        self.context, "force", attempt_id=f"bad-success-{field}",
+                        task_map=task_map, retry_collection=collection_path,
+                        expected_retry_collection_sha256=sha256_path(collection_path),
+                    )
+        collection["entries"] = entries
+
+        outside_collector = Path(self.temp_dir.name).resolve() / "outside-collector"
+        outside_collector.mkdir()
+        collection["collector_attempt"] = str(outside_collector)
+        collection_path.write_text(json.dumps(collection))
+        with self.assertRaisesRegex(SubmissionError, "strict descendant"):
+            stage_plan(
+                self.context, "force", attempt_id="retry-external-collector",
+                task_map=task_map, retry_collection=collection_path,
+                expected_retry_collection_sha256=sha256_path(collection_path),
+            )
+        alias = collector_attempt.parent / "symlinked-collector"
+        alias.symlink_to(outside_collector, target_is_directory=True)
+        collection["collector_attempt"] = str(alias)
+        collection_path.write_text(json.dumps(collection))
+        with self.assertRaisesRegex(SubmissionError, "symlink"):
+            stage_plan(
+                self.context, "force", attempt_id="retry-symlinked-collector",
+                task_map=task_map, retry_collection=collection_path,
+                expected_retry_collection_sha256=sha256_path(collection_path),
+            )
+        collection["collector_attempt"] = str(collector_attempt)
+
+        collection["submitted_task_ids"] = [1, 4]
+        collection["submitted_task_count"] = 2
+        collection["entries"] = [entries[1], entries[4]]
+        collection_path.write_text(json.dumps(collection))
+        with self.assertRaisesRegex(SubmissionError, "original full primary"):
+            stage_plan(
+                self.context, "force", attempt_id="retry-of-retry",
+                task_map=task_map, retry_collection=collection_path,
+                expected_retry_collection_sha256=sha256_path(collection_path),
+            )
+
+        collection["submitted_task_ids"] = list(range(6))
+        collection["submitted_task_count"] = 6
+        collection["entries"] = entries
+        source_request = Path(records["primary_request"]["path"])
+        source_request.write_text(json.dumps({
+            "stage_script_sha256": "f" * 64,
+            "retry_collection": str(collection_path),
+            "retry_collection_sha256": "a" * 64,
+        }))
+        records["primary_request"]["sha256"] = sha256_path(source_request)
+        collection["primary"]["submission_records"] = records
+        collection_path.write_text(json.dumps(collection))
+        with self.assertRaisesRegex(SubmissionError, "cannot authorize another retry"):
+            stage_plan(
+                self.context, "force", attempt_id="retry-recursive",
+                task_map=task_map, retry_collection=collection_path,
+                expected_retry_collection_sha256=sha256_path(collection_path),
+            )
+        source_request.write_text(json.dumps({"stage_script_sha256": "f" * 64}))
+        records["primary_request"]["sha256"] = sha256_path(source_request)
+        collection["primary"]["submission_records"] = records
+        collection["entries"][1]["scheduler_records"] = [{"State": "FAILED"}]
+        collection_path.write_text(json.dumps(collection))
+        with patch("campaign._force_submission_binding", return_value=records), \
+             self.assertRaisesRegex(SubmissionError, "nontechnical or unresolved"):
+            stage_plan(
+                self.context, "force", attempt_id="retry-bad", task_map=task_map,
+                retry_collection=collection_path,
+                expected_retry_collection_sha256=sha256_path(collection_path),
+            )
 
     def test_initial_cannot_be_declared_for_incomplete_validation_composition(self) -> None:
         task_map = self.write_force_bundle(4, mode="pilot")
@@ -737,14 +1104,14 @@ class SubmissionTests(unittest.TestCase):
             validate_force_bundle(self.context, task_map)
 
     def test_submit_rejects_missing_signed_provenance_or_changed_audit(self) -> None:
-        task_map = self.write_force_bundle(6, mode="pilot", pristine_count=2, duplicate_ids=[1,2])
+        task_map = self.write_force_bundle(6, mode="pilot", pristine_count=2, duplicate_ids=[1,3])
         manifest_path = task_map.parent / "force_manifest.json"
         manifest = json.loads(manifest_path.read_text())
         manifest["evidence_sha256"] = {}
         manifest_path.write_text(json.dumps(manifest))
         with self.assertRaisesRegex(SubmissionError, "bind every signed"):
             validate_force_bundle(self.context, task_map)
-        task_map = self.write_force_bundle(6, mode="pilot", pristine_count=2, duplicate_ids=[1,2])
+        task_map = self.write_force_bundle(6, mode="pilot", pristine_count=2, duplicate_ids=[1,3])
         manifest = json.loads(manifest_path.read_text())
         signed = manifest["signed_pilot_dataset"]
         self.signed_audits[signed["dataset_dir"]]["task_kinds"]["2"] = "single"
@@ -1109,6 +1476,7 @@ class SubmissionTests(unittest.TestCase):
             )
 
         collector = run.call_args_list[1].args[0]
+        self.assertNotIn("--hold", run.call_args_list[0].args[0])
         exports = next(item for item in collector if item.startswith("--export="))
         self.assertIn(",ATTEMPT_ID=force-collector", exports)
         self.assertIn(",PRIMARY_STAGE=force", exports)
@@ -1123,6 +1491,165 @@ class SubmissionTests(unittest.TestCase):
         self.assertIn("--dependency=afterany:22345", collector)
         self.assertEqual(result["collector"]["primary_attempt_id"], "force-primary")
         self.assertEqual(result["collector"]["primary_job_id"], "22345")
+
+    def test_initial_force_is_held_until_collector_is_immutably_attached(self) -> None:
+        self.pass_relax_gate()
+        task_map = self.write_force_bundle(
+            6, mode="pilot", pristine_count=2, duplicate_ids=[1, 3]
+        )
+        plan = stage_plan(
+            self.context, "force", attempt_id="initial-plan", task_map=task_map,
+            max_in_flight=2,
+        )
+        self.assertTrue(plan.hold_primary)
+        self.assertIn("--hold", sbatch_command(plan))
+
+        completed = [
+            subprocess.CompletedProcess([], 0, stdout="32345\n", stderr=""),
+            subprocess.CompletedProcess([], 0, stdout="32346\n", stderr=""),
+            subprocess.CompletedProcess([], 0, stdout="", stderr=""),
+        ]
+        with patch("submit.require_nibi_login"), patch(
+            "submit.new_attempt_id", side_effect=["initial-primary", "initial-collector"]
+        ), patch("submit.subprocess.run", side_effect=completed) as run:
+            result = execute_submission(
+                self.context,
+                "force",
+                expected_config_sha=CONFIG_SHA,
+                task_map=task_map,
+                max_in_flight=2,
+            )
+
+        self.assertEqual(run.call_count, 3)
+        self.assertIn("--hold", run.call_args_list[0].args[0])
+        self.assertIn("--dependency=afterany:32345", run.call_args_list[1].args[0])
+        self.assertEqual(run.call_args_list[2].args[0], ["scontrol", "release", "32345"])
+        record = Path(result["record_dir"])
+        request = json.loads((record / "request.json").read_text())
+        attachment = json.loads((record / "collector_attachment.json").read_text())
+        release = json.loads((record / "primary_release.json").read_text())
+        self.assertTrue(request["hold_primary"])
+        self.assertEqual(
+            attachment["kind"], "initial_pilot_afterany_collector_attachment"
+        )
+        self.assertEqual(
+            release["collector_attachment_sha256"],
+            sha256_path(record / "collector_attachment.json"),
+        )
+        self.assertEqual(
+            result["collector"]["primary_release_sha256"],
+            sha256_path(record / "primary_release.json"),
+        )
+        collector_attempt = self.run_dir / "slurm_attempts/collect/initial-collector"
+        collector_attempt.mkdir(parents=True)
+        (collector_attempt / "context.tsv").write_text(
+            "attempt_id\tinitial-collector\nslurm_job_id\t32346\n"
+        )
+        records = _force_submission_binding(
+            config_path=self.config_path.resolve(), run_dir=self.run_dir.resolve(),
+            collector_attempt=collector_attempt,
+            primary_attempt_id="initial-primary", primary_job_id="32345",
+            force_manifest_sha256=plan.force_manifest_sha256,
+            task_map_sha256=plan.task_map_sha256,
+            submitted_task_ids=list(range(6)),
+            expected_primary_request_sha256=sha256_path(record / "request.json"),
+            expected_primary_result_sha256=sha256_path(record / "primary_result.json"),
+            expected_primary_stage_script_sha256=request["stage_script_sha256"],
+            require_held_primary=True,
+        )
+        self.assertEqual(
+            set(records),
+            {"primary_request", "primary_result", "collector_request",
+             "collector_result", "collector_attachment", "primary_release"},
+        )
+
+        original_release = (record / "primary_release.json").read_text()
+        bad_release = json.loads(original_release)
+        bad_release["returncode"] = 1
+        (record / "primary_release.json").write_text(json.dumps(bad_release))
+        with self.assertRaisesRegex(CampaignError, "release evidence mismatch"):
+            _force_submission_binding(
+                config_path=self.config_path.resolve(), run_dir=self.run_dir.resolve(),
+                collector_attempt=collector_attempt,
+                primary_attempt_id="initial-primary", primary_job_id="32345",
+                force_manifest_sha256=plan.force_manifest_sha256,
+                task_map_sha256=plan.task_map_sha256,
+                submitted_task_ids=list(range(6)),
+                expected_primary_request_sha256=sha256_path(record / "request.json"),
+                expected_primary_result_sha256=sha256_path(record / "primary_result.json"),
+                expected_primary_stage_script_sha256=request["stage_script_sha256"],
+                require_held_primary=True,
+            )
+        (record / "primary_release.json").write_text(original_release)
+        request["hold_primary"] = False
+        (record / "request.json").write_text(json.dumps(request))
+        with self.assertRaisesRegex(CampaignError, "was not held"):
+            _force_submission_binding(
+                config_path=self.config_path.resolve(), run_dir=self.run_dir.resolve(),
+                collector_attempt=collector_attempt,
+                primary_attempt_id="initial-primary", primary_job_id="32345",
+                force_manifest_sha256=plan.force_manifest_sha256,
+                task_map_sha256=plan.task_map_sha256,
+                submitted_task_ids=list(range(6)),
+                expected_primary_request_sha256=sha256_path(record / "request.json"),
+                expected_primary_result_sha256=sha256_path(record / "primary_result.json"),
+                expected_primary_stage_script_sha256=request["stage_script_sha256"],
+                require_held_primary=True,
+            )
+
+    def test_initial_force_collector_failure_never_releases_held_primary(self) -> None:
+        self.pass_relax_gate()
+        task_map = self.write_force_bundle(
+            6, mode="pilot", pristine_count=2, duplicate_ids=[1, 3]
+        )
+        completed = [
+            subprocess.CompletedProcess([], 0, stdout="42345\n", stderr=""),
+            subprocess.CompletedProcess([], 1, stdout="", stderr="rejected"),
+        ]
+        with patch("submit.require_nibi_login"), patch(
+            "submit.new_attempt_id", side_effect=["failed-primary", "failed-collector"]
+        ), patch("submit.subprocess.run", side_effect=completed) as run, \
+             self.assertRaisesRegex(SubmissionError, "afterany collector was not"):
+            execute_submission(
+                self.context,
+                "force",
+                expected_config_sha=CONFIG_SHA,
+                task_map=task_map,
+                max_in_flight=2,
+            )
+        self.assertEqual(run.call_count, 2)
+        self.assertIn("--hold", run.call_args_list[0].args[0])
+        record = self.run_dir / "submissions/force/failed-primary"
+        self.assertTrue((record / "collector_error.json").is_file())
+        self.assertFalse((record / "collector_attachment.json").exists())
+        self.assertFalse((record / "primary_release.json").exists())
+
+    def test_initial_force_release_failure_remains_fail_closed(self) -> None:
+        self.pass_relax_gate()
+        task_map = self.write_force_bundle(
+            6, mode="pilot", pristine_count=2, duplicate_ids=[1, 3]
+        )
+        completed = [
+            subprocess.CompletedProcess([], 0, stdout="52345\n", stderr=""),
+            subprocess.CompletedProcess([], 0, stdout="52346\n", stderr=""),
+            subprocess.CompletedProcess([], 1, stdout="", stderr="not released"),
+        ]
+        with patch("submit.require_nibi_login"), patch(
+            "submit.new_attempt_id", side_effect=["held-primary", "held-collector"]
+        ), patch("submit.subprocess.run", side_effect=completed) as run, \
+             self.assertRaisesRegex(SubmissionError, "remains held"):
+            execute_submission(
+                self.context,
+                "force",
+                expected_config_sha=CONFIG_SHA,
+                task_map=task_map,
+                max_in_flight=2,
+            )
+        self.assertEqual(run.call_count, 3)
+        record = self.run_dir / "submissions/force/held-primary"
+        self.assertTrue((record / "collector_attachment.json").is_file())
+        self.assertTrue((record / "primary_release_rejected.json").is_file())
+        self.assertFalse((record / "primary_release.json").exists())
 
     def test_active_record_blocks_duplicate_submission(self) -> None:
         record = self.run_dir / "submissions" / "relax" / "old-attempt"

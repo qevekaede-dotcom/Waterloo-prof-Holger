@@ -81,6 +81,13 @@ def _near(a, b, tolerance=TOL_BOHR):
     return len(a) == len(b) and all(abs(x-y) <= tolerance for x, y in zip(a, b))
 
 
+def _near_relabs(a, b, *, rel_tol=1e-8, abs_tol=TOL_BOHR):
+    """Componentwise lattice comparison for the count-only release mapping."""
+    return len(a) == len(b) and all(
+        math.isclose(x, y, rel_tol=rel_tol, abs_tol=abs_tol) for x, y in zip(a, b)
+    )
+
+
 def _type1_inventory(data):
     """Enforce the real v4.4.0 reader's ID order, not just set equality."""
     inventory = core.analyze_displacement_yaml(data)
@@ -107,8 +114,9 @@ def site_inventory(base, accepted_text, config):
     _require(base.get("physical_unit", {}).get("length") == "au", "base YAML length must be au")
     unit = base.get("unit_cell")
     _require(isinstance(unit, dict), "base YAML must contain its hashed unit_cell")
-    unit_cell = [[x/core.BOHR_TO_ANGSTROM for x in row] for row in accepted.cell_parameters]
-    _require(len(unit["lattice"]) == 3 and all(_near(a, b) for a, b in zip(unit["lattice"], unit_cell)),
+    accepted_cell_bohr = [[x/core.BOHR_TO_ANGSTROM for x in row] for row in accepted.cell_parameters]
+    unit_cell = [fb._vector(row) for row in unit["lattice"]]
+    _require(len(unit_cell) == 3 and all(_near_relabs(a, b) for a, b in zip(unit_cell, accepted_cell_bohr)),
              "base YAML unit_cell differs from accepted cell in bohr")
     unit_points = unit["points"]
     _require(len(unit_points) == accepted.nat, "YAML unit-cell atom count mismatch")
@@ -135,7 +143,7 @@ def site_inventory(base, accepted_text, config):
     matrix = core.matrix3(base["supercell_matrix"], "supercell matrix")
     cell = [fb._vector(row) for row in base["supercell"]["lattice"]]
     expected = [[sum(matrix[k][i]*unit_cell[k][j] for k in range(3)) for j in range(3)] for i in range(3)]
-    _require(len(cell) == 3 and all(_near(a, b) for a, b in zip(cell, expected)),
+    _require(len(cell) == 3 and all(_near_relabs(a, b) for a, b in zip(cell, expected)),
              "supercell violates M transpose times accepted cell")
     inverse = fb._inverse(unit_cell)
     points = base["supercell"]["points"]
@@ -144,8 +152,8 @@ def site_inventory(base, accepted_text, config):
     counts, order = [0]*accepted.nat, []
     for index, point in enumerate(points):
         position = _cart(_cart(fb._vector(point["coordinates"]), cell), inverse)
-        matches = [i for i, atom in enumerate(accepted.atomic_positions) if point["symbol"] == atom.label
-                   and math.hypot(*minimum_image_bohr([x-y for x, y in zip(position, atom.coordinates)], unit_cell)) <= TOL_BOHR]
+        matches = [i for i, atom in enumerate(unit_points) if point["symbol"] == atom["symbol"]
+                   and math.hypot(*minimum_image_bohr([x-y for x, y in zip(position, atom["coordinates"])], unit_cell)) <= TOL_BOHR]
         _require(len(matches) == 1, "supercell atom has ambiguous/missing accepted-unitcell mapping")
         parent = matches[0]
         counts[parent] += 1
@@ -161,7 +169,8 @@ def site_inventory(base, accepted_text, config):
             "spacegroup_number": int(symmetry.number)}
 
 
-def build_pilot_geometry(base, accepted_text, config, probe_spec):
+def build_pilot_geometry(base, accepted_text, config, probe_spec, *,
+                         allow_count_only_initial=False):
     """Pure geometry preparation; requires spglib, never starts an executable."""
     spec = copy.deepcopy(probe_spec)
     _require(type(spec.get("schema_version")) is int and spec["schema_version"] == 1 and isinstance(spec.get("rationale"), str)
@@ -181,8 +190,13 @@ def build_pilot_geometry(base, accepted_text, config, probe_spec):
     cutoffs = {x["id"]: x for x in config["displacements"]["cutoff_candidates"]}
     _require(spec.get("supercell_id") in matrices and spec.get("cutoff_id") in cutoffs, "configured candidate IDs required")
     matrix, cutoff = matrices[spec["supercell_id"]], cutoffs[spec["cutoff_id"]]
-    _require(matrix["matrix"] == base["supercell_matrix"] and not matrix.get("production_fc3_eligible_without_new_review") is False,
+    _require(matrix["matrix"] == base["supercell_matrix"], "base matrix mismatch")
+    _require(allow_count_only_initial
+             or matrix.get("production_fc3_eligible_without_new_review") is not False,
              "base matrix mismatch or count-only escalation")
+    _require(allow_count_only_initial
+             or cutoff.get("production_fc3_eligible_without_new_review") is not False,
+             "count-only cutoff requires a new scientific review")
     distance = core.positive_number(cutoff["cutoff_pair_distance_cli_bohr"], "pair cutoff bohr")
     _require(math.isclose(distance*core.BOHR_TO_ANGSTROM, cutoff["cutoff_pair_distance_angstrom"], rel_tol=2e-10), "cutoff unit mismatch")
     _require(math.isclose(base["displacement_pair_info"]["cutoff_pair_distance"], distance, rel_tol=2e-8), "base cutoff differs from selected cutoff")
@@ -279,13 +293,14 @@ def build_pilot_geometry(base, accepted_text, config, probe_spec):
                      "symmetry": symmetry, "coverage": coverage, "scientific_coverage_established": False}, offsets
 
 
-def _settings(config, spec, base=False):
+def _settings(config, spec, base=False, *, allow_count_only_initial=False):
     tight = config["tight_relax"]
     return fb._settings(config, "pilot", {**spec,
         "amplitude_angstrom": config["displacements"]["amplitude_angstrom"] if base else spec["amplitude_angstrom"],
         "amplitude_bohr": config["displacements"]["amplitude_bohr"] if base else spec["amplitude_bohr"],
         "ecutwfc_Ry": tight["ecutwfc_ry"], "ecutrho_Ry": tight["ecutrho_ry"],
-        "conv_thr_Ry": tight["conv_thr_ry"], "kmesh": tight["kmesh"], "kshift": tight["kmesh_shift"]})
+        "conv_thr_Ry": tight["conv_thr_ry"], "kmesh": tight["kmesh"], "kshift": tight["kmesh_shift"]},
+        allow_count_only_initial=allow_count_only_initial)
 
 
 def _fragment_text(data, accepted_text, offsets):
@@ -302,8 +317,9 @@ def _fragment_text(data, accepted_text, offsets):
                                                for p,row in zip(data["supercell"]["points"], positions)))
 
 
-def _audit_geometry(folder, config, spec, data, offsets):
-    texts, inventory = fb._dataset_inputs(folder, _settings(config, spec), folder, config)
+def _audit_geometry(folder, config, spec, data, offsets, *, allow_count_only_initial=False):
+    texts, inventory = fb._dataset_inputs(folder, _settings(config, spec,
+        allow_count_only_initial=allow_count_only_initial), folder, config)
     _require(inventory["included_displacement_ids"] == list(range(1,len(offsets))), "pilot IDs must be complete numeric 1..N")
     pristine = parse_qe_input(texts[0])
     cell = data["supercell"]["lattice"]
@@ -317,7 +333,9 @@ def _audit_geometry(folder, config, spec, data, offsets):
     return inventory
 
 
-def prepare_pilot_dataset(config_path, run_dir, *, candidate_dir, preflight_inventory, output_dir, probe_spec):
+def prepare_pilot_dataset(config_path, run_dir, *, candidate_dir, preflight_inventory,
+                          output_dir, probe_spec, pilot_release=None,
+                          pilot_release_sha256=None):
     """Write a new immutable preparation bundle. No force/resource authorization."""
     config_path = Path(config_path).resolve()
     config, _ = core.validate_config(config_path)
@@ -326,23 +344,55 @@ def prepare_pilot_dataset(config_path, run_dir, *, candidate_dir, preflight_inve
     parent_inventory = fb._under(Path(preflight_inventory), run_dir)
     destination = fb._under(Path(output_dir), run_dir)
     _require(not destination.exists(), "pilot destination exists; use a new immutable directory")
-    provenance, _ = fb._provenance(config, config_path, run_dir, parent_inventory, candidate)
+    release = None
+    release_path = None
+    if pilot_release is not None or pilot_release_sha256 is not None:
+        _require(pilot_release is not None and pilot_release_sha256 is not None,
+                 "pilot release path and SHA256 must be supplied together")
+        from initial_pilot import replay_initial_pilot_release, validate_release_use
+        release_path = fb._under(Path(pilot_release), run_dir)
+        release = replay_initial_pilot_release(release_path, config_path=config_path,
+            run_dir=run_dir, expected_release_sha256=pilot_release_sha256)
+        validate_release_use(release, probe_spec=probe_spec)
+    provenance, _ = fb._provenance(config, config_path, run_dir, parent_inventory, candidate,
+                                   allow_count_only_initial=release is not None)
     parent = core.load_json(parent_inventory)
-    _require(
+    _require(release is not None or (
         parent.get("preflight_complete") is True
-        and parent.get("full_config_preflight_complete", True) is True,
-        "full configured base preflight is not complete",
-    )
+        and parent.get("full_config_preflight_complete", True) is True),
+        "full configured base preflight is not complete")
     result = core.load_json(candidate / "preflight_result.json")
     _require(result["supercell_id"] == probe_spec["supercell_id"] and result["cutoff_id"] == probe_spec["cutoff_id"],
              "explicit probe candidate differs from parent preflight")
     base = fb._yaml(candidate / "phono3py_disp.yaml")
-    _, base_ids = fb._dataset_inputs(candidate, _settings(config, probe_spec, base=True), candidate, config)
+    if release is not None:
+        from initial_pilot import validate_released_candidate_files
+        validate_released_candidate_files(release, candidate)
+        _require(core.sha256_path(candidate / "phono3py_disp.yaml") == release["source"]["yaml_sha256"],
+                 "candidate YAML differs from released count-only YAML")
+        _require(core.sha256_path(parent_inventory) == release["source"]["preflight_inventory_sha256"],
+                 "parent inventory differs from released count-only inventory")
+        _require(core.sha256_path(candidate / "preflight_result.json") == release["source"]["preflight_result_sha256"],
+                 "candidate result differs from released count-only result")
+    _, base_ids = fb._dataset_inputs(candidate, _settings(config, probe_spec, base=True,
+        allow_count_only_initial=release is not None), candidate, config)
     _require(base_ids["included_displacement_ids"] == result["generated_displacement_ids"], "base inventory IDs mismatch")
     for path in candidate.glob("supercell*.in"):
         provenance[str(path)] = core.sha256_path(path)
     accepted_text = (candidate / "unitcell.in").read_text()
-    data, plan, offsets = build_pilot_geometry(base, accepted_text, config, probe_spec)
+    data, plan, offsets = build_pilot_geometry(base, accepted_text, config, probe_spec,
+                                               allow_count_only_initial=release is not None)
+    if release is not None:
+        expected_roles = release["contract"]["synthetic_role_ids"]
+        actual_roles = {("double" if item["kind"] == "mixed" else item["kind"]):
+                        item["displacement_ids"] for item in plan["probes"]}
+        _require(actual_roles == expected_roles,
+                 "synthetic role/ID mapping differs from exact-six release")
+        from initial_pilot import claim_release_consumption
+        consumption = claim_release_consumption(run_dir, release_path,
+            pilot_release_sha256, release, destination)
+        provenance[str(release_path)] = core.sha256_path(release_path)
+        provenance[str(consumption)] = core.sha256_path(consumption)
     # All validation above is read-only; claim exactly one new directory here.
     destination.mkdir(parents=True, exist_ok=False)
     core.write_immutable(destination / "unitcell.in", accepted_text)
@@ -350,7 +400,8 @@ def prepare_pilot_dataset(config_path, run_dir, *, candidate_dir, preflight_inve
     for index, displacement in sorted(offsets.items()):
         name = "supercell.in" if index == 0 else f"supercell-{index:05d}.in"
         core.write_immutable(destination / name, _fragment_text(data, accepted_text, displacement))
-    audited = _audit_geometry(destination, config, probe_spec, data, offsets)
+    audited = _audit_geometry(destination, config, probe_spec, data, offsets,
+                              allow_count_only_initial=release is not None)
     derived = {"supercell_id": probe_spec["supercell_id"], "cutoff_id": probe_spec["cutoff_id"],
         "generated_atoms": len(data["supercell"]["points"]), "generated_displacement_ids": audited["included_displacement_ids"],
         "generated_displacement_supercells": len(offsets)-1, "within_hard_cap": True, "count_only": False,
@@ -374,17 +425,24 @@ def prepare_pilot_dataset(config_path, run_dir, *, candidate_dir, preflight_inve
     for path, digest in provenance.items():
         fb._match(Path(path), digest)
     manifest = {"schema_version": 1, "stage": "pilot_geometry_preparation", "pilot_only": True,
-        "run_dir": str(run_dir), "candidate_dir": str(candidate), "config_sha256": core.sha256_path(config_path),
+        "run_dir": str(run_dir), "candidate_dir": str(candidate),
+        "config_path": str(config_path), "config_sha256": core.sha256_path(config_path),
         "accepted_unitcell_sha256": parent["accepted_unitcell_sha256"],
         "accepted_relax_provenance_sha256": parent["accepted_relax_provenance_sha256"],
         "parent_inventory_path": str(parent_inventory), "parent_inventory_sha256": core.sha256_path(parent_inventory),
+        "initial_pilot_release": ({"path": str(release_path),
+            "sha256": pilot_release_sha256,
+            "consumption_identity": release["consumption_identity"],
+            "consumption_path": str(consumption),
+            "consumption_sha256": core.sha256_path(consumption)} if release is not None else None),
         "source_sha256": provenance, "geometry_plan": plan,
         "files_sha256": {p.name: core.sha256_path(p) for p in destination.iterdir() if p.is_file() and not p.name.startswith(".")},
         "backend_sha256": core.sha256_path(Path(__file__)),
         "compatibility": "v4.4.0 type-I parser contract statically audited; no phono3py runtime execution",
-        "limitations": ["Synthetic structure tests only; no QE forces or convergence result.",
+        "limitations": (["Synthetic structure tests only; no QE forces or convergence result.",
                         "Minimal pilot subset cannot establish FC2/FC3 or kappa and is production-ineligible.",
-                        "Pair shell IDs are explicit configured species-pair labels, not proven radial-shell completeness."]}
+                        "Pair shell IDs are explicit configured species-pair labels, not proven radial-shell completeness."]
+                        + (list(release["limitations"]) if release is not None else []))}
     core.write_json_immutable(destination / "pilot_dataset_manifest.json", manifest)
     digest = core.sha256_path(destination / "pilot_dataset_manifest.json")
     audit_pilot_dataset(destination, expected_manifest_sha256=digest)
@@ -405,11 +463,25 @@ def audit_pilot_dataset(dataset_dir, *, expected_manifest_sha256):
         fb._match(Path(path), digest)
     config = core.load_json(folder / "config.snapshot.json")
     spec = core.load_json(folder / "probe_spec.json")
+    release = None
+    binding = manifest.get("initial_pilot_release")
+    if binding is not None:
+        _require(isinstance(binding, dict), "invalid initial pilot release binding")
+        from initial_pilot import replay_initial_pilot_release, validate_release_use
+        release = replay_initial_pilot_release(binding["path"],
+            config_path=manifest["config_path"], run_dir=manifest["run_dir"],
+            expected_release_sha256=binding["sha256"])
+        validate_release_use(release, probe_spec=spec)
+        _require(binding["consumption_identity"] == release["consumption_identity"],
+                 "pilot dataset consumption identity mismatch")
+        fb._match(Path(binding["consumption_path"]), binding["consumption_sha256"])
     base = fb._yaml(Path(manifest["candidate_dir"]) / "phono3py_disp.yaml")
-    data, plan, offsets = build_pilot_geometry(base, (folder / "unitcell.in").read_text(), config, spec)
+    data, plan, offsets = build_pilot_geometry(base, (folder / "unitcell.in").read_text(), config, spec,
+                                               allow_count_only_initial=release is not None)
     _require(data == fb._yaml(folder / "phono3py_disp.yaml") and plan == manifest["geometry_plan"],
              "regenerated geometry/site/role plan differs from manifested bundle")
-    audited = _audit_geometry(folder, config, spec, data, offsets)
+    audited = _audit_geometry(folder, config, spec, data, offsets,
+                              allow_count_only_initial=release is not None)
     result = core.load_json(folder / "preflight_result.json")
     inventory = core.load_json(folder / "preflight_inventory.json")
     _require(result in inventory["results"] and result["generated_displacement_ids"] == audited["included_displacement_ids"]

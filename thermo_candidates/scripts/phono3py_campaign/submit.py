@@ -32,6 +32,7 @@ from campaign import (
     load_json,
     select_preflight_candidates,
     required,
+    strict_run_descendant,
     safe_run_dir,
     sha256_path,
     validate_config,
@@ -116,6 +117,10 @@ class StagePlan:
     candidate_ids: tuple[str, ...] | None = None
     candidate_subset_sha256: str | None = None
     diagnostic_resource_sha256: str | None = None
+    submitted_task_ids: tuple[int, ...] | None = None
+    retry_collection: Path | None = None
+    retry_collection_sha256: str | None = None
+    hold_primary: bool = False
 
 
 def utc_now() -> str:
@@ -784,6 +789,182 @@ def diagnostic_requested_walltime_minutes(config: Mapping[str, Any]) -> str:
     return str(int(round(minutes)))
 
 
+def validate_force_retry_collection(
+    context: SubmissionContext,
+    collection_path: Path,
+    expected_sha256: str,
+    *,
+    force_manifest_sha256: str,
+    task_map_sha256: str,
+    task_count: int,
+) -> tuple[Path, tuple[int, ...]]:
+    """Authorize one retry array containing only proven technical failures."""
+
+    if not isinstance(expected_sha256, str) or not SHA256_RE.fullmatch(
+        expected_sha256
+    ):
+        raise SubmissionError("retry collection SHA-256 must be 64 lowercase hex")
+    collection_path = strict_run_descendant(
+        context.run_dir, collection_path, "force retry collection"
+    )
+    if collection_path.is_symlink() or sha256_path(collection_path) != expected_sha256:
+        raise SubmissionError("force retry collection hash mismatch")
+    collection = load_json(collection_path)
+    primary = collection.get("primary")
+    entries = collection.get("entries")
+    if (
+        collection.get("schema_version") != 1
+        or collection.get("stage") != "collect"
+        or collection.get("collection_kind") != "force_array_batch"
+        or collection.get("material") != context.config["material"]["formula"]
+        or collection.get("force_mode") != "pilot"
+        or collection.get("expected_task_count") != task_count
+        or collection.get("collection_integrity_complete") is not True
+        or collection.get("unfinished_or_invalid_count") != 0
+        or collection.get("global_errors") != []
+        or collection.get("accepted_success_count", 0)
+        + collection.get("upstream_failure_count", 0) != task_count
+        or not isinstance(primary, Mapping)
+        or primary.get("force_manifest_sha256") != force_manifest_sha256
+        or primary.get("task_map_sha256") != task_map_sha256
+        or not isinstance(entries, list)
+    ):
+        raise SubmissionError("retry collection scope does not match this force bundle")
+    records = primary.get("submission_records")
+    if not isinstance(records, Mapping):
+        raise SubmissionError("retry collection lacks replayable submit.py records")
+    request_ref = records.get("primary_request")
+    result_ref = records.get("primary_result")
+    if not isinstance(request_ref, Mapping) or not isinstance(result_ref, Mapping):
+        raise SubmissionError("retry collection submission record refs are malformed")
+    submitted_ids = collection.get("submitted_task_ids")
+    if (
+        submitted_ids != list(range(task_count))
+        or collection.get("submitted_task_count") != task_count
+        or len(entries) != task_count
+        or sorted(
+            entry.get("task_id")
+            for entry in entries
+            if isinstance(entry, Mapping) and type(entry.get("task_id")) is int
+        )
+        != list(range(task_count))
+    ):
+        raise SubmissionError(
+            "retry authorization requires the original full primary collection"
+        )
+    try:
+        collector_attempt = strict_run_descendant(
+            context.run_dir,
+            Path(str(collection.get("collector_attempt", ""))),
+            "retry source collector attempt",
+        )
+    except CampaignError as exc:
+        raise SubmissionError(f"invalid retry source collector attempt: {exc}") from exc
+    if (
+        collector_attempt.parent
+        != context.run_dir / "slurm_attempts" / "collect"
+        or ATTEMPT_RE.fullmatch(collector_attempt.name) is None
+        or not collector_attempt.is_dir()
+    ):
+        raise SubmissionError(
+            "retry source collector is not at the exact slurm_attempts/collect location"
+        )
+    try:
+        from campaign import _force_submission_binding
+
+        request_path = strict_run_descendant(
+            context.run_dir, Path(str(request_ref.get("path", ""))),
+            "retry collection primary request"
+        )
+        request = load_json(request_path)
+        if (
+            request.get("retry_collection") is not None
+            or request.get("retry_collection_sha256") is not None
+        ):
+            raise SubmissionError(
+                "a retry-derived collection cannot authorize another retry"
+            )
+        replayed = _force_submission_binding(
+            config_path=context.config_path,
+            run_dir=context.run_dir,
+            collector_attempt=collector_attempt,
+            primary_attempt_id=str(primary.get("attempt_id", "")),
+            primary_job_id=str(primary.get("job_id", "")),
+            force_manifest_sha256=force_manifest_sha256,
+            task_map_sha256=task_map_sha256,
+            submitted_task_ids=collection.get("submitted_task_ids", []),
+            expected_primary_request_sha256=str(request_ref.get("sha256", "")),
+            expected_primary_result_sha256=str(result_ref.get("sha256", "")),
+            expected_primary_stage_script_sha256=str(
+                request.get("stage_script_sha256", "")
+            ),
+            require_held_primary=True,
+        )
+    except (CampaignError, OSError, KeyError, TypeError, ValueError) as exc:
+        raise SubmissionError(f"retry collection submission replay failed: {exc}") from exc
+    if replayed != records:
+        raise SubmissionError("retry collection submit.py records changed")
+    retryable: list[int] = []
+    technical_states = {"NODE_FAIL", "BOOT_FAIL", "PREEMPTED"}
+    for entry in entries:
+        if not isinstance(entry, Mapping) or type(entry.get("task_id")) is not int:
+            raise SubmissionError("retry collection contains a malformed task entry")
+        task_id = entry["task_id"]
+        states = {
+            normalize_state(str(row.get("State", "")))
+            for row in entry.get("scheduler_records", [])
+            if isinstance(row, Mapping)
+        }
+        usage = entry.get("resource_usage")
+        elapsed = usage.get("elapsed_seconds") if isinstance(usage, Mapping) else None
+        cpus = usage.get("allocated_cpus") if isinstance(usage, Mapping) else None
+        timelimit = usage.get("timelimit_minutes") if isinstance(usage, Mapping) else None
+        core_hours = usage.get("core_hours") if isinstance(usage, Mapping) else None
+        expected_core_hours = (
+            elapsed * cpus / 3600
+            if type(elapsed) is int and type(cpus) is int else None
+        )
+        if (
+            entry.get("errors") != []
+            or cpus != 32
+            or timelimit != 120
+            or type(elapsed) is not int
+            or not 0 <= elapsed <= 7200
+            or isinstance(core_hours, bool)
+            or not isinstance(core_hours, (int, float))
+            or not math.isfinite(float(core_hours))
+            or not math.isclose(
+                float(core_hours), float(expected_core_hours),
+                rel_tol=0, abs_tol=1e-12,
+            )
+            or not 0 <= float(core_hours) <= 64
+        ):
+            raise SubmissionError(
+                "original primary collection entry lacks exact released resource evidence"
+            )
+        if entry.get("outcome") == "accepted_success":
+            continue
+        if (
+            entry.get("outcome") != "upstream_failed"
+            or task_id not in range(task_count)
+            or len(states & technical_states) != 1
+            or states - technical_states
+        ):
+            raise SubmissionError(
+                "retry collection includes a nontechnical or unresolved failure"
+            )
+        retryable.append(task_id)
+    if not retryable or len(set(retryable)) != len(retryable):
+        raise SubmissionError("retry collection has no unique failed-task subset")
+    if set(retryable) != {
+        entry["task_id"]
+        for entry in entries
+        if isinstance(entry, Mapping) and entry.get("outcome") != "accepted_success"
+    }:
+        raise SubmissionError("retry task subset is ambiguous")
+    return collection_path, tuple(sorted(retryable))
+
+
 def validate_force_bundle(
     context: SubmissionContext, task_map: Path
 ) -> tuple[Path, int, str, Path, dict[str, Any], Path, dict[str, Any]]:
@@ -946,7 +1127,146 @@ def validate_force_bundle(
         pilot_code = Path(__file__).with_name("pilot_dataset.py")
         if workflow.get(str(pilot_code)) != sha256_path(pilot_code):
             raise SubmissionError("force workflow does not freeze pilot_dataset.py")
+        if phase == "initial":
+            from initial_pilot import (
+                replay_initial_pilot_release,
+                validate_release_use,
+            )
+
+            binding = manifest.get("initial_pilot_release")
+            if not isinstance(binding, Mapping) or set(binding) != {
+                "path", "sha256", "consumption_identity"
+            }:
+                raise SubmissionError(
+                    "initial pilot force manifest requires one exact release binding"
+                )
+            release_digest = binding.get("sha256")
+            if not isinstance(release_digest, str) or not SHA256_RE.fullmatch(
+                release_digest
+            ):
+                raise SubmissionError("initial pilot release SHA-256 is invalid")
+            try:
+                release_path = strict_run_descendant(
+                    context.run_dir,
+                    Path(str(binding.get("path", ""))),
+                    "initial pilot release",
+                )
+                release = replay_initial_pilot_release(
+                    release_path,
+                    config_path=context.config_path,
+                    run_dir=context.run_dir,
+                    expected_release_sha256=release_digest,
+                )
+                validate_release_use(
+                    release,
+                    force_spec=manifest["pilot_spec"],
+                    resource_request={
+                        "phase": phase,
+                        "mpi_ranks": receipt.get("mpi_ranks"),
+                        "walltime_hours": receipt.get("walltime_hours"),
+                        "max_concurrency": receipt.get("maximum_concurrency"),
+                    },
+                )
+            except (CampaignError, KeyError, TypeError, ValueError) as exc:
+                raise SubmissionError(
+                    f"initial pilot release replay failed: {exc}"
+                ) from exc
+            if (
+                binding.get("consumption_identity")
+                != release.get("consumption_identity")
+            ):
+                raise SubmissionError("initial pilot consumption identity mismatch")
+            if [task["displacement_id"] for task in manifest["tasks"]] != [
+                0, 0, 1, 3, 1, 3
+            ]:
+                raise SubmissionError(
+                    "initial pilot task order must be exactly [0,0,1,3,1,3]"
+                )
+            resources = release.get("contract", {}).get("resources", {})
+            if (
+                receipt.get("maximum_technical_retries_per_task")
+                != resources.get("maximum_technical_retries_per_task")
+                or receipt.get("reserved_core_hours")
+                != resources.get("maximum_reserved_core_hours")
+                or receipt.get("approved_total_core_hours") is not None
+            ):
+                raise SubmissionError(
+                    "initial pilot budget differs from the released exact-six ceiling"
+                )
+            signed_manifest_path = strict_run_descendant(
+                context.run_dir,
+                Path(signed["dataset_dir"]) / "pilot_dataset_manifest.json",
+                "signed initial pilot manifest",
+            )
+            signed_manifest = load_json(signed_manifest_path)
+            signed_binding = signed_manifest.get("initial_pilot_release")
+            if (
+                not isinstance(signed_binding, Mapping)
+                or set(signed_binding) != {
+                    "path",
+                    "sha256",
+                    "consumption_identity",
+                    "consumption_path",
+                    "consumption_sha256",
+                }
+                or any(
+                    signed_binding.get(key) != binding.get(key)
+                    for key in ("path", "sha256", "consumption_identity")
+                )
+            ):
+                raise SubmissionError(
+                    "signed pilot dataset and force manifest bind different releases"
+                )
+            consumption_digest = signed_binding.get("consumption_sha256")
+            if not isinstance(consumption_digest, str) or not SHA256_RE.fullmatch(
+                consumption_digest
+            ):
+                raise SubmissionError("initial pilot consumption SHA-256 is invalid")
+            consumption_path = strict_run_descendant(
+                context.run_dir,
+                Path(str(signed_binding.get("consumption_path", ""))),
+                "initial pilot consumption claim",
+            )
+            if sha256_path(consumption_path) != consumption_digest:
+                raise SubmissionError("initial pilot consumption claim hash mismatch")
+            consumption = load_json(consumption_path)
+            valid_created = (
+                isinstance(consumption, Mapping)
+                and isinstance(consumption.get("created_utc"), str)
+                and bool(consumption["created_utc"])
+            )
+            expected_consumption = {
+                "schema_version": 1,
+                "stage": "initial_pilot_release_consumption",
+                "consumption_identity": release["consumption_identity"],
+                "release_path": str(release_path),
+                "release_sha256": release_digest,
+                "dataset_dir": str(Path(signed["dataset_dir"]).resolve()),
+                "created_utc": consumption.get("created_utc") if valid_created else None,
+            }
+            if not valid_created or consumption != expected_consumption:
+                raise SubmissionError("initial pilot consumption claim is invalid")
+            evidence = manifest.get("evidence_sha256", {})
+            if (
+                not isinstance(evidence, Mapping)
+                or evidence.get(str(release_path)) != release_digest
+                or evidence.get(str(consumption_path)) != consumption_digest
+            ):
+                raise SubmissionError(
+                    "force manifest does not hash-bind release and consumption claim"
+                )
+            initial_code = Path(__file__).with_name("initial_pilot.py")
+            if workflow.get(str(initial_code)) != sha256_path(initial_code):
+                raise SubmissionError("force workflow does not freeze initial_pilot.py")
+        elif manifest.get("initial_pilot_release") is not None:
+            raise SubmissionError(
+                "validation pilot may not carry an initial-pilot release"
+            )
     if mode == "production":
+        if manifest.get("initial_pilot_release") is not None:
+            raise SubmissionError(
+                "production force manifest may not carry an initial-pilot release"
+            )
         require_production_selection(context.config)
         selection = manifest.get("selection_validation")
         if not isinstance(selection, Mapping) or selection.get("pass") is not True:
@@ -1014,6 +1334,8 @@ def stage_plan(
     task_map: Path | None = None,
     max_in_flight: int | None = None,
     candidate_ids: Sequence[str] | None = None,
+    retry_collection: Path | None = None,
+    expected_retry_collection_sha256: str | None = None,
 ) -> StagePlan:
     if stage not in STAGE_SCRIPTS:
         raise SubmissionError(f"unsupported stage: {stage}")
@@ -1055,9 +1377,15 @@ def stage_plan(
     selected_candidate_ids: tuple[str, ...] | None = None
     candidate_subset_sha256: str | None = None
     diagnostic_resource_sha256: str | None = None
+    submitted_task_ids: tuple[int, ...] | None = None
+    retry_collection_path: Path | None = None
+    retry_collection_sha256: str | None = None
+    hold_primary = False
 
     if candidate_ids is not None and stage != "preflight":
         raise SubmissionError("--candidate-id is valid only for the preflight stage")
+    if (retry_collection is not None or expected_retry_collection_sha256 is not None) and stage != "force":
+        raise SubmissionError("--retry-collection is valid only for the force stage")
 
     if stage == "diagnostic":
         from polish_recovery import verify_diagnostic_submission_ready
@@ -1142,6 +1470,11 @@ def stage_plan(
         force_manifest_sha = sha256_path(force_manifest_path)
         budget_receipt_sha = sha256_path(budget_receipt_path)
         force_mode = str(force_manifest["mode"])
+        hold_primary = (
+            force_mode == "pilot"
+            and budget_receipt.get("phase") == "initial"
+            and force_manifest.get("initial_pilot_release") is not None
+        )
         concurrency = int(budget_receipt["maximum_concurrency"])
         if max_in_flight is not None and (
             isinstance(max_in_flight, bool)
@@ -1161,7 +1494,34 @@ def stage_plan(
             "FORCE_BUDGET_RECEIPT", budget_receipt_path
         )
         exports["TASK_MAP"] = safe_export_value("TASK_MAP", resolved_task_map)
-        array = f"0-{task_count - 1}%{min(concurrency, task_count)}"
+        if retry_collection is not None or expected_retry_collection_sha256 is not None:
+            if retry_collection is None or expected_retry_collection_sha256 is None:
+                raise SubmissionError(
+                    "force retry requires --retry-collection and --expect-retry-collection-sha together"
+                )
+            retry_collection_path, submitted_task_ids = validate_force_retry_collection(
+                context,
+                retry_collection,
+                expected_retry_collection_sha256,
+                force_manifest_sha256=force_manifest_sha,
+                task_map_sha256=task_map_sha,
+                task_count=task_count,
+            )
+            retry_collection_sha256 = expected_retry_collection_sha256
+            exports["P3_FORCE_RETRY_EVIDENCE"] = safe_export_value(
+                "P3_FORCE_RETRY_EVIDENCE", retry_collection_path
+            )
+            exports["P3_FORCE_RETRY_EVIDENCE_SHA256"] = retry_collection_sha256
+        else:
+            submitted_task_ids = tuple(range(task_count))
+        task_selector = ",".join(str(value) for value in submitted_task_ids)
+        exports["P3_FORCE_TASK_IDS"] = task_selector
+        array_domain = (
+            f"0-{task_count - 1}"
+            if submitted_task_ids == tuple(range(task_count))
+            else task_selector
+        )
+        array = f"{array_domain}%{concurrency}"
     elif stage == "postprocess":
         require_imported_acceptance(context)
         require_production_selection(context.config)
@@ -1185,6 +1545,10 @@ def stage_plan(
         candidate_ids=selected_candidate_ids,
         candidate_subset_sha256=candidate_subset_sha256,
         diagnostic_resource_sha256=diagnostic_resource_sha256,
+        submitted_task_ids=submitted_task_ids,
+        retry_collection=retry_collection_path,
+        retry_collection_sha256=retry_collection_sha256,
+        hold_primary=hold_primary,
     )
 
 
@@ -1218,6 +1582,9 @@ def export_argument(exports: Mapping[str, str]) -> str:
         "PRIMARY_REQUEST_SHA256",
         "PRIMARY_RESULT_SHA256",
         "PRIMARY_STAGE_SCRIPT_SHA256",
+        "P3_FORCE_TASK_IDS",
+        "P3_FORCE_RETRY_EVIDENCE",
+        "P3_FORCE_RETRY_EVIDENCE_SHA256",
         "TASK_MAP",
         "FORCE_MANIFEST",
         "FORCE_BUDGET_RECEIPT",
@@ -1245,7 +1612,7 @@ def sbatch_command(plan: StagePlan, *, dependency: str | None = None) -> list[st
         "--parsable",
         f"--account={plan.account}",
     ]
-    if plan.stage == "fire-pilot" and dependency is None:
+    if (plan.stage == "fire-pilot" or plan.hold_primary) and dependency is None:
         command.append("--hold")
     command.extend(plan.scheduler_options)
     command.append(export_argument(plan.exports))
@@ -1451,6 +1818,8 @@ def plan_report(
     task_map: Path | None,
     max_in_flight: int | None,
     candidate_ids: Sequence[str] | None = None,
+    retry_collection: Path | None = None,
+    expected_retry_collection_sha256: str | None = None,
 ) -> dict[str, Any]:
     preview = stage_plan(
         context,
@@ -1459,6 +1828,8 @@ def plan_report(
         task_map=task_map,
         max_in_flight=max_in_flight,
         candidate_ids=candidate_ids,
+        retry_collection=retry_collection,
+        expected_retry_collection_sha256=expected_retry_collection_sha256,
     )
     preview_command = None if stage == "fire-full" else sbatch_command(preview)
     return {
@@ -1482,6 +1853,10 @@ def plan_report(
         "candidate_ids": list(preview.candidate_ids) if preview.candidate_ids else None,
         "candidate_subset_sha256": preview.candidate_subset_sha256,
         "diagnostic_resource_sha256": preview.diagnostic_resource_sha256,
+        "submitted_task_ids": list(preview.submitted_task_ids or ()),
+        "retry_collection": str(preview.retry_collection) if preview.retry_collection else None,
+        "retry_collection_sha256": preview.retry_collection_sha256,
+        "hold_primary": preview.hold_primary,
         "diagnostic_requested_walltime_minutes": preview.exports.get(
             "P3_DIAGNOSTIC_REQUESTED_WALLTIME_MINUTES"
         ),
@@ -1549,6 +1924,10 @@ def _request_record(
         "task_map": str(plan.task_map) if plan.task_map else None,
         "task_map_sha256": plan.task_map_sha256,
         "task_count": plan.task_count,
+        "submitted_task_ids": list(plan.submitted_task_ids or ()),
+        "retry_collection": str(plan.retry_collection) if plan.retry_collection else None,
+        "retry_collection_sha256": plan.retry_collection_sha256,
+        "hold_primary": plan.hold_primary,
         "array": plan.array,
         "force_mode": plan.force_mode,
         "force_manifest": str(plan.force_manifest) if plan.force_manifest else None,
@@ -1578,6 +1957,8 @@ def execute_submission(
     max_in_flight: int | None,
     candidate_ids: Sequence[str] | None = None,
     expected_candidate_subset_sha: str | None = None,
+    retry_collection: Path | None = None,
+    expected_retry_collection_sha256: str | None = None,
 ) -> dict[str, Any]:
     return _execute_locked(
         context,
@@ -1587,6 +1968,8 @@ def execute_submission(
         max_in_flight=max_in_flight,
         candidate_ids=candidate_ids,
         expected_candidate_subset_sha=expected_candidate_subset_sha,
+        retry_collection=retry_collection,
+        expected_retry_collection_sha256=expected_retry_collection_sha256,
     )
 
 
@@ -1606,6 +1989,8 @@ def _guard_submission_entry(func):
         max_in_flight: int | None,
         candidate_ids: Sequence[str] | None = None,
         expected_candidate_subset_sha: str | None = None,
+        retry_collection: Path | None = None,
+        expected_retry_collection_sha256: str | None = None,
     ) -> dict[str, Any]:
         if stage == "fire-full":
             raise SubmissionError(
@@ -1662,6 +2047,8 @@ def _guard_submission_entry(func):
                 max_in_flight=max_in_flight,
                 candidate_ids=candidate_ids,
                 expected_candidate_subset_sha=expected_candidate_subset_sha,
+                retry_collection=retry_collection,
+                expected_retry_collection_sha256=expected_retry_collection_sha256,
             )
 
     return guarded
@@ -1677,6 +2064,8 @@ def _execute_locked(
     max_in_flight: int | None,
     candidate_ids: Sequence[str] | None = None,
     expected_candidate_subset_sha: str | None = None,
+    retry_collection: Path | None = None,
+    expected_retry_collection_sha256: str | None = None,
 ) -> dict[str, Any]:
     ensure_no_active_duplicate(context.run_dir, stage)
 
@@ -1688,6 +2077,8 @@ def _execute_locked(
         task_map=task_map,
         max_in_flight=max_in_flight,
         candidate_ids=candidate_ids,
+        retry_collection=retry_collection,
+        expected_retry_collection_sha256=expected_retry_collection_sha256,
     )
     if plan.candidate_subset_sha256 != expected_candidate_subset_sha:
         raise SubmissionError(
@@ -1892,32 +2283,45 @@ def _execute_locked(
                 "config_sha256": context.config_sha256,
             },
         )
-        if stage == "fire-pilot":
+        if stage == "fire-pilot" or plan.hold_primary:
             release_command = ["scontrol", "release", primary_job_id]
+            attachment_kind = (
+                "fire_pilot_afterany_collector_attachment"
+                if stage == "fire-pilot"
+                else "initial_pilot_afterany_collector_attachment"
+            )
+            attachment = {
+                "schema_version": 1,
+                "kind": attachment_kind,
+                "primary_attempt_id": attempt_id,
+                "primary_job_id": primary_job_id,
+                "primary_request_sha256": sha256_path(record_dir / "request.json"),
+                "primary_result_sha256": sha256_path(record_dir / "primary_result.json"),
+                "collector_attempt_id": collector_attempt,
+                "collector_job_id": collector_job_id,
+                "collector_request_sha256": sha256_path(record_dir / "collector_request.json"),
+                "collector_result_sha256": sha256_path(record_dir / "collector_result.json"),
+                "collector_dependency": f"afterany:{primary_job_id}",
+                "primary_command": command,
+                "collector_command": collector_command,
+                "release_command": release_command,
+                "config_sha256": context.config_sha256,
+                "fire_lineage_sha256": plan.exports.get("P3_FIRE_LINEAGE_SHA256"),
+                "fire_release_sha256": plan.exports.get("P3_FIRE_RELEASE_SHA256"),
+                "workflow_sha256": load_json(record_dir / "request.json")[
+                    "workflow_sha256"
+                ],
+            }
+            if plan.hold_primary:
+                attachment.update(
+                    force_manifest_sha256=plan.force_manifest_sha256,
+                    task_map_sha256=plan.task_map_sha256,
+                    submitted_task_ids=list(plan.submitted_task_ids or ()),
+                    retry_collection_sha256=plan.retry_collection_sha256,
+                )
             write_json_exclusive(
                 record_dir / "collector_attachment.json",
-                {
-                    "schema_version": 1,
-                    "kind": "fire_pilot_afterany_collector_attachment",
-                    "primary_attempt_id": attempt_id,
-                    "primary_job_id": primary_job_id,
-                    "primary_request_sha256": sha256_path(record_dir / "request.json"),
-                    "primary_result_sha256": sha256_path(record_dir / "primary_result.json"),
-                    "collector_attempt_id": collector_attempt,
-                    "collector_job_id": collector_job_id,
-                    "collector_request_sha256": sha256_path(record_dir / "collector_request.json"),
-                    "collector_result_sha256": sha256_path(record_dir / "collector_result.json"),
-                    "collector_dependency": f"afterany:{primary_job_id}",
-                    "primary_command": command,
-                    "collector_command": collector_command,
-                    "release_command": release_command,
-                    "config_sha256": context.config_sha256,
-                    "fire_lineage_sha256": plan.exports["P3_FIRE_LINEAGE_SHA256"],
-                    "fire_release_sha256": plan.exports["P3_FIRE_RELEASE_SHA256"],
-                    "workflow_sha256": load_json(record_dir / "request.json")[
-                        "workflow_sha256"
-                    ],
-                },
+                attachment,
             )
             try:
                 released = subprocess.run(
@@ -1936,7 +2340,7 @@ def _execute_locked(
                     },
                 )
                 raise SubmissionError(
-                    "FIRE primary remains fail-closed without a proven scontrol release"
+                    "held primary remains fail-closed without a proven scontrol release"
                 ) from exc
             release_evidence = {
                 "command": release_command,
@@ -1950,7 +2354,7 @@ def _execute_locked(
                     record_dir / "primary_release_rejected.json", release_evidence
                 )
                 raise SubmissionError(
-                    "FIRE primary remains held because scontrol release failed"
+                    "held primary remains held because scontrol release failed"
                 )
             write_json_exclusive(
                 record_dir / "primary_release.json",
@@ -1974,7 +2378,7 @@ def _execute_locked(
             "request_sha256": sha256_path(record_dir / "collector_request.json"),
             "result_sha256": sha256_path(record_dir / "collector_result.json"),
         }
-        if stage == "fire-pilot":
+        if stage == "fire-pilot" or plan.hold_primary:
             collector["attachment_sha256"] = sha256_path(
                 record_dir / "collector_attachment.json"
             )
@@ -2045,6 +2449,12 @@ def build_parser() -> argparse.ArgumentParser:
                 "budget receipt; the receipt always controls concurrency"
             ),
         )
+        subparser.add_argument(
+            "--retry-collection",
+            type=Path,
+            help="force only: immutable failed primary collection for one technical retry",
+        )
+        subparser.add_argument("--expect-retry-collection-sha")
         if mode == "execute":
             subparser.add_argument("--expect-config-sha", required=True)
             subparser.add_argument("--expect-candidate-subset-sha")
@@ -2066,6 +2476,8 @@ def main(argv: Iterable[str] | None = None) -> int:
                 task_map=args.task_map,
                 max_in_flight=args.max_in_flight,
                 candidate_ids=args.candidate_ids,
+                retry_collection=args.retry_collection,
+                expected_retry_collection_sha256=args.expect_retry_collection_sha,
             )
         else:
             result = execute_submission(
@@ -2076,6 +2488,8 @@ def main(argv: Iterable[str] | None = None) -> int:
                 max_in_flight=args.max_in_flight,
                 candidate_ids=args.candidate_ids,
                 expected_candidate_subset_sha=args.expect_candidate_subset_sha,
+                retry_collection=args.retry_collection,
+                expected_retry_collection_sha256=args.expect_retry_collection_sha,
             )
         print_json(result)
         return 0

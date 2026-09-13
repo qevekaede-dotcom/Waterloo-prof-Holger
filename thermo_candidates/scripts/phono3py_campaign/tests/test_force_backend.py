@@ -192,6 +192,12 @@ class ForceBackendTests(unittest.TestCase):
         ] = False
         with self.assertRaisesRegex(fb.ForceError, "cutoff requires a new scientific review"):
             fb._settings(self.config, "pilot", self.spec)
+        released = fb._settings(self.config, "pilot", self.spec,
+                                allow_count_only_initial=True)
+        self.assertEqual(released["cutoff_id"], "c")
+        with self.assertRaisesRegex(fb.ForceError, "restricted to pilot mode"):
+            fb._settings(self.config, "production", None,
+                         allow_count_only_initial=True)
 
         self.config["production"] = {
             "selection_required": False,

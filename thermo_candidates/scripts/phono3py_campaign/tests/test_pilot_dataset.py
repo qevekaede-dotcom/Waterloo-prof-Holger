@@ -114,9 +114,12 @@ class PilotDatasetTests(unittest.TestCase):
         from submit import SubmissionContext, validate_force_bundle
         context = SubmissionContext(config_path=self.config_path.resolve(), run_dir=self.run.resolve(),
             config=self.config, manifest=core.load_json(self.run/"run_manifest.json"), config_sha256=core.sha256_path(self.config_path))
-        submitted = validate_force_bundle(context, Path(bundle["task_map"]))
-        self.assertEqual(submitted[1],6)
-        self.assertEqual(submitted[4]["signed_pilot_dataset"]["expected_manifest_sha256"],result["manifest_sha256"])
+        # A generic six-task synthetic pilot remains useful for force-backend
+        # tests, but submit must reject it as initial evidence without the
+        # separately replayed SrZrS3 release.
+        from submit import SubmissionError
+        with self.assertRaisesRegex(SubmissionError, "exact release binding"):
+            validate_force_bundle(context, Path(bundle["task_map"]))
 
     def test_reuses_same_geometry_without_duplicate_yaml_ids(self):
         spec = copy.deepcopy(self.probe)
@@ -132,6 +135,12 @@ class PilotDatasetTests(unittest.TestCase):
         self.assertGreater(math.hypot(*pd._cart([0.49,0.49,0],cell)),9)
         shifted = pd.minimum_image_bohr([4.49,-2.51,2],cell)
         self.assertTrue(pd._near(actual,shifted))
+
+    def test_release_lattice_comparison_uses_relative_and_absolute_tolerance(self):
+        self.assertTrue(pd._near_relabs([10.0, 0.0, -2.0],
+                                       [10.0 + 9e-8, 1.9e-8, -2.0]))
+        self.assertFalse(pd._near_relabs([10.0, 0.0, -2.0],
+                                        [10.0, 2.1e-8, -2.0]))
 
     def test_hash_tampering_and_wrong_trusted_manifest(self):
         result = self.prepare()

@@ -52,6 +52,19 @@ p3_activate_python
 
 export P3_STAGE="force"
 export P3_SLURM_NTASKS="${SLURM_NTASKS:?}"
-p3_run_cli run-force-task \
-    --task-map "$TASK_MAP" \
+force_args=(
+    --task-map "$TASK_MAP"
     --task-id "$SLURM_ARRAY_TASK_ID"
+)
+if [[ -n "${P3_FORCE_RETRY_EVIDENCE:-}" ]]; then
+    : "${P3_FORCE_RETRY_EVIDENCE_SHA256:?retry evidence requires its trusted SHA256}"
+    [[ "$P3_FORCE_RETRY_EVIDENCE" == "$RUN_DIR"/* ]] \
+        || p3_die "retry evidence must belong to RUN_DIR"
+    [[ "$P3_FORCE_RETRY_EVIDENCE_SHA256" =~ ^[0-9a-f]{64}$ ]] \
+        || p3_die "retry evidence SHA256 is invalid"
+    p3_require_file "force retry evidence" "$P3_FORCE_RETRY_EVIDENCE"
+    [[ "$(sha256sum "$P3_FORCE_RETRY_EVIDENCE" | awk '{print $1}')" == "$P3_FORCE_RETRY_EVIDENCE_SHA256" ]] \
+        || p3_die "force retry evidence changed after submission"
+    force_args+=(--retry-evidence "$P3_FORCE_RETRY_EVIDENCE")
+fi
+p3_run_cli run-force-task "${force_args[@]}"

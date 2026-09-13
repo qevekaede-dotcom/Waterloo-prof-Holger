@@ -4365,6 +4365,7 @@ SACCT_FIELDS = (
     "AllocCPUS",
     "MaxRSS",
 )
+FORCE_SACCT_FIELDS = SACCT_FIELDS + ("TimelimitRaw",)
 DIAGNOSTIC_SACCT_FIELDS = SACCT_FIELDS + (
     "Account",
     "Partition",
@@ -4569,6 +4570,222 @@ def _read_exit_code(parent: Path) -> tuple[int | None, list[str]]:
         return None, [f"invalid upstream exit_code.txt: {exc}"]
 
 
+def _force_submission_binding(
+    *,
+    config_path: Path,
+    run_dir: Path,
+    collector_attempt: Path,
+    primary_attempt_id: str,
+    primary_job_id: str,
+    force_manifest_sha256: str,
+    task_map_sha256: str,
+    submitted_task_ids: Sequence[int] | None,
+    expected_primary_request_sha256: str | None,
+    expected_primary_result_sha256: str | None,
+    expected_primary_stage_script_sha256: str | None,
+    require_held_primary: bool = False,
+) -> dict[str, Any]:
+    """Replay submit.py's primary + afterany collector records for force evidence."""
+
+    collector_attempt = strict_run_descendant(
+        run_dir, collector_attempt, "force collector attempt"
+    )
+    expected_collector_parent = run_dir / "slurm_attempts" / "collect"
+    if (
+        collector_attempt.parent != expected_collector_parent
+        or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}", collector_attempt.name)
+        is None
+        or not collector_attempt.is_dir()
+    ):
+        raise CampaignError(
+            "force collector attempt is not at the exact slurm_attempts/collect location"
+        )
+
+    submission_dir = strict_run_descendant(
+        run_dir,
+        run_dir / "submissions" / "force" / primary_attempt_id,
+        "force submission record",
+    )
+    reject_symlinks_below(run_dir, submission_dir, "force submission record")
+    paths = {
+        "primary_request": submission_dir / "request.json",
+        "primary_result": submission_dir / "primary_result.json",
+        "collector_request": submission_dir / "collector_request.json",
+        "collector_result": submission_dir / "collector_result.json",
+    }
+    for label, path in paths.items():
+        paths[label] = strict_run_descendant(
+            run_dir, path, f"force {label.replace('_', ' ')}"
+        )
+    if sha256_path(paths["primary_request"]) != expected_primary_request_sha256:
+        raise CampaignError("force primary submission request hash mismatch")
+    if sha256_path(paths["primary_result"]) != expected_primary_result_sha256:
+        raise CampaignError("force primary submission result hash mismatch")
+    request = load_json(paths["primary_request"])
+    result = load_json(paths["primary_result"])
+    collector_request = load_json(paths["collector_request"])
+    collector_result = load_json(paths["collector_result"])
+    collector_context, context_errors = _read_context_tsv(
+        collector_attempt / "context.tsv"
+    )
+    if context_errors:
+        raise CampaignError("force collector context is missing or malformed")
+    expected_workflow = {
+        "submit.py": sha256_path(Path(__file__).with_name("submit.py")),
+        "campaign.py": sha256_path(Path(__file__)),
+        "cluster.env": sha256_path(Path(__file__).with_name("slurm") / "cluster.env"),
+        "force_array.sbatch": sha256_path(
+            Path(__file__).with_name("slurm") / "force_array.sbatch"
+        ),
+    }
+    if (
+        request.get("stage") != "force"
+        or request.get("attempt_id") != primary_attempt_id
+        or request.get("config") != str(config_path)
+        or request.get("config_sha256") != sha256_path(config_path)
+        or request.get("run_dir") != str(run_dir)
+        or request.get("force_manifest_sha256") != force_manifest_sha256
+        or request.get("task_map_sha256") != task_map_sha256
+        or request.get("submitted_task_ids") != list(submitted_task_ids)
+        or request.get("stage_script_sha256")
+        != expected_primary_stage_script_sha256
+        or request.get("workflow_sha256") != expected_workflow
+    ):
+        raise CampaignError("force primary submission request identity/hash mismatch")
+    held_initial = request.get("hold_primary") is True
+    if require_held_primary and not held_initial:
+        raise CampaignError(
+            "initial force submission was not held pending immutable collector attachment"
+        )
+    if held_initial:
+        paths["collector_attachment"] = strict_run_descendant(
+            run_dir,
+            submission_dir / "collector_attachment.json",
+            "initial force collector attachment",
+        )
+        paths["primary_release"] = strict_run_descendant(
+            run_dir,
+            submission_dir / "primary_release.json",
+            "initial force primary release",
+        )
+        attachment = load_json(paths["collector_attachment"])
+        release = load_json(paths["primary_release"])
+        release_command = ["scontrol", "release", primary_job_id]
+        expected_attachment = {
+            "schema_version": 1,
+            "kind": "initial_pilot_afterany_collector_attachment",
+            "primary_attempt_id": primary_attempt_id,
+            "primary_job_id": primary_job_id,
+            "primary_request_sha256": expected_primary_request_sha256,
+            "primary_result_sha256": expected_primary_result_sha256,
+            "collector_attempt_id": collector_context.get("attempt_id"),
+            "collector_job_id": collector_context.get("slurm_job_id"),
+            "collector_request_sha256": sha256_path(paths["collector_request"]),
+            "collector_result_sha256": sha256_path(paths["collector_result"]),
+            "collector_dependency": f"afterany:{primary_job_id}",
+            "primary_command": request.get("command"),
+            "collector_command": collector_request.get("command"),
+            "release_command": release_command,
+            "config_sha256": sha256_path(config_path),
+            "fire_lineage_sha256": None,
+            "fire_release_sha256": None,
+            "force_manifest_sha256": force_manifest_sha256,
+            "task_map_sha256": task_map_sha256,
+            "submitted_task_ids": list(submitted_task_ids),
+            "retry_collection_sha256": request.get("retry_collection_sha256"),
+            "workflow_sha256": expected_workflow,
+        }
+        if attachment != expected_attachment:
+            raise CampaignError(
+                "initial force collector attachment identity/hash mismatch"
+            )
+        if (
+            set(release) != {
+                "command",
+                "returncode",
+                "stdout",
+                "stderr",
+                "finished_utc",
+                "primary_attempt_id",
+                "primary_job_id",
+                "collector_attachment_sha256",
+            }
+            or release.get("command") != release_command
+            or release.get("returncode") != 0
+            or release.get("primary_attempt_id") != primary_attempt_id
+            or release.get("primary_job_id") != primary_job_id
+            or release.get("collector_attachment_sha256")
+            != sha256_path(paths["collector_attachment"])
+        ):
+            raise CampaignError("initial force held-primary release evidence mismatch")
+        if (
+            not isinstance(request.get("command"), list)
+            or "--hold" not in request["command"]
+            or any(str(item).startswith("--dependency=") for item in request["command"])
+            or result.get("command") != request.get("command")
+            or collector_result.get("command") != collector_request.get("command")
+        ):
+            raise CampaignError("initial force hold/submit command evidence mismatch")
+    if list(submitted_task_ids) != list(range(int(request.get("task_count", 0)))):
+        retry_path = strict_run_descendant(
+            run_dir, Path(str(request.get("retry_collection", ""))),
+            "force retry source collection")
+        retry_sha = request.get("retry_collection_sha256")
+        if (
+            re.fullmatch(r"[0-9a-f]{64}", str(retry_sha)) is None
+            or sha256_path(retry_path) != retry_sha
+        ):
+            raise CampaignError("force retry source collection hash mismatch")
+    if (
+        result.get("stage") != "force"
+        or result.get("attempt_id") != primary_attempt_id
+        or result.get("job_id") != primary_job_id
+        or result.get("config_sha256") != sha256_path(config_path)
+        or result.get("returncode") != 0
+    ):
+        raise CampaignError("force primary submission result identity mismatch")
+    expected_collector_attempt = collector_context.get("attempt_id")
+    expected_collector_job = collector_context.get("slurm_job_id")
+    if (
+        collector_request.get("stage") != "collect"
+        or collector_request.get("attempt_id") != expected_collector_attempt
+        or collector_request.get("primary_stage") != "force"
+        or collector_request.get("primary_attempt_id") != primary_attempt_id
+        or collector_request.get("primary_job_id") != primary_job_id
+        or collector_request.get("primary_request_sha256")
+        != expected_primary_request_sha256
+        or collector_request.get("primary_result_sha256")
+        != expected_primary_result_sha256
+        or collector_request.get("primary_stage_script_sha256")
+        != expected_primary_stage_script_sha256
+        or collector_request.get("dependency") != f"afterany:{primary_job_id}"
+        or collector_request.get("submit_script_sha256")
+        != expected_workflow["submit.py"]
+        or collector_request.get("campaign_cli_sha256")
+        != expected_workflow["campaign.py"]
+        or collector_request.get("cluster_env_sha256")
+        != expected_workflow["cluster.env"]
+        or collector_request.get("collector_script_sha256")
+        != sha256_path(Path(__file__).with_name("slurm") / "collect.sbatch")
+    ):
+        raise CampaignError("force afterany collector request identity/hash mismatch")
+    if (
+        collector_result.get("stage") != "collect"
+        or collector_result.get("attempt_id") != expected_collector_attempt
+        or collector_result.get("job_id") != expected_collector_job
+        or collector_result.get("primary_stage") != "force"
+        or collector_result.get("primary_attempt_id") != primary_attempt_id
+        or collector_result.get("primary_job_id") != primary_job_id
+        or collector_result.get("config_sha256") != sha256_path(config_path)
+        or collector_result.get("returncode") != 0
+    ):
+        raise CampaignError("force afterany collector result identity mismatch")
+    return {
+        label: {"path": str(path), "sha256": sha256_path(path)}
+        for label, path in paths.items()
+    }
+
+
 def _accounting_for_force_task(
     records: Sequence[Mapping[str, str]],
     primary_job_id: str,
@@ -4588,7 +4805,7 @@ def _accounting_for_force_task(
         errors.append(
             f"expected one sacct allocation row for {display_id}; found {len(allocations)}"
         )
-    elif allocations[0].get("JobIDRaw") != raw_job_id:
+    elif raw_job_id and allocations[0].get("JobIDRaw") != raw_job_id:
         errors.append(
             f"sacct does not bind {display_id} to context raw job {raw_job_id}"
         )
@@ -4917,6 +5134,10 @@ def _collect_force_batch(
     task_map_path: Path,
     expected_force_manifest_sha256: str,
     expected_task_map_sha256: str,
+    submitted_task_ids: Sequence[int],
+    expected_primary_request_sha256: str,
+    expected_primary_result_sha256: str,
+    expected_primary_stage_script_sha256: str,
     accounting_records: Sequence[Mapping[str, str]],
     accounting_errors: Sequence[str],
     accounting_metadata: Mapping[str, Any],
@@ -4933,17 +5154,96 @@ def _collect_force_batch(
         expected_task_map_sha256,
     )
     force_manifest_path = force_manifest_path.resolve()
+    initial_release = manifest.get("initial_pilot_release") is not None
+    supplied_submission_binding = any(
+        value is not None
+        for value in (
+            expected_primary_request_sha256,
+            expected_primary_result_sha256,
+            expected_primary_stage_script_sha256,
+            submitted_task_ids,
+        )
+    )
+    if initial_release and not all(
+        value is not None
+        for value in (
+            expected_primary_request_sha256,
+            expected_primary_result_sha256,
+            expected_primary_stage_script_sha256,
+            submitted_task_ids,
+        )
+    ):
+        raise CampaignError(
+            "initial pilot collection requires exact submit/afterany/task-subset evidence"
+        )
+    if supplied_submission_binding and not all(
+        value is not None
+        for value in (
+            expected_primary_request_sha256,
+            expected_primary_result_sha256,
+            expected_primary_stage_script_sha256,
+            submitted_task_ids,
+        )
+    ):
+        raise CampaignError("force submission binding must be supplied as one complete set")
+    selected_ids = (
+        list(submitted_task_ids) if submitted_task_ids is not None else list(range(len(tasks)))
+    )
+    if (
+        not selected_ids
+        or any(type(value) is not int or value not in range(len(tasks)) for value in selected_ids)
+        or len(set(selected_ids)) != len(selected_ids)
+        or selected_ids != sorted(selected_ids)
+    ):
+        raise CampaignError("force collection submitted task IDs are invalid")
+    submission_binding = None
+    if supplied_submission_binding:
+        submission_binding = _force_submission_binding(
+            config_path=config_path.resolve(),
+            run_dir=run_dir,
+            collector_attempt=current_attempt,
+            primary_attempt_id=primary_attempt_id,
+            primary_job_id=primary_job_id,
+            force_manifest_sha256=expected_force_manifest_sha256,
+            task_map_sha256=expected_task_map_sha256,
+            submitted_task_ids=selected_ids,
+            expected_primary_request_sha256=str(expected_primary_request_sha256),
+            expected_primary_result_sha256=str(expected_primary_result_sha256),
+            expected_primary_stage_script_sha256=str(expected_primary_stage_script_sha256),
+            require_held_primary=initial_release,
+        )
+    if initial_release:
+        submission_request = load_json(
+            Path(submission_binding["primary_request"]["path"])
+        )
+        expected_array_domain = (
+            "0-5" if selected_ids == list(range(6))
+            else ",".join(str(value) for value in selected_ids)
+        )
+        if (
+            submission_request.get("scheduler_options")
+            != ["--ntasks=32", "--time=02:00:00"]
+            or submission_request.get("array") != f"{expected_array_domain}%2"
+        ):
+            raise CampaignError(
+                "initial pilot submission did not enforce 32 ranks, 2h, concurrency 2"
+            )
     primary_root = run_dir / "slurm_attempts" / "force" / primary_attempt_id
+    if os.path.lexists(primary_root):
+        primary_root = strict_run_descendant(
+            run_dir, primary_root, "primary force attempt root"
+        )
+        if not primary_root.is_dir():
+            raise CampaignError("primary force attempt root is not a directory")
+        reject_symlinks_below(run_dir, primary_root, "primary force attempt root")
     entries: list[dict[str, Any]] = []
-    expected_directories = {f"task-{task['task_id']}" for task in tasks}
+    expected_directories = {f"task-{task_id}" for task_id in selected_ids}
     actual_directories = (
         {item.name for item in primary_root.iterdir() if item.is_dir()}
         if primary_root.is_dir()
         else set()
     )
     global_errors = list(accounting_errors)
-    if not primary_root.is_dir():
-        global_errors.append(f"missing primary force attempt root: {primary_root}")
     extra = sorted(actual_directories - expected_directories)
     if extra:
         global_errors.append(f"unexpected task directories in primary attempt: {extra}")
@@ -4953,19 +5253,19 @@ def _collect_force_batch(
         matched = allocation_pattern.fullmatch(row.get("JobID", ""))
         if matched:
             accounting_task_ids.append(int(matched.group(1)))
-    unexpected_accounting = sorted(set(accounting_task_ids) - set(range(len(tasks))))
+    unexpected_accounting = sorted(set(accounting_task_ids) - set(selected_ids))
     if unexpected_accounting:
         global_errors.append(
             f"sacct contains out-of-domain array task IDs: {unexpected_accounting}"
         )
 
-    for task in tasks:
-        task_id = int(task["task_id"])
+    for task_id in selected_ids:
+        task = tasks[task_id]
         parent = primary_root / f"task-{task_id}"
         errors: list[str] = []
+        parent_absent = not os.path.lexists(parent)
         context_path = parent / "context.tsv"
         context, context_errors = _read_context_tsv(context_path)
-        errors.extend(context_errors)
         expected_context = {
             "stage": "force",
             "attempt_id": primary_attempt_id,
@@ -4974,18 +5274,36 @@ def _collect_force_batch(
             "run_dir": str(run_dir),
             "config_sha256": manifest["config_sha256"],
         }
-        for key, expected in expected_context.items():
-            if context.get(key) != expected:
-                errors.append(f"context mismatch for {key}")
         exit_code, exit_errors = _read_exit_code(parent)
-        errors.extend(exit_errors)
         raw_job_id = context.get("slurm_job_id", "")
-        if not raw_job_id.isdigit():
-            errors.append("context has an invalid raw Slurm task job ID")
         scheduler_records, allocation, scheduler_errors = _accounting_for_force_task(
             accounting_records, primary_job_id, task_id, raw_job_id
         )
-        errors.extend(scheduler_errors)
+        scheduler_only_technical = bool(
+            initial_release
+            and submission_binding is not None
+            and not accounting_errors
+            and parent_absent
+            and allocation is not None
+            and not scheduler_errors
+            and str(allocation.get("JobIDRaw", "")).isdigit()
+            and re.fullmatch(r"[0-9]+:[0-9]+", str(allocation.get("ExitCode", "")))
+            and scheduler_records
+            and all(
+                _normalized_slurm_state(str(row.get("State", "")))
+                in {"BOOT_FAIL", "NODE_FAIL", "PREEMPTED"}
+                for row in scheduler_records
+            )
+        )
+        if not scheduler_only_technical:
+            errors.extend(context_errors)
+            for key, expected in expected_context.items():
+                if context.get(key) != expected:
+                    errors.append(f"context mismatch for {key}")
+            errors.extend(exit_errors)
+            if not raw_job_id.isdigit():
+                errors.append("context has an invalid raw Slurm task job ID")
+            errors.extend(scheduler_errors)
         if allocation is not None:
             try:
                 elapsed = int(allocation["ElapsedRaw"])
@@ -5004,6 +5322,30 @@ def _collect_force_batch(
                         errors.append(
                             "upstream exit_code.txt disagrees with the sacct allocation"
                         )
+        resource_usage = None
+        if initial_release and allocation is not None:
+            try:
+                elapsed = int(allocation["ElapsedRaw"])
+                allocated_cpus = int(allocation["AllocCPUS"])
+                time_limit = int(allocation["TimelimitRaw"])
+                core_hours = elapsed * allocated_cpus / 3600
+                if (
+                    allocated_cpus != 32
+                    or time_limit != 120
+                    or not 0 <= elapsed <= 7200
+                    or not 0 <= core_hours <= 64
+                ):
+                    raise ValueError
+                resource_usage = {
+                    "elapsed_seconds": elapsed,
+                    "allocated_cpus": allocated_cpus,
+                    "timelimit_minutes": time_limit,
+                    "core_hours": core_hours,
+                }
+            except (KeyError, TypeError, ValueError):
+                errors.append(
+                    "initial force allocation violates exact 32-rank/120-minute resource bounds"
+                )
         evidence = _hash_present_evidence(
             parent,
             (
@@ -5032,6 +5374,7 @@ def _collect_force_batch(
             "scheduler_records": scheduler_records,
             "evidence": evidence,
             "errors": errors,
+            **({"resource_usage": resource_usage} if resource_usage is not None else {}),
         }
         failure_path = parent / "failure.json"
         if failure_path.is_file():
@@ -5050,7 +5393,10 @@ def _collect_force_batch(
                 entry["errors"].append(f"invalid failure receipt: {exc}")
         elif exit_code not in (None, 0):
             entry["errors"].append("nonzero task exit lacks failure.json")
-        if exit_code == 0:
+        if scheduler_only_technical:
+            entry["outcome"] = "upstream_failed"
+            entry["technical_failure_source"] = "authenticated_scheduler_pre_wrapper"
+        elif exit_code == 0:
             try:
                 artifact = load_force_artifact(force_manifest_path, parent, task_id)
                 launch = load_json(parent / "launch.json")
@@ -5071,6 +5417,38 @@ def _collect_force_batch(
                     "stderr_path": artifact.stderr_path,
                     "receipt": dict(artifact.manifest),
                 }
+                if initial_release:
+                    elapsed = int(allocation["ElapsedRaw"])
+                    allocated_cpus = int(allocation["AllocCPUS"])
+                    max_rss_values = [
+                        str(row.get("MaxRSS", ""))
+                        for row in scheduler_records
+                        if str(row.get("MaxRSS", ""))
+                    ]
+                    output_text = Path(artifact.output_path).read_text(errors="replace")
+                    iteration_matches = re.findall(
+                        r"convergence has been achieved in\s+(\d+)\s+iterations",
+                        output_text,
+                    )
+                    if (
+                        elapsed <= 0
+                        or allocated_cpus != 32
+                        or not max_rss_values
+                        or re.fullmatch(r"\d+(?:\.\d+)?[KMGT]", max_rss_values[-1])
+                        is None
+                        or not iteration_matches
+                    ):
+                        raise CampaignError(
+                            "successful force task lacks exact 32-rank ElapsedRaw/MaxRSS/SCF timing evidence"
+                        )
+                    entry["timing"] = {
+                        "elapsed_seconds": elapsed,
+                        "allocated_cpus": allocated_cpus,
+                        "timelimit_minutes": int(allocation["TimelimitRaw"]),
+                        "max_rss": max_rss_values[-1],
+                        "scf_iterations": int(iteration_matches[-1]),
+                        "core_hours": elapsed * allocated_cpus / 3600,
+                    }
                 entry["outcome"] = "accepted_success"
             except (CampaignError, PostprocessError, OSError, ValueError) as exc:
                 entry["errors"].append(f"successful-task evidence audit failed: {exc}")
@@ -5095,7 +5473,7 @@ def _collect_force_batch(
         not entry["errors"] for entry in entries
     )
     batch_execution_complete = (
-        collection_integrity_complete and accepted == len(tasks)
+        collection_integrity_complete and accepted == len(selected_ids)
     )
     mode = str(manifest["mode"])
     return {
@@ -5117,9 +5495,13 @@ def _collect_force_batch(
             "task_map_sha256": sha256_path(task_map_path.resolve()),
             "submitted_task_map_sha256": expected_task_map_sha256,
             "scheduler_accounting": dict(accounting_metadata),
+            **({"submission_records": submission_binding}
+               if submission_binding is not None else {}),
         },
         "force_mode": mode,
         "expected_task_count": len(tasks),
+        "submitted_task_ids": selected_ids,
+        "submitted_task_count": len(selected_ids),
         "accepted_success_count": accepted,
         "upstream_failure_count": failed,
         "unfinished_or_invalid_count": unfinished_or_invalid,
@@ -5260,6 +5642,7 @@ def command_collect(
     expected_primary_request_sha256: str | None = None,
     expected_primary_result_sha256: str | None = None,
     expected_primary_stage_script_sha256: str | None = None,
+    primary_task_ids: Sequence[int] | None = None,
 ) -> dict[str, Any]:
     """Collect one explicitly identified upstream attempt without rerunning it."""
 
@@ -5311,20 +5694,15 @@ def command_collect(
     accounting_records, accounting_errors, accounting_metadata = _read_sacct_records(
         accounting_path,
         accounting_status_path,
-        DIAGNOSTIC_SACCT_FIELDS if primary_stage in {"diagnostic", "fire-pilot"} else SACCT_FIELDS,
+        (
+            DIAGNOSTIC_SACCT_FIELDS
+            if primary_stage in {"diagnostic", "fire-pilot"}
+            else FORCE_SACCT_FIELDS
+            if primary_stage == "force"
+            else SACCT_FIELDS
+        ),
     )
     if primary_stage == "force":
-        if any(
-            value is not None
-            for value in (
-                expected_primary_request_sha256,
-                expected_primary_result_sha256,
-                expected_primary_stage_script_sha256,
-            )
-        ):
-            raise CampaignError(
-                "force collection must not receive diagnostic submission hashes"
-            )
         if (
             force_manifest is None
             or task_map is None
@@ -5345,6 +5723,10 @@ def command_collect(
             task_map_path=task_map,
             expected_force_manifest_sha256=expected_force_manifest_sha256,
             expected_task_map_sha256=expected_task_map_sha256,
+            submitted_task_ids=primary_task_ids,
+            expected_primary_request_sha256=expected_primary_request_sha256,
+            expected_primary_result_sha256=expected_primary_result_sha256,
+            expected_primary_stage_script_sha256=expected_primary_stage_script_sha256,
             accounting_records=accounting_records,
             accounting_errors=accounting_errors,
             accounting_metadata=accounting_metadata,
@@ -5462,11 +5844,23 @@ def command_prepare_pilot_dataset(
     preflight_inventory: Path,
     output_dir: Path,
     probe_spec_path: Path,
+    pilot_release: Path | None,
+    pilot_release_sha256: str | None,
 ) -> dict[str, Any]:
     """Prepare and immediately re-audit one immutable signed pilot dataset."""
 
     from pilot_dataset import prepare_pilot_dataset
 
+    if (pilot_release is None) != (pilot_release_sha256 is None):
+        raise CampaignError(
+            "--pilot-release and --expect-pilot-release-sha must be supplied together"
+        )
+    if pilot_release_sha256 is not None and re.fullmatch(
+        r"[0-9a-f]{64}", pilot_release_sha256
+    ) is None:
+        raise CampaignError(
+            "--expect-pilot-release-sha must be 64 lowercase hex characters"
+        )
     probe_spec = load_json(probe_spec_path.resolve())
     return prepare_pilot_dataset(
         config_path,
@@ -5475,6 +5869,111 @@ def command_prepare_pilot_dataset(
         preflight_inventory=preflight_inventory,
         output_dir=output_dir,
         probe_spec=probe_spec,
+        pilot_release=pilot_release,
+        pilot_release_sha256=pilot_release_sha256,
+    )
+
+
+def command_create_initial_pilot_release(
+    config_path: Path, run_dir: Path, *, output_path: Path
+) -> dict[str, Any]:
+    """Create the one immutable SrZrS3 exact-six initial-pilot release."""
+
+    from initial_pilot import prepare_initial_pilot_release
+
+    return prepare_initial_pilot_release(config_path, run_dir, output_path)
+
+
+def command_replay_initial_pilot_release(
+    config_path: Path,
+    run_dir: Path,
+    *,
+    release_path: Path,
+    expected_release_sha256: str,
+) -> dict[str, Any]:
+    """Replay a release from an independently supplied trusted digest."""
+
+    if re.fullmatch(r"[0-9a-f]{64}", expected_release_sha256) is None:
+        raise CampaignError(
+            "--expect-release-sha must be 64 lowercase hex characters"
+        )
+    from initial_pilot import replay_initial_pilot_release
+
+    return replay_initial_pilot_release(
+        release_path,
+        config_path=config_path,
+        run_dir=run_dir,
+        expected_release_sha256=expected_release_sha256,
+    )
+
+
+def command_finalize_initial_pilot(
+    config_path: Path,
+    run_dir: Path,
+    *,
+    release_path: Path,
+    expected_release_sha256: str,
+    force_manifest_path: Path,
+    collection_path: Path,
+    expected_collection_sha256: str,
+    retry_collection_path: Path | None,
+    expected_retry_collection_sha256: str | None,
+    output_path: Path,
+) -> dict[str, Any]:
+    """Finalize only the released exact-six timing/noise pilot evidence."""
+
+    for option, digest in (
+        ("--expect-release-sha", expected_release_sha256),
+        ("--expect-collection-sha", expected_collection_sha256),
+    ):
+        if re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+            raise CampaignError(f"{option} must be 64 lowercase hex characters")
+    if (retry_collection_path is None) != (expected_retry_collection_sha256 is None):
+        raise CampaignError(
+            "--retry-collection and --expect-retry-collection-sha must be supplied together"
+        )
+    if expected_retry_collection_sha256 is not None and re.fullmatch(
+        r"[0-9a-f]{64}", expected_retry_collection_sha256
+    ) is None:
+        raise CampaignError(
+            "--expect-retry-collection-sha must be 64 lowercase hex characters"
+        )
+    from initial_pilot import finalize_initial_pilot
+
+    return finalize_initial_pilot(
+        config_path,
+        run_dir,
+        release_path=release_path,
+        release_sha256=expected_release_sha256,
+        force_manifest_path=force_manifest_path,
+        collection_path=collection_path,
+        collection_sha256=expected_collection_sha256,
+        retry_collection_path=retry_collection_path,
+        retry_collection_sha256=expected_retry_collection_sha256,
+        output_path=output_path,
+    )
+
+
+def command_replay_initial_pilot_result(
+    config_path: Path,
+    run_dir: Path,
+    *,
+    result_path: Path,
+    expected_result_sha256: str,
+) -> dict[str, Any]:
+    """Replay one immutable numerical result from its trusted digest."""
+
+    if re.fullmatch(r"[0-9a-f]{64}", expected_result_sha256) is None:
+        raise CampaignError(
+            "--expect-result-sha must be 64 lowercase hex characters"
+        )
+    from initial_pilot import replay_initial_pilot_result
+
+    return replay_initial_pilot_result(
+        result_path,
+        config_path=config_path,
+        run_dir=run_dir,
+        expected_result_sha256=expected_result_sha256,
     )
 
 
@@ -5505,6 +6004,8 @@ def command_prepare_force(
     pilot_dataset_manifest_sha256: str | None,
     selection_evidence: Path | None,
     resource_request_path: Path,
+    pilot_release: Path | None,
+    pilot_release_sha256: str | None,
 ) -> dict[str, Any]:
     """Prepare one budgeted immutable force bundle; never launch a calculation."""
 
@@ -5520,10 +6021,27 @@ def command_prepare_force(
         raise CampaignError(
             "production prepare-force must not receive --expect-pilot-manifest-sha"
         )
-    from force_backend import prepare_force
-
     pilot_spec = load_json(pilot_spec_path.resolve()) if pilot_spec_path else None
     resource_request = load_json(resource_request_path.resolve())
+    if not isinstance(resource_request, Mapping):
+        raise CampaignError("resource request must be a JSON object")
+    release_supplied = pilot_release is not None or pilot_release_sha256 is not None
+    if mode == "pilot" and resource_request.get("phase") == "initial":
+        if (
+            pilot_release is None
+            or pilot_release_sha256 is None
+            or re.fullmatch(r"[0-9a-f]{64}", pilot_release_sha256) is None
+        ):
+            raise CampaignError(
+                "initial pilot prepare-force requires --pilot-release and "
+                "--expect-pilot-release-sha as 64 lowercase hex characters"
+            )
+    elif release_supplied:
+        raise CampaignError(
+            "initial pilot release may be used only with pilot mode and phase=initial"
+        )
+    from force_backend import prepare_force
+
     return prepare_force(
         config_path,
         run_dir,
@@ -5536,6 +6054,8 @@ def command_prepare_force(
         pilot_dataset_manifest_sha256=pilot_dataset_manifest_sha256,
         selection_evidence=selection_evidence,
         resource_request=resource_request,
+        pilot_release=pilot_release,
+        pilot_release_sha256=pilot_release_sha256,
     )
 
 
@@ -6210,6 +6730,9 @@ def build_parser() -> argparse.ArgumentParser:
             subparser.add_argument("--expect-primary-request-sha")
             subparser.add_argument("--expect-primary-result-sha")
             subparser.add_argument("--expect-primary-stage-script-sha")
+            subparser.add_argument(
+                "--primary-task-id", action="append", type=int, dest="primary_task_ids"
+            )
     pilot_dataset = subparsers.add_parser("prepare-pilot-dataset")
     pilot_dataset.add_argument("--config", type=Path, required=True)
     pilot_dataset.add_argument("--run-dir", type=Path, required=True)
@@ -6217,6 +6740,43 @@ def build_parser() -> argparse.ArgumentParser:
     pilot_dataset.add_argument("--preflight-inventory", type=Path, required=True)
     pilot_dataset.add_argument("--output-dir", type=Path, required=True)
     pilot_dataset.add_argument("--probe-spec", type=Path, required=True)
+    pilot_dataset.add_argument("--pilot-release", type=Path)
+    pilot_dataset.add_argument("--expect-pilot-release-sha")
+
+    create_initial_release = subparsers.add_parser(
+        "create-initial-pilot-release"
+    )
+    create_initial_release.add_argument("--config", type=Path, required=True)
+    create_initial_release.add_argument("--run-dir", type=Path, required=True)
+    create_initial_release.add_argument("--output", type=Path, required=True)
+
+    replay_initial_release = subparsers.add_parser(
+        "replay-initial-pilot-release"
+    )
+    replay_initial_release.add_argument("--config", type=Path, required=True)
+    replay_initial_release.add_argument("--run-dir", type=Path, required=True)
+    replay_initial_release.add_argument("--release", type=Path, required=True)
+    replay_initial_release.add_argument("--expect-release-sha", required=True)
+
+    finalize_initial = subparsers.add_parser("finalize-initial-pilot")
+    finalize_initial.add_argument("--config", type=Path, required=True)
+    finalize_initial.add_argument("--run-dir", type=Path, required=True)
+    finalize_initial.add_argument("--release", type=Path, required=True)
+    finalize_initial.add_argument("--expect-release-sha", required=True)
+    finalize_initial.add_argument("--force-manifest", type=Path, required=True)
+    finalize_initial.add_argument("--collection", type=Path, required=True)
+    finalize_initial.add_argument("--expect-collection-sha", required=True)
+    finalize_initial.add_argument("--retry-collection", type=Path)
+    finalize_initial.add_argument("--expect-retry-collection-sha")
+    finalize_initial.add_argument("--output", type=Path, required=True)
+
+    replay_initial_result = subparsers.add_parser(
+        "replay-initial-pilot-result"
+    )
+    replay_initial_result.add_argument("--config", type=Path, required=True)
+    replay_initial_result.add_argument("--run-dir", type=Path, required=True)
+    replay_initial_result.add_argument("--result", type=Path, required=True)
+    replay_initial_result.add_argument("--expect-result-sha", required=True)
 
     pilot_audit = subparsers.add_parser("audit-pilot-dataset")
     pilot_audit.add_argument("--config", type=Path, required=True)
@@ -6236,6 +6796,8 @@ def build_parser() -> argparse.ArgumentParser:
     prepare_force.add_argument("--expect-pilot-manifest-sha")
     prepare_force.add_argument("--selection-evidence", type=Path)
     prepare_force.add_argument("--resource-request", type=Path, required=True)
+    prepare_force.add_argument("--pilot-release", type=Path)
+    prepare_force.add_argument("--expect-pilot-release-sha")
 
     pilot_evidence = subparsers.add_parser("audit-pilot-evidence")
     pilot_evidence.add_argument("--config", type=Path, required=True)
@@ -6320,6 +6882,7 @@ def main(argv: Iterable[str] | None = None) -> int:
                 expected_primary_request_sha256=args.expect_primary_request_sha,
                 expected_primary_result_sha256=args.expect_primary_result_sha,
                 expected_primary_stage_script_sha256=args.expect_primary_stage_script_sha,
+                primary_task_ids=args.primary_task_ids,
             )
         elif args.command == "run-relax":
             result = command_run_relax(args.config, run_dir)
@@ -6333,6 +6896,39 @@ def main(argv: Iterable[str] | None = None) -> int:
                 preflight_inventory=args.preflight_inventory,
                 output_dir=args.output_dir,
                 probe_spec_path=args.probe_spec,
+                pilot_release=args.pilot_release,
+                pilot_release_sha256=args.expect_pilot_release_sha,
+            )
+        elif args.command == "create-initial-pilot-release":
+            result = command_create_initial_pilot_release(
+                args.config, run_dir, output_path=args.output
+            )
+        elif args.command == "replay-initial-pilot-release":
+            result = command_replay_initial_pilot_release(
+                args.config,
+                run_dir,
+                release_path=args.release,
+                expected_release_sha256=args.expect_release_sha,
+            )
+        elif args.command == "finalize-initial-pilot":
+            result = command_finalize_initial_pilot(
+                args.config,
+                run_dir,
+                release_path=args.release,
+                expected_release_sha256=args.expect_release_sha,
+                force_manifest_path=args.force_manifest,
+                collection_path=args.collection,
+                expected_collection_sha256=args.expect_collection_sha,
+                retry_collection_path=args.retry_collection,
+                expected_retry_collection_sha256=args.expect_retry_collection_sha,
+                output_path=args.output,
+            )
+        elif args.command == "replay-initial-pilot-result":
+            result = command_replay_initial_pilot_result(
+                args.config,
+                run_dir,
+                result_path=args.result,
+                expected_result_sha256=args.expect_result_sha,
             )
         elif args.command == "audit-pilot-dataset":
             # Validate the material config too; the pilot manifest then provides
@@ -6355,6 +6951,8 @@ def main(argv: Iterable[str] | None = None) -> int:
                 pilot_dataset_manifest_sha256=args.expect_pilot_manifest_sha,
                 selection_evidence=args.selection_evidence,
                 resource_request_path=args.resource_request,
+                pilot_release=args.pilot_release,
+                pilot_release_sha256=args.expect_pilot_release_sha,
             )
         elif args.command == "run-force-task":
             result = command_run_force_task(

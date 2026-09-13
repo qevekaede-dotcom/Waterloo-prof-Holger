@@ -32,7 +32,7 @@ p3_require_context
     || p3_die "PRIMARY_JOB_ID must contain only digits"
 
 EXPECTED_ALLOCATIONS=1
-if [[ "$PRIMARY_STAGE" == "diagnostic" || "$PRIMARY_STAGE" == "fire-pilot" ]]; then
+if [[ "$PRIMARY_STAGE" == "diagnostic" || "$PRIMARY_STAGE" == "force" || "$PRIMARY_STAGE" == "fire-pilot" ]]; then
     : "${PRIMARY_REQUEST_SHA256:?collector requires the primary request hash}"
     : "${PRIMARY_RESULT_SHA256:?collector requires the primary response hash}"
     : "${PRIMARY_STAGE_SCRIPT_SHA256:?collector requires the primary stage-script hash}"
@@ -49,6 +49,7 @@ if [[ "$PRIMARY_STAGE" == "force" ]]; then
     : "${FORCE_MANIFEST:?force collector requires the exact immutable force_manifest.json}"
     : "${PRIMARY_TASK_MAP_SHA256:?force collector requires the submitted task-map SHA256}"
     : "${PRIMARY_FORCE_MANIFEST_SHA256:?force collector requires the submitted manifest SHA256}"
+    : "${P3_FORCE_TASK_IDS:?force collector requires the submitted logical task IDs}"
     [[ "$PRIMARY_TASK_MAP_SHA256" =~ ^[0-9a-f]{64}$ ]] \
         || p3_die "PRIMARY_TASK_MAP_SHA256 is invalid"
     [[ "$PRIMARY_FORCE_MANIFEST_SHA256" =~ ^[0-9a-f]{64}$ ]] \
@@ -63,7 +64,9 @@ if [[ "$PRIMARY_STAGE" == "force" ]]; then
         || p3_die "force task map must belong to the selected RUN_DIR"
     [[ "$FORCE_MANIFEST" == "$(dirname "$TASK_MAP")/force_manifest.json" ]] \
         || p3_die "force manifest must be adjacent to the exact task map"
-    EXPECTED_ALLOCATIONS="$(awk 'END { print (NR > 0 ? NR - 1 : 0) }' "$TASK_MAP")"
+    [[ "$P3_FORCE_TASK_IDS" =~ ^[0-9]+(,[0-9]+)*$ ]] \
+        || p3_die "P3_FORCE_TASK_IDS is invalid"
+    EXPECTED_ALLOCATIONS="$(awk -F ',' '{ print NF }' <<< "$P3_FORCE_TASK_IDS")"
     [[ "$EXPECTED_ALLOCATIONS" =~ ^[1-9][0-9]*$ ]] \
         || p3_die "force task map contains no task rows"
 fi
@@ -90,7 +93,10 @@ SACCT_RECORD="$P3_ATTEMPT_DIR/primary_sacct.psv"
 SACCT_STATUS="$P3_ATTEMPT_DIR/primary_sacct_exit_code.txt"
 SACCT_HEADER='JobID|JobIDRaw|State|ExitCode|ElapsedRaw|AllocCPUS|MaxRSS'
 SACCT_FORMAT='JobID,JobIDRaw,State,ExitCode,ElapsedRaw,AllocCPUS,MaxRSS'
-if [[ "$PRIMARY_STAGE" == "diagnostic" || "$PRIMARY_STAGE" == "fire-pilot" ]]; then
+if [[ "$PRIMARY_STAGE" == "force" ]]; then
+    SACCT_HEADER='JobID|JobIDRaw|State|ExitCode|ElapsedRaw|AllocCPUS|MaxRSS|TimelimitRaw'
+    SACCT_FORMAT='JobID,JobIDRaw,State,ExitCode,ElapsedRaw,AllocCPUS,MaxRSS,TimelimitRaw'
+elif [[ "$PRIMARY_STAGE" == "diagnostic" || "$PRIMARY_STAGE" == "fire-pilot" ]]; then
     SACCT_HEADER='JobID|JobIDRaw|State|ExitCode|ElapsedRaw|AllocCPUS|MaxRSS|Account|Partition|NNodes|NCPUS|ReqMem|TimelimitRaw'
     SACCT_FORMAT='JobID,JobIDRaw,State,ExitCode,ElapsedRaw,AllocCPUS,MaxRSS,Account,Partition,NNodes,NCPUS,ReqMem,TimelimitRaw'
 fi
@@ -174,7 +180,7 @@ collect_args=(
     --scheduler-accounting "$SACCT_RECORD"
     --scheduler-accounting-status "$SACCT_STATUS"
 )
-if [[ "$PRIMARY_STAGE" == "diagnostic" || "$PRIMARY_STAGE" == "fire-pilot" ]]; then
+if [[ "$PRIMARY_STAGE" == "diagnostic" || "$PRIMARY_STAGE" == "force" || "$PRIMARY_STAGE" == "fire-pilot" ]]; then
     collect_args+=(
         --expect-primary-request-sha "$PRIMARY_REQUEST_SHA256"
         --expect-primary-result-sha "$PRIMARY_RESULT_SHA256"
@@ -188,6 +194,10 @@ if [[ "$PRIMARY_STAGE" == "force" ]]; then
         --expect-force-manifest-sha "$PRIMARY_FORCE_MANIFEST_SHA256"
         --expect-task-map-sha "$PRIMARY_TASK_MAP_SHA256"
     )
+    IFS=',' read -r -a primary_task_ids <<< "$P3_FORCE_TASK_IDS"
+    for primary_task_id in "${primary_task_ids[@]}"; do
+        collect_args+=(--primary-task-id "$primary_task_id")
+    done
 fi
 
 export P3_STAGE="collect"

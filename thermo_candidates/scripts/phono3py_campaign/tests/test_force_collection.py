@@ -276,15 +276,15 @@ class ForceCollectionTests(unittest.TestCase):
 
     def make_accounting(self, states: tuple[tuple[str, str], ...]) -> tuple[Path, Path]:
         accounting = self.collector / "primary_sacct.psv"
-        lines = ["|".join(campaign.SACCT_FIELDS)]
+        lines = ["|".join(campaign.FORCE_SACCT_FIELDS)]
         for task_id, (state, exit_code) in enumerate(states):
             display_id = f"{self.primary_job_id}_{task_id}"
             raw_job_id = str(int(self.primary_job_id) + task_id + 1)
             lines.append(
-                f"{display_id}|{raw_job_id}|{state}|{exit_code}|120|32|"
+                f"{display_id}|{raw_job_id}|{state}|{exit_code}|120|32||120"
             )
             lines.append(
-                f"{display_id}.batch|{raw_job_id}.batch|{state}|{exit_code}|120|32|128M"
+                f"{display_id}.batch|{raw_job_id}.batch|{state}|{exit_code}|120|32|128M|120"
             )
         accounting.write_text("\n".join(lines) + "\n")
         status = self.collector / "primary_sacct_exit_code.txt"
@@ -403,6 +403,66 @@ class ForceCollectionTests(unittest.TestCase):
         self.assertTrue(
             any("missing scheduler accounting" in error for error in report["global_errors"])
         )
+
+    def test_initial_scheduler_failure_before_wrapper_is_authenticated_retryable(self) -> None:
+        manifest_path, task_map, tasks = self.make_bundle("pilot")
+        request_path = self.run_dir / "synthetic-primary-request.json"
+        request_path.write_text(json.dumps({
+            "scheduler_options": ["--ntasks=32", "--time=02:00:00"],
+            "array": "0%2",
+        }))
+        binding = {
+            "primary_request": {
+                "path": str(request_path),
+                "sha256": campaign.sha256_path(request_path),
+            }
+        }
+        initial_manifest = {
+            "config_sha256": campaign.sha256_path(self.config_path),
+            "mode": "pilot",
+            "initial_pilot_release": {"sha256": "a" * 64},
+        }
+        allocation = {
+            "JobID": "900_0", "JobIDRaw": "901", "State": "NODE_FAIL",
+            "ExitCode": "0:0", "ElapsedRaw": "17", "AllocCPUS": "32",
+            "MaxRSS": "", "TimelimitRaw": "120",
+        }
+        kwargs = dict(
+            config=self.config, config_path=self.config_path,
+            run_dir=self.run_dir, current_attempt=self.collector,
+            primary_attempt_id=self.primary_attempt_id,
+            primary_job_id=self.primary_job_id,
+            force_manifest_path=manifest_path, task_map_path=task_map,
+            expected_force_manifest_sha256=campaign.sha256_path(manifest_path),
+            expected_task_map_sha256=campaign.sha256_path(task_map),
+            submitted_task_ids=[0], expected_primary_request_sha256="b" * 64,
+            expected_primary_result_sha256="c" * 64,
+            expected_primary_stage_script_sha256="d" * 64,
+            accounting_errors=[], accounting_metadata={"sha256": "e" * 64},
+        )
+        with patch.object(
+            campaign, "_load_force_collection_contract",
+            return_value=(initial_manifest, [tasks[0]]),
+        ), patch.object(
+            campaign, "_force_submission_binding", return_value=binding
+        ):
+            report = campaign._collect_force_batch(
+                **kwargs, accounting_records=[allocation]
+            )
+            ambiguous = campaign._collect_force_batch(
+                **kwargs, accounting_records=[allocation, dict(allocation)]
+            )
+
+        entry = report["entries"][0]
+        self.assertTrue(report["collection_integrity_complete"])
+        self.assertEqual(entry["outcome"], "upstream_failed")
+        self.assertEqual(
+            entry["technical_failure_source"],
+            "authenticated_scheduler_pre_wrapper",
+        )
+        self.assertEqual(entry["resource_usage"]["timelimit_minutes"], 120)
+        self.assertFalse(ambiguous["collection_integrity_complete"])
+        self.assertEqual(ambiguous["entries"][0]["outcome"], "missing_or_unfinished")
 
     def test_nonzero_exit_requires_a_failure_receipt(self) -> None:
         manifest, task_map, _ = self.make_bundle("pilot")

@@ -99,6 +99,10 @@ fi
                 "FORCE_MANIFEST": str(manifest.resolve()),
                 "PRIMARY_TASK_MAP_SHA256": "a" * 64,
                 "PRIMARY_FORCE_MANIFEST_SHA256": "b" * 64,
+                "PRIMARY_REQUEST_SHA256": "c" * 64,
+                "PRIMARY_RESULT_SHA256": "d" * 64,
+                "PRIMARY_STAGE_SCRIPT_SHA256": "e" * 64,
+                "P3_FORCE_TASK_IDS": "0,1",
                 "SLURM_JOB_ID": "999",
                 "FAKE_SACCT_COUNTER": str(counter),
                 "FAKE_SACCT": str(sacct),
@@ -125,6 +129,8 @@ fi
         self.assertIn("force-primary-1", arguments)
         self.assertIn("--expect-force-manifest-sha", arguments)
         self.assertIn("b" * 64, arguments)
+        self.assertEqual(arguments.count("--primary-task-id"), 2)
+        self.assertIn("--expect-primary-request-sha", arguments)
 
 
 if __name__ == "__main__":
