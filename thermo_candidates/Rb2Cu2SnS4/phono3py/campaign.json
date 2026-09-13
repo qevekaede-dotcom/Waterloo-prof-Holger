@@ -188,6 +188,93 @@
     },
     "ordinary_acceptance_still_required": "normal BFGS convergence plus independent pristine SCF plus the unchanged full relax gate"
   },
+  "reviewed_fire_recovery": {
+    "status": "reviewed_planned_hypothesis_not_validated",
+    "purpose": "A separate one-shot FIRE recovery lineage after the terminal BFGS lineage. It is not an extension, retry, or acceptance of the BFGS final state.",
+    "seed_contract": {
+      "required_source": "old_real_lineage/polish_reference.in",
+      "forbidden_sources": ["polish_seed.in", "21848175_failed_terminal_state"],
+      "cross_checks": ["lineage_source/one_reset_attempt/reference_unitcell.in", "lineage_source/one_reset_run/recovery_reference.in"],
+      "require_byte_identical": true,
+      "required_atom_count": 18,
+      "required_spacegroup": "Ibam No.72 at 1e-6 angstrom",
+      "seed_is_accepted_structure": false
+    },
+    "trusted_old_lineage": {
+      "run_dir": "/scratch/yuhansun/phono3py-runs/20260911-continuation-cf0b1d1/Rb2Cu2SnS4",
+      "reference_sha256": "b2f919f7af04a0fd93400e2e5cd021bb489947e245e3d834694167bf2ded714f",
+      "standardization_audit_sha256": "cf78d8a24cb8e0d8547321b6e7cfd26677cd3872a52797842f602fcf621ba1ad",
+      "failed_relax_output_sha256": "f486cbab5b743ab28df1a492bd32b84b283a9f67e7ffdb9418764a9e238c2de2",
+      "failed_relax_context_sha256": "1a9559670e04d43e0555b966698e34e93918a302b867e1711900bb80f4eab8d7",
+      "later_collector_collection_sha256": "d5b4e87c8c69dddb5f1ba484d0a6d2f2dc618be6ec55f8d3e7b8d4611f4d2c83",
+      "later_collector_context_sha256": "fa4690608472e086c8d76a5aa249c312505b8aa01fca3a80a7d1fe2bbd645ed6",
+      "diagnostic_primary_job_id": "21732222",
+      "diagnostic_collector_job_id": "21732223",
+      "failed_relax_job_id": "21848175",
+      "failed_relax_collector_job_id": "21848176"
+    },
+    "settings": {
+      "ecutwfc_ry": 100,
+      "ecutrho_ry": 800,
+      "kmesh": [4, 7, 7],
+      "occupations": "fixed",
+      "conv_thr_ry": 1e-10,
+      "electron_maxstep": 300,
+      "mixing_beta": 0.3,
+      "scf_must_converge": true,
+      "etot_conv_thr_ry": 1e-8,
+      "forc_conv_thr_ry_bohr": 1e-5,
+      "dt_au": 10,
+      "fire_alpha_init": 0.2,
+      "fire_falpha": 0.99,
+      "fire_nmin": 5,
+      "fire_f_inc": 1.1,
+      "fire_f_dec": 0.5,
+      "fire_dtmax": 2.0,
+      "pot_extrapolation": "atomic",
+      "wfc_extrapolation": "none"
+    },
+    "pilot": {
+      "calculation": "relax",
+      "ion_dynamics": "fire",
+      "nstep": 8,
+      "max_seconds": 6300,
+      "fresh_scratch_required": true,
+      "final_state_is_accepted": false,
+      "may_seed_full": false,
+      "release_conditions": ["all_scf_converged", "no_fatal_nan_or_oom", "cell_and_atom_order_unchanged", "final_max_component_below_initial", "final_max_component_le_1e-4_Ry_per_bohr", "cumulative_shift_le_0p02A", "Ibam_at_1e-6A"]
+    },
+    "full": {
+      "calculation": "relax",
+      "ion_dynamics": "fire",
+      "nstep": 100,
+      "max_seconds": 39600,
+      "fresh_scratch_required": true,
+      "seed": "same_frozen_fire_seed_not_pilot_terminal_state",
+      "normal_convergence_markers": ["FIRE: convergence achieved in", "End of FIRE minimization"],
+      "JOB_DONE_alone_is_invalid": true,
+      "timeout_nstep_or_failure_is_terminal_for_lineage": true
+    },
+    "resources": {
+      "partition": "cpubase_bycore_b2",
+      "ntasks": 32,
+      "mem_per_cpu_mb": 2000,
+      "pilot_walltime_hours": 2,
+      "full_walltime_hours": 12,
+      "full_core_hours": 384
+    },
+    "structure_gate": {
+      "fire_force_threshold_ry_bohr": 1e-5,
+      "fire_and_pristine_max_component_ry_bohr": 5e-5,
+      "hard_stop_max_component_ry_bohr": 1e-4,
+      "max_shift_angstrom": 0.02,
+      "strict_spacegroup": "Ibam No.72 at 1e-6 angstrom",
+      "pristine": {"fresh_scratch": true, "nosym": true, "noinv": true, "startingpot": "atomic", "startingwfc": "atomic+random"},
+      "finalizer": {"structure_accepted": true, "preflight_unlocked": false},
+      "preflight_release_requires": "independent_read_only_replay_and_review",
+      "preflight_release_scope": "count_only_only_no_automatic_submission_force_or_production_unlock"
+    }
+  },
   "start_structure_standardization": {
     "symmetrize_start": true,
     "reason": "The high-precision archived vc-relax geometry is numerically close to Ibam but is recognized as P-1/C2c at tighter tolerances; idealization is an explicit, recorded scientific choice rather than a silent edit.",

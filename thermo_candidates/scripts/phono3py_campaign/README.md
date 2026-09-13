@@ -31,22 +31,31 @@ The currently released path is:
    RUN_DIR's only diagnostic opportunity, including startup/node failures;
    retry requires a separately reviewed new run rather than reuse of the old
    lineage directory;
-5. fixed-cell tight `relax` plus a setting-matched independent pristine SCF
+5. the Rb2Cu2SnS4 `reviewed_fire_recovery` is a dedicated FIRE lineage, not a
+   BFGS fallback. It accepts only a byte-identical `polish_reference.in` and
+   both archived reference records into a new non-nested RUN_DIR; pilot output
+   cannot seed full. This is a reviewed plan implementation only: `execute`,
+   both FIRE wrappers, and the direct FIRE run/finalize CLI are hard-locked.
+   The retained future gate specification requires QE 7.3.1's `FIRE:
+   convergence achieved in` and `End of FIRE minimization`, never merely `JOB
+   DONE`; independent replay/review and any count-only release are not yet
+   implemented and preflight remains locked;
+6. fixed-cell tight `relax` plus a setting-matched independent pristine SCF
    inside a Nibi Slurm allocation;
-6. `finalize-relax`, which publishes a structure only if completion, BFGS,
+7. `finalize-relax`, which publishes a structure only if completion, BFGS,
    force, cell, atom-order, position-shift, and symmetry checks all pass;
-7. compute-node-only `preflight`, which enumerates configured phono3py
+8. compute-node-only `preflight`, which enumerates configured phono3py
    displacement candidates and audits units, IDs, matrices, cells, counts,
    and hard caps without running displaced-force calculations. An optional
    repeated `--candidate-id` list selects a nonempty, duplicate-free subset;
    its canonical SHA256 binds the exact config enumeration and preflight
    policy through plan, Slurm export, attempt context, CLI, and inventory.
    Omitting the option retains the full configured enumeration;
-8. explicit signed pilot-dataset, resource-receipt, force-task, raw-evidence,
+9. explicit signed pilot-dataset, resource-receipt, force-task, raw-evidence,
    and pilot-analysis paths. These paths remain bounded by the six-SCF initial
    timing/noise composition and the configured concurrency and cumulative
    pilot limits; none may bypass the accepted-structure or selection gates;
-9. evidence-only `collect`, normally submitted with `afterany` so a failed
+10. evidence-only `collect`, normally submitted with `afterany` so a failed
    primary job still leaves a machine-readable record.
 
 After an explicitly selected and fully collected production force campaign,

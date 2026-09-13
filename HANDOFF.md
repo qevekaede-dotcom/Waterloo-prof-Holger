@@ -158,6 +158,19 @@ the old run remained at 963 files and its four checked gate/provenance/lineage/
 manifest hashes were unchanged.  This validates evidence replay only and does
 not authorize another relaxation.
 
+A distinct Rb2Cu2SnS4 FIRE hypothesis now has a locally verified,
+**plan-only** preparation boundary.  It can prepare a new lineage only from
+the frozen pre-BFGS `polish_reference.in` after replaying the exact historical
+configuration, diagnostic chain, failed-relax output, later collector, and
+their fixed paths and full context hashes.  It does not use the failed BFGS
+terminal geometry.  Public and internal submission paths, both Slurm wrappers,
+full planning, finalization, and preflight release remain hard-locked; the
+pilot plan exposes no runnable `sbatch` command.  The full local suite passed
+353 tests with one optional-spglib skip, both material configurations remained
+production-blocked, and a fresh independent review returned `SHIP` for this
+plan-only scope.  No new FIRE RUN_DIR, Slurm job, QE calculation, accepted
+structure, or scientific result has yet been produced from this implementation.
+
 For SrZrS3, the prior 3.70-A count-only result remains 1003 supercells for
 both reviewed supercells and is over the hard cap of 800.  The narrower
 2x1x1 count-only job `21850149` completed `0:0`: its raw YAML gives exactly

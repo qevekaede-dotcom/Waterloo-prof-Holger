@@ -259,3 +259,34 @@ and run manifest were unchanged; no Slurm job was submitted.  This establishes
 that the original diagnostic evidence can be replayed after the later failed
 relax collector.  It does not change the BFGS failure, accept a structure, or
 release any preflight, pilot, or production force work.
+
+---
+
+## 2026-09-14 — dedicated FIRE recovery reviewed plan, execute hard-locked
+
+A separate, fail-closed `reviewed_fire_recovery` policy and `fire_recovery.py`
+were added for a future reviewed FIRE-only recovery. It is explicitly not a
+generalization of the failed BFGS polish. Preparation requires a new,
+non-nested RUN_DIR and byte-identical copies of the old real lineage's
+`polish_reference.in`, `one_reset_attempt/reference_unitcell.in`, and
+`one_reset_run/recovery_reference.in`; it rejects `polish_seed.in`, failed
+terminal geometry, symlinks, and source mismatch. The frozen reference remains
+a seed rather than an accepted structure.
+
+The planned pilot is 8 FIRE steps / 6300 s on 32 ranks for 2 h, and full is
+100 FIRE steps / 39600 s on the same frozen seed for 12 h (384 core-hours).
+QE 7.3.1 must print both `FIRE: convergence achieved in` and `End of FIRE
+minimization`; `JOB DONE` alone remains invalid. The implementation rejects
+BFGS trust controls and specifies the independent pristine gate, but it is
+not an execution chain: public and internal `submit.py` execution paths and
+the direct FIRE `run`/`finalize` CLI all hard-fail before `sbatch`. A manually
+submitted FIRE wrapper exits only after its Slurm allocation starts, but before
+any QE launch, scratch creation, or attempt creation. It keeps
+`preflight_unlocked=false`; independent replay/review and any count-only
+preflight release remain unimplemented, so cannot unlock force or production.
+
+No source lineage was prepared, no new Slurm job was submitted, no QE calculation
+was launched, and no scientific result was produced. Local validation passed
+353 tests (one optional spglib test skipped), configuration validation,
+Python compilation, shell syntax checks, and `git diff --check`. Production
+budget and selections remain null/blocked.

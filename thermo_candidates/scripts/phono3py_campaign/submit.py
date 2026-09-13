@@ -47,6 +47,8 @@ STAGE_SCRIPTS = {
     "preflight": "preflight.sbatch",
     "force": "force_array.sbatch",
     "postprocess": "postprocess.sbatch",
+    "fire-pilot": "fire_pilot.sbatch",
+    "fire-full": "fire_full.sbatch",
 }
 COLLECTED_STAGES = frozenset({"diagnostic", "relax", "force"})
 SHA256_RE = re.compile(r"[0-9a-f]{64}")
@@ -290,6 +292,13 @@ def resolve_context(config_path: Path, run_dir: Path, stage: str) -> SubmissionC
             raise SubmissionError(
                 f"reviewed diagnostic lineage is not submission-ready: {exc}"
             ) from exc
+    elif stage in {"fire-pilot", "fire-full"}:
+        from fire_recovery import verify_fire_submission_ready
+        try:
+            ready = verify_fire_submission_ready(config_path, run_dir, stage)
+        except (CampaignError, OSError, ValueError, KeyError) as exc:
+            raise SubmissionError(f"FIRE lineage is not submission-ready: {exc}") from exc
+        manifest = {"material": ready["material"], "fire_lineage_sha256": ready["lineage_sha256"]}
     elif stage == "relax":
         policy_stage = "structure"
         manifest = verify_manifest(config, config_path, run_dir, stage=policy_stage)
@@ -1080,6 +1089,17 @@ def stage_plan(
         exports["P3_DIAGNOSTIC_BACKEND_SHA256"] = sha256_path(
             Path(__file__).resolve().with_name("polish_recovery.py")
         )
+    elif stage in {"fire-pilot", "fire-full"}:
+        from fire_recovery import verify_fire_submission_ready
+        try:
+            ready = verify_fire_submission_ready(context.config_path, context.run_dir, stage)
+        except (CampaignError, OSError, ValueError, KeyError) as exc:
+            raise SubmissionError(f"FIRE lineage is not ready: {exc}") from exc
+        resources = required(context.config, "reviewed_fire_recovery.resources")
+        hours = resources["pilot_walltime_hours"] if stage == "fire-pilot" else resources["full_walltime_hours"]
+        scheduler_options = ("--partition=cpubase_bycore_b2", "--nodes=1", "--ntasks=32", "--cpus-per-task=1", "--mem-per-cpu=2000M", f"--time={format_slurm_time(hours)}")
+        exports["P3_FIRE_RECOVERY_SHA256"] = sha256_path(Path(__file__).resolve().with_name("fire_recovery.py"))
+        exports["P3_FIRE_LINEAGE_SHA256"] = ready["lineage_sha256"]
     elif stage == "relax":
         if context.manifest.get("accepted_structure_import") is not None:
             raise SubmissionError(
@@ -1184,6 +1204,8 @@ def export_argument(exports: Mapping[str, str]) -> str:
         "P3_DIAGNOSTIC_REQUESTED_WALLTIME_MINUTES",
         "P3_DIAGNOSTIC_LINEAGE_SHA256",
         "P3_DIAGNOSTIC_BACKEND_SHA256",
+        "P3_FIRE_RECOVERY_SHA256",
+        "P3_FIRE_LINEAGE_SHA256",
         "PRIMARY_STAGE",
         "PRIMARY_ATTEMPT_ID",
         "PRIMARY_JOB_ID",
@@ -1432,7 +1454,9 @@ def plan_report(
         max_in_flight=max_in_flight,
         candidate_ids=candidate_ids,
     )
-    preview_command = sbatch_command(preview)
+    # FIRE is review-only planning: do not print a runnable sbatch template
+    # that could be copied around the execute hard lock.
+    preview_command = None if stage in {"fire-pilot", "fire-full"} else sbatch_command(preview)
     return {
         "healthy": True,
         "mode": "plan",
@@ -1459,7 +1483,10 @@ def plan_report(
         ),
         "primary_command_template": preview_command,
         "collector": stage in COLLECTED_STAGES,
+        "execution_released": stage not in {"fire-pilot", "fire-full"},
         "execute_requirement": (
+            "Unavailable: FIRE execution is hard-locked pending independent replay and receipt verification."
+            if stage in {"fire-pilot", "fire-full"} else
             "Run execute with --expect-config-sha exactly equal to config_sha256; "
             "an explicit preflight subset also requires --expect-candidate-subset-sha "
             "exactly equal to candidate_subset_sha256; a new ATTEMPT_ID is generated "
@@ -1482,6 +1509,8 @@ def _request_record(
         workflow_sha256["polish_recovery.py"] = plan.exports[
             "P3_DIAGNOSTIC_BACKEND_SHA256"
         ]
+    if plan.stage in {"fire-pilot", "fire-full"}:
+        workflow_sha256["fire_recovery.py"] = plan.exports["P3_FIRE_RECOVERY_SHA256"]
     return {
         "created_utc": utc_now(),
         "stage": plan.stage,
@@ -1496,6 +1525,11 @@ def _request_record(
         "polish_lineage_sha256": (
             context.manifest.get("lineage_sha256")
             if plan.stage == "diagnostic"
+            else None
+        ),
+        "fire_lineage_sha256": (
+            plan.exports.get("P3_FIRE_LINEAGE_SHA256")
+            if plan.stage in {"fire-pilot", "fire-full"}
             else None
         ),
         "submit_script_sha256": sha256_path(Path(__file__).resolve()),
@@ -1535,6 +1569,12 @@ def execute_submission(
     candidate_ids: Sequence[str] | None = None,
     expected_candidate_subset_sha: str | None = None,
 ) -> dict[str, Any]:
+    # This implementation is deliberately planning-only.  Do this before
+    # lock acquisition, attempt creation, request writing, or sbatch access.
+    if stage in {"fire-pilot", "fire-full"}:
+        raise SubmissionError(
+            "FIRE execution is hard-locked: independent lineage replay and execution receipt verification are not implemented"
+        )
     require_nibi_login()
     expected = expected_config_sha
     if not SHA256_RE.fullmatch(expected):
@@ -1596,6 +1636,12 @@ def _execute_locked(
     candidate_ids: Sequence[str] | None = None,
     expected_candidate_subset_sha: str | None = None,
 ) -> dict[str, Any]:
+    # Keep the no-execution boundary effective for direct/internal callers as
+    # well as execute_submission's public entry point.
+    if stage in {"fire-pilot", "fire-full"}:
+        raise SubmissionError(
+            "FIRE execution is hard-locked: independent lineage replay and execution receipt verification are not implemented"
+        )
     ensure_no_active_duplicate(context.run_dir, stage)
 
     attempt_id = new_attempt_id(stage)

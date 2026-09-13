@@ -120,3 +120,28 @@ for `diagnostic/final/gate.json`, its provenance, `polish_lineage.json`, and
 `run_manifest.json` were identical before and after.  No Slurm job was
 submitted and no old evidence was changed.  This closes the replay software
 defect only; the failed BFGS polish remains scientifically blocked.
+
+## 2026-09-14 — Rb FIRE recovery preparation is reviewed plan-only
+
+1. Added a separate fail-closed FIRE preparation policy for a future new
+   Rb2Cu2SnS4 lineage.  It uses only the frozen pre-BFGS reference seed and
+   does not accept or extend failed BFGS job `21848175`.
+2. Two fix/review cycles closed evidence-replay gaps: historical raw and
+   canonical configuration identities are pinned; failed-relax and later-
+   collector outputs and full contexts are bound to exact paths and hashes;
+   the replay validator is part of the workflow fingerprint; and new paths
+   reject symlink ancestors before resolution.
+3. The final local suite passed 353 tests with one optional-spglib skip.
+   Python compilation, shell syntax, both Rb/Sr configuration validations,
+   and `git diff --check` passed.  A fresh independent review returned `SHIP`
+   only for the plan-only implementation.
+4. Nibi remained reachable and a read-only check found no queued jobs.  No new
+   RUN_DIR, Slurm submission, QE calculation, or scientific result was made at
+   this milestone.  All FIRE execution, collection, final acceptance, and
+   independent preflight release paths remain hard-locked.
+
+**Scientific review:** this milestone establishes software provenance and a
+bounded future hypothesis only.  Rb2Cu2SnS4 still has no accepted structure,
+pristine gate, preflight, force/FC2/FC3, or kappa_L result.  SrZrS3's 787-input
+record remains count-only and does not select a cutoff or release pilot or
+production work.  Both production budgets/selections remain null or blocked.

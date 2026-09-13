@@ -648,6 +648,7 @@ def build_fixed_cell_relax_input(
     trust_radius_ini: float | None = None,
     trust_radius_min: float | None = None,
     trust_radius_max: float | None = None,
+    fire_parameters: Mapping[str, object] | None = None,
 ) -> str:
     """Return a fixed-cell, phonon-grade ionic-relaxation QE input."""
 
@@ -655,8 +656,13 @@ def build_fixed_cell_relax_input(
     _source_is_fixed_cell_safe(source)
     if calculation.lower() != "relax":
         raise QEInputError("fixed-cell campaign preparation requires calculation='relax'")
-    if ion_dynamics.lower() != "bfgs":
-        raise QEInputError("phonon-grade relax preparation requires ion_dynamics='bfgs'")
+    dynamics = ion_dynamics.lower()
+    if dynamics not in {"bfgs", "fire"}:
+        raise QEInputError("phonon-grade relax preparation requires ion_dynamics='bfgs' or 'fire'")
+    if dynamics == "fire" and any(value is not None for value in (bfgs_ndim, trust_radius_ini, trust_radius_min, trust_radius_max)):
+        raise QEInputError("FIRE input must not contain BFGS trust parameters")
+    if dynamics == "bfgs" and fire_parameters is not None:
+        raise QEInputError("BFGS input must not contain FIRE parameters")
     if tprnfor is not True:
         raise QEInputError("phonon-grade relax preparation requires tprnfor=True")
     ecutwfc_value = float(ecutwfc)
@@ -680,6 +686,16 @@ def build_fixed_cell_relax_input(
         control_updates["etot_conv_thr"] = _fortran_float(
             etot_conv_thr, "etot_conv_thr", scientific=True
         )
+    # QE 7.3.1 documents dt as a CONTROL variable.  FIRE-specific controls
+    # are added below to IONS only; keeping this distinction prevents a
+    # syntactically plausible but scientifically different input.
+    if dynamics == "fire":
+        if not isinstance(fire_parameters, Mapping):  # guarded above; keeps type narrow
+            raise QEInputError("FIRE input requires an explicit FIRE parameter mapping")
+        dt = fire_parameters.get("dt")
+        if isinstance(dt, bool) or not isinstance(dt, (int, float)) or not math.isfinite(float(dt)) or float(dt) <= 0:
+            raise QEInputError("dt must be finite and positive for FIRE")
+        control_updates["dt"] = _fortran_float(float(dt), "dt")
     result = _set_namelist_values(
         source_text,
         "CONTROL",
@@ -707,19 +723,38 @@ def build_fixed_cell_relax_input(
         electron_updates,
     )
     ions_updates = {
-        "ion_dynamics": _fortran_string(ion_dynamics.lower(), "ion_dynamics")
+        "ion_dynamics": _fortran_string(dynamics, "ion_dynamics")
     }
-    bfgs_parameters = validate_bfgs_parameters(
-        bfgs_ndim=bfgs_ndim,
-        trust_radius_ini=trust_radius_ini,
-        trust_radius_min=trust_radius_min,
-        trust_radius_max=trust_radius_max,
-    )
-    if "bfgs_ndim" in bfgs_parameters:
-        ions_updates["bfgs_ndim"] = str(bfgs_parameters["bfgs_ndim"])
-    for name in ("trust_radius_ini", "trust_radius_min", "trust_radius_max"):
-        if name in bfgs_parameters:
-            ions_updates[name] = _fortran_float(bfgs_parameters[name], name)
+    if dynamics == "bfgs":
+        bfgs_parameters = validate_bfgs_parameters(
+            bfgs_ndim=bfgs_ndim, trust_radius_ini=trust_radius_ini,
+            trust_radius_min=trust_radius_min, trust_radius_max=trust_radius_max,
+        )
+        if "bfgs_ndim" in bfgs_parameters:
+            ions_updates["bfgs_ndim"] = str(bfgs_parameters["bfgs_ndim"])
+        for name in ("trust_radius_ini", "trust_radius_min", "trust_radius_max"):
+            if name in bfgs_parameters:
+                ions_updates[name] = _fortran_float(bfgs_parameters[name], name)
+    else:
+        if not isinstance(fire_parameters, Mapping):
+            raise QEInputError("FIRE input requires an explicit FIRE parameter mapping")
+        expected = {"dt", "fire_alpha_init", "fire_falpha", "fire_nmin", "fire_f_inc", "fire_f_dec", "fire_dtmax", "pot_extrapolation", "wfc_extrapolation"}
+        if set(fire_parameters) != expected:
+            raise QEInputError("FIRE parameter mapping has an unsafe or incomplete key set")
+        for name in ("fire_alpha_init", "fire_falpha", "fire_f_inc", "fire_f_dec", "fire_dtmax"):
+            value = fire_parameters[name]
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(float(value)) or float(value) <= 0:
+                raise QEInputError(f"{name} must be finite and positive for FIRE")
+            ions_updates[name] = _fortran_float(float(value), name)
+        nmin = fire_parameters["fire_nmin"]
+        if isinstance(nmin, bool) or not isinstance(nmin, int) or nmin < 1:
+            raise QEInputError("fire_nmin must be a positive integer")
+        ions_updates["fire_nmin"] = str(nmin)
+        for name in ("pot_extrapolation", "wfc_extrapolation"):
+            value = fire_parameters[name]
+            if value not in {"atomic", "none"}:
+                raise QEInputError(f"unsafe FIRE {name}")
+            ions_updates[name] = _fortran_string(str(value), name)
     result = _set_namelist_values(result, "IONS", ions_updates)
     result = _set_namelist_values(
         result,

@@ -1821,6 +1821,34 @@ class PolishRecoveryTests(unittest.TestCase):
                 self.pseudos,
             )
 
+    def test_final_diagnostic_historical_config_sha_override_is_exact(self) -> None:
+        """The full dispatch/collector replay must use, not infer, old bytes."""
+        self._prepare()
+        self._write_passing_diagnostic()
+        gate = self.polish_run / "diagnostic/final/gate.json"
+        historical_sha = core.sha256_path(CONFIG)
+        original_sha = core.sha256_path
+
+        def changed_current_config_bytes(path):
+            if Path(path).resolve() == CONFIG.resolve():
+                return "f" * 64
+            return original_sha(path)
+
+        # All raw dispatch, wrapper, collector, accounting and QE evidence is
+        # replayed normally.  Only the apparent bytes of verifier config differ
+        # from the historical config SHA carried by the records.
+        with patch.object(core, "sha256_path", side_effect=changed_current_config_bytes):
+            replay = polish._audit_final_diagnostic(
+                self.config, CONFIG, self.polish_run, gate,
+                expected_config_sha256=historical_sha,
+            )
+            self.assertTrue(replay["pass"])
+            with self.assertRaises(core.CampaignError):
+                polish._audit_final_diagnostic(
+                    self.config, CONFIG, self.polish_run, gate,
+                    expected_config_sha256="e" * 64,
+                )
+
     def test_post_polish_replay_allows_bound_later_relax_collector(self) -> None:
         for primary_stage in ("relax", "force"):
             with self.subTest(primary_stage=primary_stage):

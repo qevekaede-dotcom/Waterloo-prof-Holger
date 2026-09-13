@@ -2376,6 +2376,12 @@ def validate_config(config_path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
         force_stop = positive_number(required(config, "tight_relax.hard_stop_max_force_ry_bohr"), "hard-stop force")
         check(force_target < force_stop, "accept force must be below hard-stop force")
         check(required(config, "tight_relax.cell_fixed") is True, "tight relax must keep cell fixed")
+        # FIRE recovery is a separate, explicitly reviewed lineage.  Keep the
+        # historic BFGS validation below intact: a FIRE policy must never make
+        # the BFGS finalizer accept a different optimizer's terminal record.
+        if config.get("reviewed_fire_recovery") is not None:
+            from fire_recovery import validate_fire_policy
+            validate_fire_policy(config)
         polish_policy = config.get("reviewed_bfgs_polish")
         if polish_policy is not None:
             check(isinstance(polish_policy, Mapping), "reviewed_bfgs_polish must be an object")

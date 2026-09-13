@@ -1347,8 +1347,8 @@ def _recorded_checkout_paths(
     every command, export, and wrapper path must select the same absolute root.
     """
 
-    current_root = _current_checkout_root()
     config_path = config_path.resolve(strict=True)
+    current_root = _current_checkout_root()
     try:
         config_relative = config_path.relative_to(current_root)
     except ValueError as exc:
@@ -2043,13 +2043,18 @@ def _audit_diagnostic_dispatch_chain(
     expected_execution_sha256: str,
     *,
     expected_checkout_root: Path | None = None,
+    expected_config_sha256: str | None = None,
 ) -> dict[str, Any]:
     """Replay the unique submit, wrapper, collector, and accounting chain."""
 
     if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}", attempt_id) is None:
         raise core.CampaignError("invalid diagnostic attempt ID")
     config_path = config_path.resolve(strict=True)
-    config_sha = core.sha256_path(config_path)
+    config_sha = (
+        _digest(expected_config_sha256, "historical diagnostic config hash")
+        if expected_config_sha256 is not None
+        else core.sha256_path(config_path)
+    )
     lineage = _load_lineage(config, run_dir)
     lineage_path = _strict_run_path(
         run_dir, run_dir / LINEAGE_RECEIPT, "diagnostic lineage receipt"
@@ -2844,6 +2849,7 @@ def _audit_final_diagnostic(
     gate_path: Path,
     *,
     expected_checkout_root: Path | None = None,
+    expected_config_sha256: str | None = None,
 ) -> dict[str, Any]:
     """Replay the finalized diagnostic from raw files and immutable records."""
 
@@ -2889,6 +2895,7 @@ def _audit_final_diagnostic(
         attempt_id,
         execution_sha256,
         expected_checkout_root=expected_checkout_root,
+        expected_config_sha256=expected_config_sha256,
     )
     if (
         gate.get("submission_chain") != submission_chain
