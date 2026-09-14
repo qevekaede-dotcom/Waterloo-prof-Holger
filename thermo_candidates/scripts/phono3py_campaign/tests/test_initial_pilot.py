@@ -739,9 +739,11 @@ class InitialPilotTests(unittest.TestCase):
                 historical_workflow_sha256=core.canonical_sha256(historical_hashes),
                 output_path=run / "recovery.json",
             )
-            with patch.object(core, "_read_sacct_records", return_value=([], [], {})), \
+            with patch.object(core, "_read_sacct_records", return_value=([], [], {})) as read_sacct, \
                  patch.object(core, "_collect_force_batch", return_value=report):
                 result = ip.recover_failed_initial_pilot_collector(CONFIG, run, **kwargs)
+            read_sacct.assert_called_once_with(
+                accounting, accounting_status, fields=core.FORCE_SACCT_FIELDS)
             artifact = core.load_json(Path(result["recovery"]))
             self.assertTrue(artifact["original_collector_failed"])
             self.assertFalse(artifact["slurm_collector_succeeded"])

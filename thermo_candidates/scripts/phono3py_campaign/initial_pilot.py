@@ -703,7 +703,8 @@ def recover_failed_initial_pilot_collector(
     historical_root, historical_hashes = _historical_workflow(
         historical_workflow_dir, historical_workflow_sha256)
     config, _ = core.validate_config(config_path)
-    records, errors, metadata = core._read_sacct_records(accounting, accounting_status)
+    records, errors, metadata = core._read_sacct_records(
+        accounting, accounting_status, fields=core.FORCE_SACCT_FIELDS)
     report = core._collect_force_batch(
         config=config, config_path=config_path, run_dir=run_dir,
         current_attempt=failed, primary_attempt_id=primary_attempt_id,
