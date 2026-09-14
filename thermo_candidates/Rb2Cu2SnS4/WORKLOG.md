@@ -422,3 +422,27 @@ explicit incomplete negative gates when all preceding records are exact;
 malformed or later-deleted records in an otherwise completed chain remain
 hard integrity failures. The online wrapper still requires the release receipt
 and summary-independent collector attachment before QE.
+
+---
+
+## 2026-09-14 — bounded pilot completed; full first-pass FIRE continuation running
+
+Nibi pilot primary `21867371` and collector `21867372` completed `0:0`.
+Eight complete force/SCF steps reduced the maximum component from
+`2.2291e-4` to `1.5722e-4 Ry/bohr` with only `5.8725440e-4 A` cumulative
+coordinate shift; Ibam No. 72 was retained at `1e-6 A`. The pilot established
+a healthy improving trend but did not pass its `1e-4 Ry/bohr` endpoint
+threshold. It did not accept a structure or release phonon production.
+
+For time-bounded first-pass delivery, a separate full FIRE continuation was
+prepared from the pilot terminal coordinates with unchanged 100/800-Ry,
+4x7x7, fixed occupations, `conv_thr=1e-10`, and FIRE parameters, but
+`nstep=100` and `max_seconds=39600`. Input SHA-256 is
+`ef034dd76e6ec108fca7668c4315ca48139885114f1d743aada35c6433b12f11`.
+The first submission `21887921` failed in three seconds before QE because the
+runner used the login submission directory; its empty scientific outputs are
+preserved. Corrected job `21888372` is running on 32 MPI ranks from
+`/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4`.
+QE 7.3.1 startup and one OpenMP thread per rank were observed with empty
+stderr. Normal FIRE convergence and a later independent pristine SCF are still
+required before accepting the structure.

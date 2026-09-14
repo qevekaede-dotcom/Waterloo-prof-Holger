@@ -113,6 +113,38 @@ subtracted using `--cfz`.
 
 ## Active two-material phonon campaign
 
+### 2026-09-14 00:12 UTC first-pass production snapshot
+
+This snapshot supersedes the older state below. The user redirected the
+campaign from extended tooling work to time-bounded first-pass delivery, using
+the completed SrCu2SnS4 workflow as the practical model while retaining
+explicit scientific limitations.
+
+- **Rb2Cu2SnS4:** full FIRE continuation job `21888372` is running on Nibi
+  (32 ranks, 12-hour ceiling). It starts from the terminal coordinates of the
+  completed eight-step pilot, uses the same 100/800-Ry, 4x7x7, fixed-cell FIRE
+  settings, and has `nstep=100`. Normal FIRE convergence and an independent
+  pristine SCF remain required before accepting the structure.
+- **SrZrS3:** first-pass force array `21888373` is running on Nibi with tasks
+  `0-787%32`, 32 ranks per task and a two-hour task ceiling. Task 0 is pristine
+  and the 787 displaced inputs reproduce the archived 2x1x1,
+  3.5541348625-A YAML exactly. Inputs use 80/640 Ry, `conv_thr=1e-10`, 3x3x3,
+  and `nosym/noinv`. The preceding six-SCF pilot passed duplicate-noise and
+  incremental-signal checks.
+- Initial submissions `21887921` (Rb) and `21888045` (Sr) failed in about
+  three seconds before QE because the first-pass runners used
+  `SLURM_SUBMIT_DIR` instead of the explicit run directory. The remaining Sr
+  array was cancelled immediately. The corrected runners use a hash-bound
+  `P3_RUN_DIR`; both replacement jobs entered real QE 7.3.1 execution on 32
+  MPI ranks with one thread each.
+
+These are first-pass production choices, not demonstrated cutoff, supercell,
+amplitude, q-mesh, NAC/SOC, or total-uncertainty convergence. No kappa result
+exists yet for either remaining material. After terminal jobs: verify exits
+and force blocks, rerun only failed Sr indices, construct FC2/FC3, run a
+q-mesh ladder, and assemble the report package. No hourly automation exists;
+status is checked only when the user resumes this task.
+
 ### 2026-09-14 current superseding snapshot
 
 This subsection is the authoritative campaign state. The dated subsections

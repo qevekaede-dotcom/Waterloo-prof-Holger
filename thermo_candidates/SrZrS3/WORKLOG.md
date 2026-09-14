@@ -280,3 +280,31 @@ released at this snapshot.**  Execution remains ordered after the terminal Rb
 FIRE collector and requires a fresh Nibi MFA session.  Even a successful
 six-SCF result cannot establish D2, FC3, displacement-amplitude or pair-cutoff
 selection, supercell convergence, phonons, or kappa.
+
+---
+
+## 2026-09-14 — initial pilot accepted for first-pass use; production array running
+
+All six Nibi pilot allocations under primary array `21882066` completed
+`0:0` with no retry. The original collector `21882067` failed only because a
+comma-delimited Slurm export truncated the logical task-ID list; offline
+read-only reconstruction recovered all six raw outputs and accounting rows
+without relabelling that collector as successful.
+
+Direct evaluation of the final complete QE force blocks passed the intended
+timing/noise/signal screen. Duplicate RMS values were `9.1287093e-10`
+(pristine), `7.9582243e-09` (single), and `3.1622777e-09 Ry/bohr` (double).
+Incremental RMS signals were `8.9725771e-04` for single minus pristine and
+`9.0362425e-04 Ry/bohr` for double minus single; propagated noises were
+`8.0104099e-09` and `8.5634884e-09 Ry/bohr`. This supports first-pass force
+execution only, not FC2/FC3, cutoff, supercell, phonon, or kappa validation.
+
+The archived generation command reproduced the 787-file YAML byte for byte.
+A simple immutable task map prepared one pristine plus 787 displaced SCFs at
+80/640 Ry, `conv_thr=1e-10`, 3x3x3, and `nosym/noinv`. Task-map SHA-256 is
+`7c5651e5adeb7ba6743e037abcee95605a681ae99421547ad06f06ba2e4c95fa`.
+The first array `21888045` failed before QE because it changed to the login
+submission directory; remaining tasks were cancelled. Corrected array
+`21888373` uses the explicit run directory and is running as `0-787%32` from
+`/scratch/yuhansun/phono3py-runs/20260914-sr-firstpass-production/SrZrS3`.
+This remains an unconverged first-pass pair cutoff and supercell choice.
