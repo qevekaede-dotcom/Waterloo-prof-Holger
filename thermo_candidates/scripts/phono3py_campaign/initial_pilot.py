@@ -141,13 +141,46 @@ def _cutoff(config: Mapping[str, Any], cutoff_id: str) -> Mapping[str, Any]:
     return matches[0]
 
 
-def _evidence_paths(config: Mapping[str, Any], contract: Mapping[str, Any]) -> dict[str, Path]:
+def _repo_file_at(root: Path, raw: Any, field: str) -> Path:
+    """Resolve one repository-relative file below an explicit immutable checkout."""
+    _require(isinstance(raw, str) and raw, f"{field} must be a repository-relative path")
+    relative = Path(raw)
+    _require(not relative.is_absolute() and ".." not in relative.parts,
+             f"{field} escapes repository root: {raw}")
+    supplied_root = Path(root)
+    _require(supplied_root.is_absolute()
+             and supplied_root.is_dir()
+             and not any(candidate.is_symlink()
+                         for candidate in (supplied_root, *supplied_root.parents)),
+             f"{field} repository root is unsafe")
+    root = supplied_root.resolve()
+    current = root
+    for component in relative.parts:
+        current = current / component
+        _require(current.exists() and not current.is_symlink(),
+                 f"{field} does not exist or contains a symlink: {current}")
+    candidate = current.resolve()
+    try:
+        candidate.relative_to(root)
+    except ValueError as exc:
+        raise InitialPilotError(f"{field} escapes repository root: {raw}") from exc
+    _require(candidate.is_file(), f"{field} does not exist: {candidate}")
+    return candidate
+
+
+def _evidence_paths(config: Mapping[str, Any], contract: Mapping[str, Any], *,
+                    source_repo_root: Path | None = None) -> dict[str, Path]:
     cutoff = _cutoff(config, str(contract["source_cutoff_id"]))
     manifest = core.validate_verified_count_only_result(config, cutoff)
     _require(isinstance(manifest, Mapping), "verified count-only evidence is required")
     pointer = cutoff["verified_count_only_result"]
-    manifest_path = core.resolve_repo_relative_file_no_symlink(
-        pointer["manifest_path"], "initial pilot source manifest")
+    manifest_path = (
+        core.resolve_repo_relative_file_no_symlink(
+            pointer["manifest_path"], "initial pilot source manifest")
+        if source_repo_root is None
+        else _repo_file_at(source_repo_root, pointer["manifest_path"],
+                           "initial pilot source manifest")
+    )
     root = manifest_path.parent
     artifacts = manifest["result_artifacts"]
     paths = {
@@ -355,11 +388,12 @@ def _run_binding(config: Mapping[str, Any], config_path: Path, run_dir: Path) ->
 
 
 def _stable_release(config_path: Path, run_dir: Path, *,
-                    workflow_dir: Path | None = None) -> dict[str, Any]:
+                    workflow_dir: Path | None = None,
+                    source_repo_root: Path | None = None) -> dict[str, Any]:
     config, _ = core.validate_config(config_path)
     contract = _contract(config)
     _require(config["material"]["formula"] == "SrZrS3", "release is material-specific")
-    paths = _evidence_paths(config, contract)
+    paths = _evidence_paths(config, contract, source_repo_root=source_repo_root)
     _validate_yaml_mapping(paths["yaml"], paths["accepted_unitcell"], contract)
     archived_manifest = core.load_json(paths["manifest"])
     source = {f"{name}_path": str(path) for name, path in paths.items()}
@@ -418,7 +452,8 @@ def prepare_initial_pilot_release(config_path: str | Path, run_dir: str | Path,
 def replay_initial_pilot_release(release_path: str | Path, *, config_path: str | Path,
                                  run_dir: str | Path,
                                  expected_release_sha256: str,
-                                 historical_workflow_dir: str | Path | None = None
+                                 historical_workflow_dir: str | Path | None = None,
+                                 historical_source_repo_root: str | Path | None = None,
                                  ) -> dict[str, Any]:
     config_path = Path(config_path).resolve()
     run_dir = core.safe_run_dir(Path(run_dir))
@@ -431,6 +466,8 @@ def replay_initial_pilot_release(release_path: str | Path, *, config_path: str |
         config_path, run_dir,
         workflow_dir=(Path(historical_workflow_dir)
                       if historical_workflow_dir is not None else None),
+        source_repo_root=(Path(historical_source_repo_root)
+                          if historical_source_repo_root is not None else None),
     )
     _require(isinstance(release.get("created_utc"), str) and release["created_utc"],
              "pilot release creation time is missing")
@@ -813,6 +850,9 @@ def _finalize_payload(config_path: Path, run_dir: Path, release_path: Path,
         release_path, config_path=config_path, run_dir=run_dir,
         expected_release_sha256=release_sha256,
         historical_workflow_dir=preliminary_historical_workflow_dir,
+        historical_source_repo_root=(
+            preliminary_historical_workflow_dir.parents[2]
+            if preliminary_historical_workflow_dir is not None else None),
     )
     recovery = None
     historical_workflow_dir = preliminary_historical_workflow_dir

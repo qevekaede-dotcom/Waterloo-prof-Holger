@@ -104,6 +104,47 @@ class InitialPilotTests(unittest.TestCase):
                 )
             self.assertEqual(replayed_old["workflow_sha256"],
                              old_stable["workflow_sha256"])
+
+            historical_repo = Path(temporary).resolve() / "historical-repo"
+            historical_evidence = (historical_repo / "thermo_candidates" / "SrZrS3"
+                                   / "phono3py" / "evidence"
+                                   / "3p5541348625A_count_only")
+            shutil.copytree(EVIDENCE, historical_evidence)
+            with patch("accepted_structure_import.verify_imported_acceptance",
+                       return_value=verified):
+                moved_stable = ip._stable_release(
+                    CONFIG, run, workflow_dir=historical,
+                    source_repo_root=historical_repo,
+                )
+            moved_release = run / "moved_historical_release.json"
+            moved_release.write_text(json.dumps({
+                **moved_stable, "created_utc": "2026-09-14T00:00:01Z",
+            }))
+            moved_sha = core.sha256_path(moved_release)
+            with patch("accepted_structure_import.verify_imported_acceptance",
+                       return_value=verified):
+                with self.assertRaisesRegex(ip.InitialPilotError, "source"):
+                    ip.replay_initial_pilot_release(
+                        moved_release, config_path=CONFIG, run_dir=run,
+                        expected_release_sha256=moved_sha,
+                        historical_workflow_dir=historical,
+                    )
+                replayed_moved = ip.replay_initial_pilot_release(
+                    moved_release, config_path=CONFIG, run_dir=run,
+                    expected_release_sha256=moved_sha,
+                    historical_workflow_dir=historical,
+                    historical_source_repo_root=historical_repo,
+                )
+            self.assertEqual(replayed_moved["source"], moved_stable["source"])
+            linked_historical_repo = Path(temporary) / "linked-historical-repo"
+            linked_historical_repo.symlink_to(historical_repo, target_is_directory=True)
+            with self.assertRaisesRegex(ip.InitialPilotError, "root is unsafe"):
+                ip._repo_file_at(
+                    linked_historical_repo,
+                    "thermo_candidates/SrZrS3/phono3py/evidence/"
+                    "3p5541348625A_count_only/manifest.json",
+                    "linked historical source",
+                )
             copied = Path(temporary) / "copied-run"
             shutil.copytree(run, copied)
             copied_release = copied / "pilot_release.json"
@@ -791,6 +832,52 @@ class InitialPilotTests(unittest.TestCase):
             (failed / "context.tsv").symlink_to(outside)
             with self.assertRaisesRegex(ip.InitialPilotError, "symlink"):
                 ip.recover_failed_initial_pilot_collector(CONFIG, run, **kwargs)
+
+    def test_recovery_finalizer_derives_repo_shaped_historical_source_root(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            run = root / "run"
+            run.mkdir()
+            release = run / "release.json"
+            release.write_text("{}\n")
+            force_manifest = run / "force-manifest.json"
+            force_manifest.write_text("{}\n")
+            historical_repo = root / "historical-repo"
+            historical = (historical_repo / "thermo_candidates" / "scripts"
+                          / "phono3py_campaign")
+            (historical / "slurm").mkdir(parents=True)
+            for name in ip.HISTORICAL_WORKFLOW_FILES:
+                source = Path(core.__file__).with_name(name) if "/" not in name else (
+                    Path(core.__file__).parent / name)
+                destination = historical / name
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source, destination)
+            hashes = {
+                name: core.sha256_path(historical / name)
+                for name in ip.HISTORICAL_WORKFLOW_FILES
+            }
+            collection = run / "recovery.json"
+            collection.write_text(json.dumps({
+                "kind": "initial_pilot_failed_collector_offline_recovery",
+                "trusted_inputs": {"historical_workflow": {
+                    "path": str(historical),
+                    "sha256": core.canonical_sha256(hashes),
+                    "files_sha256": hashes,
+                }},
+            }))
+            with patch("initial_pilot.replay_initial_pilot_release",
+                       side_effect=RuntimeError("stop-after-release-replay")) as replay, \
+                 self.assertRaisesRegex(RuntimeError, "stop-after-release-replay"):
+                ip._finalize_payload(
+                    CONFIG, run, release, core.sha256_path(release),
+                    force_manifest, collection, core.sha256_path(collection),
+                )
+            replay.assert_called_once_with(
+                release, config_path=CONFIG, run_dir=run,
+                expected_release_sha256=core.sha256_path(release),
+                historical_workflow_dir=historical,
+                historical_source_repo_root=historical_repo,
+            )
 
 
 if __name__ == "__main__":
