@@ -1103,7 +1103,11 @@ def _finalize_payload(config_path: Path, run_dir: Path, release_path: Path,
         run_dir, Path(signed["dataset_dir"]), "signed pilot dataset")
     audited = fb.audit_signed_pilot_dataset(dataset, run_dir, config,
         expected_settings, release["force_pilot_spec"],
-        expected_manifest_sha256=signed.get("expected_manifest_sha256"))
+        expected_manifest_sha256=signed.get("expected_manifest_sha256"),
+        historical_workflow_dir=historical_workflow_dir,
+        historical_source_repo_root=(
+            historical_workflow_dir.parents[2]
+            if historical_workflow_dir is not None else None))
     _require(audited == signed, "signed pilot dataset replay differs from force manifest")
     pseudos = manifest.get("pseudopotentials")
     _require(isinstance(pseudos, Mapping) and pseudos,

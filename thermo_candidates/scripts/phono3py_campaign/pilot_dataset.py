@@ -450,7 +450,9 @@ def prepare_pilot_dataset(config_path, run_dir, *, candidate_dir, preflight_inve
             "preflight_inventory": str(destination / "preflight_inventory.json"), "geometry_plan": plan}
 
 
-def audit_pilot_dataset(dataset_dir, *, expected_manifest_sha256):
+def audit_pilot_dataset(dataset_dir, *, expected_manifest_sha256,
+                        historical_workflow_dir=None,
+                        historical_source_repo_root=None):
     """Read-only re-audit. Obtain expected manifest SHA from a trusted receipt."""
     folder = Path(dataset_dir).resolve()
     fb._match(folder / "pilot_dataset_manifest.json", expected_manifest_sha256)
@@ -470,7 +472,9 @@ def audit_pilot_dataset(dataset_dir, *, expected_manifest_sha256):
         from initial_pilot import replay_initial_pilot_release, validate_release_use
         release = replay_initial_pilot_release(binding["path"],
             config_path=manifest["config_path"], run_dir=manifest["run_dir"],
-            expected_release_sha256=binding["sha256"])
+            expected_release_sha256=binding["sha256"],
+            historical_workflow_dir=historical_workflow_dir,
+            historical_source_repo_root=historical_source_repo_root)
         validate_release_use(release, probe_spec=spec)
         _require(binding["consumption_identity"] == release["consumption_identity"],
                  "pilot dataset consumption identity mismatch")

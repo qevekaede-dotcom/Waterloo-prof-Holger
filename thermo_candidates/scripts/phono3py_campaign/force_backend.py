@@ -933,7 +933,9 @@ def _dataset_inputs(dataset: Path, settings: Mapping[str, Any], pseudo_dir: Path
 
 def audit_signed_pilot_dataset(dataset_dir: Path, run_dir: Path, config: Mapping[str, Any],
                                settings: Mapping[str, Any], pilot_spec: Mapping[str, Any],
-                               *, expected_manifest_sha256: str) -> dict[str, Any]:
+                               *, expected_manifest_sha256: str,
+                               historical_workflow_dir: Path | None = None,
+                               historical_source_repo_root: Path | None = None) -> dict[str, Any]:
     """Bind explicitly selected signed probes to their independently audited bundle."""
     if not isinstance(expected_manifest_sha256, str) or not re.fullmatch(r"[0-9a-f]{64}", expected_manifest_sha256):
         raise ForceError("pilot_dataset_manifest_sha256 must be an explicit 64-hex SHA256")
@@ -941,7 +943,10 @@ def audit_signed_pilot_dataset(dataset_dir: Path, run_dir: Path, config: Mapping
     manifest_path = dataset / "pilot_dataset_manifest.json"
     _match(manifest_path, expected_manifest_sha256)
     from pilot_dataset import audit_pilot_dataset, minimum_image_bohr
-    audited = audit_pilot_dataset(dataset, expected_manifest_sha256=expected_manifest_sha256)
+    audited = audit_pilot_dataset(
+        dataset, expected_manifest_sha256=expected_manifest_sha256,
+        historical_workflow_dir=historical_workflow_dir,
+        historical_source_repo_root=historical_source_repo_root)
     if audited.get("healthy") is not True or audited.get("pilot_only") is not True:
         raise ForceError("signed pilot dataset audit did not pass as pilot-only")
     manifest = core.load_json(manifest_path)
