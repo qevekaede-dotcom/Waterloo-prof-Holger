@@ -9,6 +9,7 @@ from __future__ import annotations
 import math
 import os
 import re
+import json
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -26,6 +27,9 @@ EXPECTED_ROLE_IDS = {
     "single": {"plus": 1, "minus": 2},
     "double": {"pp": 3, "pm": 4, "mp": 5, "mm": 6},
 }
+FAILED_COLLECTOR_IDENTITY_ERROR = (
+    "force primary submission request identity/hash mismatch"
+)
 WORKFLOW_FILES = (
     "campaign.py",
     "force_backend.py",
@@ -35,6 +39,10 @@ WORKFLOW_FILES = (
     "qe_input.py",
     "qe_output.py",
 )
+HISTORICAL_WORKFLOW_FILES = tuple(dict.fromkeys(WORKFLOW_FILES + (
+    "submit.py", "slurm/cluster.env", "slurm/force_array.sbatch",
+    "slurm/collect.sbatch",
+)))
 
 
 def _require(condition: Any, message: str) -> None:
@@ -346,7 +354,8 @@ def _run_binding(config: Mapping[str, Any], config_path: Path, run_dir: Path) ->
     }
 
 
-def _stable_release(config_path: Path, run_dir: Path) -> dict[str, Any]:
+def _stable_release(config_path: Path, run_dir: Path, *,
+                    workflow_dir: Path | None = None) -> dict[str, Any]:
     config, _ = core.validate_config(config_path)
     contract = _contract(config)
     _require(config["material"]["formula"] == "SrZrS3", "release is material-specific")
@@ -363,7 +372,9 @@ def _stable_release(config_path: Path, run_dir: Path) -> dict[str, Any]:
     run = _run_binding(config, config_path, run_dir)
     _require(run["accepted_unitcell_sha256"] == source["accepted_unitcell_sha256"],
              "pilot RUN_DIR accepted structure differs from archived count-only source")
-    workflow = {str(Path(__file__).with_name(name)): core.sha256_path(Path(__file__).with_name(name))
+    workflow_root = (Path(__file__).resolve().parent if workflow_dir is None
+                     else Path(workflow_dir).resolve())
+    workflow = {str(workflow_root / name): core.sha256_path(workflow_root / name)
                 for name in WORKFLOW_FILES}
     identity = core.canonical_sha256({"contract": contract, "source": source,
                                       "run": run, "workflow_sha256": workflow})
@@ -406,7 +417,9 @@ def prepare_initial_pilot_release(config_path: str | Path, run_dir: str | Path,
 
 def replay_initial_pilot_release(release_path: str | Path, *, config_path: str | Path,
                                  run_dir: str | Path,
-                                 expected_release_sha256: str) -> dict[str, Any]:
+                                 expected_release_sha256: str,
+                                 historical_workflow_dir: str | Path | None = None
+                                 ) -> dict[str, Any]:
     config_path = Path(config_path).resolve()
     run_dir = core.safe_run_dir(Path(run_dir))
     release_path = core.strict_run_descendant(
@@ -414,7 +427,11 @@ def replay_initial_pilot_release(release_path: str | Path, *, config_path: str |
     )
     _match(release_path, expected_release_sha256, "pilot release")
     release = core.load_json(release_path)
-    stable = _stable_release(config_path, run_dir)
+    stable = _stable_release(
+        config_path, run_dir,
+        workflow_dir=(Path(historical_workflow_dir)
+                      if historical_workflow_dir is not None else None),
+    )
     _require(isinstance(release.get("created_utc"), str) and release["created_utc"],
              "pilot release creation time is missing")
     for key, value in stable.items():
@@ -592,6 +609,175 @@ def audit_actual_initial_input(input_path: str | Path, expected_text: str,
     return settings_sha, order
 
 
+def _historical_workflow(root: str | Path, expected_digest: str) -> tuple[Path, dict[str, str]]:
+    """Hash the only old-checkout files a failed-collector replay may use."""
+    supplied = Path(root)
+    _require(supplied.is_absolute() and supplied.is_dir()
+             and not any(candidate.is_symlink() for candidate in (supplied, *supplied.parents)),
+             "historical workflow root is unsafe")
+    folder = supplied.resolve()
+    files = {name: folder / name for name in HISTORICAL_WORKFLOW_FILES}
+    _require(all(path.is_file() and not path.is_symlink() for path in files.values()),
+             "historical workflow file is missing or symlinked")
+    hashes = {name: core.sha256_path(path) for name, path in files.items()}
+    _require(core.canonical_sha256(hashes) == _digest(expected_digest, "historical workflow"),
+             "historical workflow hash mismatch")
+    return folder, hashes
+
+
+def recover_failed_initial_pilot_collector(
+        config_path: str | Path, run_dir: str | Path, *,
+        failed_collector_attempt: str | Path,
+        primary_attempt_id: str, primary_job_id: str,
+        force_manifest_path: str | Path, force_manifest_sha256: str,
+        task_map_path: str | Path, task_map_sha256: str,
+        primary_request_sha256: str, primary_result_sha256: str,
+        primary_stage_script_sha256: str,
+        accounting_sha256: str, accounting_status_sha256: str,
+        failed_stdout_sha256: str, historical_workflow_dir: str | Path,
+        historical_workflow_sha256: str, output_path: str | Path) -> dict[str, Any]:
+    """Recover exactly one known failed Sr exact-six collector offline.
+
+    This is deliberately not a generic collection bypass: it accepts only the
+    historical exporter truncation signature, replays the original afterany
+    records, and reconstructs all six logical receipts from the already-written
+    task files and accounting records.  It never says the Slurm collector ran
+    successfully.
+    """
+    config_path = Path(config_path).resolve()
+    run_dir = core.safe_run_dir(Path(run_dir))
+    failed = core.strict_run_descendant(
+        run_dir, Path(failed_collector_attempt), "failed initial collector")
+    _require(failed.parent == run_dir / "slurm_attempts" / "collect"
+             and failed.is_dir(), "failed collector is not an exact collect attempt")
+    core.reject_symlinks_below(run_dir, failed, "failed initial collector")
+    context, context_errors = core._read_context_tsv(failed / "context.tsv")
+    exit_code, exit_errors = core._read_exit_code(failed)
+    finished = failed / "finished_utc.txt"
+    stdout = failed / "stdout.log"
+    stderr = failed / "stderr.log"
+    _require(not context_errors and not exit_errors and exit_code == 2
+             and context.get("stage") == "collect"
+             and context.get("attempt_id") == failed.name
+             and isinstance(context.get("slurm_job_id"), str)
+             and context["slurm_job_id"].isdigit()
+             and context.get("primary_stage") == "force"
+             and context.get("primary_attempt_id") == primary_attempt_id
+             and context.get("primary_job_id") == primary_job_id
+             and context.get("primary_request_sha256") == primary_request_sha256
+             and context.get("primary_result_sha256") == primary_result_sha256
+             and context.get("primary_stage_script_sha256") == primary_stage_script_sha256
+             and context.get("config") == str(config_path)
+             and context.get("config_sha256") == core.sha256_path(config_path)
+             and (not context.get("git_commit")
+                  or re.fullmatch(r"[0-9a-f]{40}", context["git_commit"]) is not None),
+             "failed collector context/exit identity is not the known failure")
+    _require(finished.is_file() and re.fullmatch(
+        r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ\n?", finished.read_text()),
+             "failed collector finished timestamp is invalid")
+    _match(stdout, failed_stdout_sha256, "failed collector stdout")
+    _require(stderr.is_file() and stderr.read_bytes() == b"",
+             "failed collector stderr must be empty")
+    try:
+        stdout_payload = json.loads(stdout.read_text())
+    except (OSError, ValueError) as exc:
+        raise InitialPilotError("failed collector stdout is not JSON") from exc
+    _require(stdout_payload == {
+        "command": "collect", "error": FAILED_COLLECTOR_IDENTITY_ERROR,
+        "healthy": False,
+    }, "failed collector stdout is not the exact known task-selector identity mismatch")
+    accounting = core.strict_run_descendant(
+        run_dir, failed / "primary_sacct.psv", "failed collector accounting")
+    accounting_status = core.strict_run_descendant(
+        run_dir, failed / "primary_sacct_exit_code.txt",
+        "failed collector accounting status")
+    _match(accounting, accounting_sha256, "failed collector accounting")
+    _match(accounting_status, accounting_status_sha256,
+           "failed collector accounting status")
+    force_manifest = core.strict_run_descendant(
+        run_dir, Path(force_manifest_path), "initial pilot force manifest")
+    task_map = core.strict_run_descendant(
+        run_dir, Path(task_map_path), "initial pilot task map")
+    _match(force_manifest, force_manifest_sha256, "initial pilot force manifest")
+    _match(task_map, task_map_sha256, "initial pilot task map")
+    historical_root, historical_hashes = _historical_workflow(
+        historical_workflow_dir, historical_workflow_sha256)
+    config, _ = core.validate_config(config_path)
+    records, errors, metadata = core._read_sacct_records(accounting, accounting_status)
+    report = core._collect_force_batch(
+        config=config, config_path=config_path, run_dir=run_dir,
+        current_attempt=failed, primary_attempt_id=primary_attempt_id,
+        primary_job_id=primary_job_id, force_manifest_path=force_manifest,
+        task_map_path=task_map, expected_force_manifest_sha256=force_manifest_sha256,
+        expected_task_map_sha256=task_map_sha256,
+        submitted_task_ids=list(range(6)),
+        expected_primary_request_sha256=primary_request_sha256,
+        expected_primary_result_sha256=primary_result_sha256,
+        expected_primary_stage_script_sha256=primary_stage_script_sha256,
+        accounting_records=records, accounting_errors=errors,
+        accounting_metadata=metadata, historical_workflow_dir=historical_root)
+    _require(report.get("expected_task_count") == 6
+             and report.get("submitted_task_ids") == list(range(6))
+             and report.get("accepted_success_count") == 6
+             and report.get("upstream_failure_count") == 0
+             and report.get("unfinished_or_invalid_count") == 0
+             and report.get("collection_integrity_complete") is True
+             and report.get("batch_execution_complete") is True
+             and len(report.get("entries", [])) == 6,
+             "offline recovery did not reconstruct an exact complete six-task collection")
+    _require(all(isinstance(entry, Mapping) and entry.get("task_id") == index
+                 and entry.get("outcome") == "accepted_success"
+                 and isinstance(entry.get("evidence"), Mapping)
+                 for index, entry in enumerate(report["entries"])),
+             "offline recovery collection lacks one of the six audited task artifacts")
+    output = core.strict_run_descendant(run_dir, Path(output_path),
+                                        "initial collector recovery", require_exists=False)
+    artifact = {
+        "schema_version": 1,
+        "kind": "initial_pilot_failed_collector_offline_recovery",
+        "material": "SrZrS3",
+        "original_collector_failed": True,
+        "slurm_collector_succeeded": False,
+        "failed_collector": {
+            "attempt": str(failed), "context": context, "exit_code": 2,
+            "finished_utc": finished.read_text().strip(),
+            "evidence": {
+                name: {"sha256": core.sha256_path(path), "bytes": path.stat().st_size}
+                for name, path in (("context.tsv", failed / "context.tsv"),
+                                   ("exit_code.txt", failed / "exit_code.txt"),
+                                   ("finished_utc.txt", finished),
+                                   ("stdout.log", stdout), ("stderr.log", stderr))
+            },
+            "known_identity_error": FAILED_COLLECTOR_IDENTITY_ERROR,
+        },
+        "trusted_inputs": {
+            "primary_sacct": {"path": str(accounting), "sha256": accounting_sha256},
+            "primary_sacct_status": {"path": str(accounting_status), "sha256": accounting_status_sha256},
+            "force_manifest": {"path": str(force_manifest), "sha256": force_manifest_sha256},
+            "task_map": {"path": str(task_map), "sha256": task_map_sha256},
+            "primary_request_sha256": primary_request_sha256,
+            "primary_result_sha256": primary_result_sha256,
+            "primary_stage_script_sha256": primary_stage_script_sha256,
+            "historical_workflow": {"path": str(historical_root),
+                                    "sha256": historical_workflow_sha256,
+                                    "files_sha256": historical_hashes},
+        },
+        "reconstructed_collection": report,
+        "reconstructed_collection_sha256": core.canonical_sha256(report),
+        "limitations": [
+            "The original Slurm afterany collector failed with exit 2 and is preserved as failed evidence.",
+            "This offline replay reconstructs collection evidence only; it is not a Slurm collector success.",
+            "The result remains initial timing/noise/repeatability evidence only and cannot authorize FC2, FC3, or kappa work.",
+        ],
+        "created_utc": core.utc_now(),
+    }
+    core.write_json_immutable(output, artifact)
+    return {"healthy": True, "recovery": str(output),
+            "recovery_sha256": core.sha256_path(output),
+            "original_collector_failed": True,
+            "slurm_collector_succeeded": False}
+
+
 def _finalize_payload(config_path: Path, run_dir: Path, release_path: Path,
                       release_sha256: str, force_manifest_path: Path,
                       collection_path: Path, collection_sha256: str,
@@ -606,11 +792,116 @@ def _finalize_payload(config_path: Path, run_dir: Path, release_path: Path,
         run_dir, force_manifest_path, "initial pilot force manifest")
     collection_path = core.strict_run_descendant(
         run_dir, collection_path, "initial pilot collection")
-    release = replay_initial_pilot_release(release_path, config_path=config_path,
-        run_dir=run_dir, expected_release_sha256=release_sha256)
     config, _ = core.validate_config(config_path)
     _match(collection_path, collection_sha256, "initial pilot collection")
-    collection = core.load_json(collection_path)
+    collection_document = core.load_json(collection_path)
+    preliminary_historical_workflow_dir = None
+    if collection_document.get("kind") == "initial_pilot_failed_collector_offline_recovery":
+        preliminary_trusted = collection_document.get("trusted_inputs")
+        _require(isinstance(preliminary_trusted, Mapping),
+                 "offline recovery trusted input set is missing")
+        preliminary_reference = preliminary_trusted.get("historical_workflow")
+        _require(isinstance(preliminary_reference, Mapping)
+                 and set(preliminary_reference) == {"path", "sha256", "files_sha256"},
+                 "offline recovery historical workflow reference is invalid")
+        preliminary_historical_workflow_dir, preliminary_hashes = _historical_workflow(
+            preliminary_reference["path"], preliminary_reference["sha256"])
+        _require(preliminary_reference["files_sha256"] == preliminary_hashes,
+                 "offline recovery historical workflow file set is altered")
+    release = replay_initial_pilot_release(
+        release_path, config_path=config_path, run_dir=run_dir,
+        expected_release_sha256=release_sha256,
+        historical_workflow_dir=preliminary_historical_workflow_dir,
+    )
+    recovery = None
+    historical_workflow_dir = preliminary_historical_workflow_dir
+    if collection_document.get("kind") == "initial_pilot_failed_collector_offline_recovery":
+        recovery = collection_document
+        _require(
+            recovery.get("schema_version") == 1
+            and recovery.get("material") == "SrZrS3"
+            and recovery.get("original_collector_failed") is True
+            and recovery.get("slurm_collector_succeeded") is False,
+            "offline recovery does not preserve the failed collector limitation",
+        )
+        failed = recovery.get("failed_collector")
+        _require(isinstance(failed, Mapping) and failed.get("exit_code") == 2
+                 and failed.get("known_identity_error") == FAILED_COLLECTOR_IDENTITY_ERROR
+                 and isinstance(failed.get("finished_utc"), str)
+                 and re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", failed["finished_utc"]),
+                 "offline recovery failed-collector identity is invalid")
+        failed_attempt = core.strict_run_descendant(
+            run_dir, Path(str(failed.get("attempt", ""))), "offline recovery failed collector")
+        _require(failed_attempt.parent == run_dir / "slurm_attempts" / "collect",
+                 "offline recovery failed collector path is not exact")
+        core.reject_symlinks_below(run_dir, failed_attempt,
+                                   "offline recovery failed collector")
+        failed_evidence = failed.get("evidence")
+        _require(isinstance(failed_evidence, Mapping),
+                 "offline recovery failed collector evidence is missing")
+        for name in ("context.tsv", "exit_code.txt", "finished_utc.txt", "stdout.log", "stderr.log"):
+            reference = failed_evidence.get(name)
+            path = core.strict_run_descendant(run_dir, failed_attempt / name,
+                                              f"offline recovery failed collector {name}")
+            _require(isinstance(reference, Mapping)
+                     and reference.get("sha256") == core.sha256_path(path)
+                     and reference.get("bytes") == path.stat().st_size,
+                     "offline recovery failed collector evidence is altered")
+        raw_context, raw_context_errors = core._read_context_tsv(failed_attempt / "context.tsv")
+        raw_exit, raw_exit_errors = core._read_exit_code(failed_attempt)
+        _require(not raw_context_errors and not raw_exit_errors and raw_context == failed["context"]
+                 and raw_exit == 2 and (failed_attempt / "stderr.log").read_bytes() == b"",
+                 "offline recovery failed collector raw context/exit/stderr is altered")
+        _require((failed_attempt / "finished_utc.txt").read_text().strip()
+                 == failed["finished_utc"],
+                 "offline recovery failed collector timestamp is altered")
+        try:
+            raw_stdout = json.loads((failed_attempt / "stdout.log").read_text())
+        except (OSError, ValueError) as exc:
+            raise InitialPilotError("offline recovery failed collector stdout is invalid") from exc
+        _require(raw_stdout == {"command": "collect", "error": FAILED_COLLECTOR_IDENTITY_ERROR,
+                                "healthy": False},
+                 "offline recovery failed collector stdout is altered")
+        trusted = recovery.get("trusted_inputs")
+        _require(isinstance(trusted, Mapping), "offline recovery trusted input set is missing")
+        for name in ("primary_sacct", "primary_sacct_status", "force_manifest", "task_map"):
+            reference = trusted.get(name)
+            _require(isinstance(reference, Mapping),
+                     "offline recovery trusted input reference is invalid")
+            path = core.strict_run_descendant(run_dir, Path(str(reference.get("path", ""))),
+                                              f"offline recovery {name}")
+            _match(path, reference.get("sha256"), f"offline recovery {name}")
+        historical_reference = trusted.get("historical_workflow")
+        _require(isinstance(historical_reference, Mapping)
+                 and set(historical_reference) == {"path", "sha256", "files_sha256"},
+                 "offline recovery historical workflow reference is invalid")
+        historical_workflow_dir, historical_hashes = _historical_workflow(
+            historical_reference["path"], historical_reference["sha256"])
+        _require(historical_reference["files_sha256"] == historical_hashes,
+                 "offline recovery historical workflow file set is altered")
+        collection = recovery.get("reconstructed_collection")
+        _require(isinstance(collection, Mapping)
+                 and recovery.get("reconstructed_collection_sha256")
+                     == core.canonical_sha256(collection),
+                 "offline recovery reconstructed collection is altered")
+        recovery_primary = collection.get("primary")
+        _require(isinstance(recovery_primary, Mapping)
+                 and raw_context.get("primary_stage") == "force"
+                 and raw_context.get("primary_attempt_id") == recovery_primary.get("attempt_id")
+                 and raw_context.get("primary_job_id") == recovery_primary.get("job_id")
+                 and raw_context.get("primary_request_sha256")
+                     == trusted.get("primary_request_sha256")
+                 and raw_context.get("primary_result_sha256")
+                     == trusted.get("primary_result_sha256")
+                 and raw_context.get("primary_stage_script_sha256")
+                     == trusted.get("primary_stage_script_sha256")
+                 and raw_context.get("config") == str(config_path)
+                 and raw_context.get("config_sha256") == core.sha256_path(config_path)
+                 and (not raw_context.get("git_commit")
+                      or re.fullmatch(r"[0-9a-f]{40}", raw_context["git_commit"]) is not None),
+                 "offline recovery failed collector context is not bound to its primary chain")
+    else:
+        collection = collection_document
     _require(collection.get("schema_version") == 1 and collection.get("stage") == "collect"
              and collection.get("collection_kind") == "force_array_batch"
              and collection.get("material") == "SrZrS3"
@@ -679,6 +970,7 @@ def _finalize_payload(config_path: Path, run_dir: Path, release_path: Path,
         expected_primary_result_sha256=result_ref.get("sha256"),
         expected_primary_stage_script_sha256=request.get("stage_script_sha256"),
         require_held_primary=True,
+        historical_workflow_dir=historical_workflow_dir,
     )
     _require(replayed_records == records,
              "initial pilot submission record replay differs from collection")
@@ -716,9 +1008,14 @@ def _finalize_payload(config_path: Path, run_dir: Path, release_path: Path,
              "force manifest workflow inventory is missing")
     release_workflow = {str(Path(raw_path).resolve()): digest for raw_path, digest
                         in release["workflow_sha256"].items()}
-    expected_force_workflow = {str(Path(__file__).with_name(name).resolve()) for name in
-                               ("campaign.py", "qe_input.py", "qe_output.py",
-                                "pilot_dataset.py", "initial_pilot.py")}
+    force_workflow_root = (Path(__file__).resolve().parent
+                           if historical_workflow_dir is None
+                           else Path(historical_workflow_dir).resolve())
+    expected_force_workflow = {
+        str((force_workflow_root / name).resolve()) for name in
+        ("campaign.py", "qe_input.py", "qe_output.py",
+         "pilot_dataset.py", "initial_pilot.py")
+    }
     _require({str(Path(raw_path).resolve()) for raw_path in workflow}
              == expected_force_workflow,
              "force workflow inventory differs from exact initial-pilot allowlist")
@@ -1020,6 +1317,9 @@ def _finalize_payload(config_path: Path, run_dir: Path, release_path: Path,
         "force_manifest_sha256": core.sha256_path(force_manifest_path),
         "collection_path": str(collection_path),
         "collection_sha256": collection_sha256,
+        "offline_recovery_path": str(collection_path) if recovery is not None else None,
+        "offline_recovery_sha256": collection_sha256 if recovery is not None else None,
+        "original_collector_failed": True if recovery is not None else False,
         "retry_collection_path": (
             str(retry_collection_path) if retry_collection_path is not None else None
         ),
@@ -1033,7 +1333,9 @@ def _finalize_payload(config_path: Path, run_dir: Path, release_path: Path,
         },
         "production_budget": None,
         "workflow_sha256": {str(Path(__file__)): core.sha256_path(Path(__file__))},
-        "limitations": release["limitations"],
+        "limitations": release["limitations"] + (
+            list(recovery["limitations"]) if recovery is not None else []
+        ),
     }
 
 

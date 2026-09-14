@@ -64,9 +64,11 @@ if [[ "$PRIMARY_STAGE" == "force" ]]; then
         || p3_die "force task map must belong to the selected RUN_DIR"
     [[ "$FORCE_MANIFEST" == "$(dirname "$TASK_MAP")/force_manifest.json" ]] \
         || p3_die "force manifest must be adjacent to the exact task map"
-    [[ "$P3_FORCE_TASK_IDS" =~ ^[0-9]+(,[0-9]+)*$ ]] \
+    # The export channel is comma-delimited, so task IDs use colon here.
+    # Commas remain reserved for Slurm's separate --array syntax.
+    [[ "$P3_FORCE_TASK_IDS" =~ ^[0-9]+(:[0-9]+)*$ ]] \
         || p3_die "P3_FORCE_TASK_IDS is invalid"
-    EXPECTED_ALLOCATIONS="$(awk -F ',' '{ print NF }' <<< "$P3_FORCE_TASK_IDS")"
+    EXPECTED_ALLOCATIONS="$(awk -F ':' '{ print NF }' <<< "$P3_FORCE_TASK_IDS")"
     [[ "$EXPECTED_ALLOCATIONS" =~ ^[1-9][0-9]*$ ]] \
         || p3_die "force task map contains no task rows"
 fi
@@ -194,7 +196,7 @@ if [[ "$PRIMARY_STAGE" == "force" ]]; then
         --expect-force-manifest-sha "$PRIMARY_FORCE_MANIFEST_SHA256"
         --expect-task-map-sha "$PRIMARY_TASK_MAP_SHA256"
     )
-    IFS=',' read -r -a primary_task_ids <<< "$P3_FORCE_TASK_IDS"
+    IFS=':' read -r -a primary_task_ids <<< "$P3_FORCE_TASK_IDS"
     for primary_task_id in "${primary_task_ids[@]}"; do
         collect_args+=(--primary-task-id "$primary_task_id")
     done

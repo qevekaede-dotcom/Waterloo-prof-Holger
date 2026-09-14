@@ -1566,8 +1566,13 @@ def stage_plan(
             exports["P3_FORCE_RETRY_EVIDENCE_SHA256"] = retry_collection_sha256
         else:
             submitted_task_ids = tuple(range(task_count))
+        # ``--export`` itself is comma-delimited.  Keep the logical task list
+        # in a distinct, shell-safe encoding; the comma form below belongs only
+        # to Slurm's independently parsed ``--array`` option.
         task_selector = ",".join(str(value) for value in submitted_task_ids)
-        exports["P3_FORCE_TASK_IDS"] = task_selector
+        exports["P3_FORCE_TASK_IDS"] = ":".join(
+            str(value) for value in submitted_task_ids
+        )
         array_domain = (
             f"0-{task_count - 1}"
             if submitted_task_ids == tuple(range(task_count))

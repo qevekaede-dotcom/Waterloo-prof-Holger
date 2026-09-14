@@ -102,7 +102,7 @@ fi
                 "PRIMARY_REQUEST_SHA256": "c" * 64,
                 "PRIMARY_RESULT_SHA256": "d" * 64,
                 "PRIMARY_STAGE_SCRIPT_SHA256": "e" * 64,
-                "P3_FORCE_TASK_IDS": "0,1",
+                "P3_FORCE_TASK_IDS": "0:1",
                 "SLURM_JOB_ID": "999",
                 "FAKE_SACCT_COUNTER": str(counter),
                 "FAKE_SACCT": str(sacct),
@@ -130,6 +130,9 @@ fi
         self.assertIn("--expect-force-manifest-sha", arguments)
         self.assertIn("b" * 64, arguments)
         self.assertEqual(arguments.count("--primary-task-id"), 2)
+        task_ids = [arguments[index + 1] for index, value in enumerate(arguments)
+                    if value == "--primary-task-id"]
+        self.assertEqual(task_ids, ["0", "1"])
         self.assertIn("--expect-primary-request-sha", arguments)
 
 

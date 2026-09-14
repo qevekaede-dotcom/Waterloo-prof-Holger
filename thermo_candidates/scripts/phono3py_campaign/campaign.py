@@ -4584,6 +4584,7 @@ def _force_submission_binding(
     expected_primary_result_sha256: str | None,
     expected_primary_stage_script_sha256: str | None,
     require_held_primary: bool = False,
+    historical_workflow_dir: Path | None = None,
 ) -> dict[str, Any]:
     """Replay submit.py's primary + afterany collector records for force evidence."""
 
@@ -4630,14 +4631,25 @@ def _force_submission_binding(
     )
     if context_errors:
         raise CampaignError("force collector context is missing or malformed")
-    expected_workflow = {
-        "submit.py": sha256_path(Path(__file__).with_name("submit.py")),
-        "campaign.py": sha256_path(Path(__file__)),
-        "cluster.env": sha256_path(Path(__file__).with_name("slurm") / "cluster.env"),
-        "force_array.sbatch": sha256_path(
-            Path(__file__).with_name("slurm") / "force_array.sbatch"
-        ),
+    workflow_root = Path(__file__).resolve().parent
+    if historical_workflow_dir is not None:
+        supplied_workflow_root = Path(historical_workflow_dir)
+        if (not supplied_workflow_root.is_absolute() or not supplied_workflow_root.is_dir()
+                or any(candidate.is_symlink() for candidate in
+                       (supplied_workflow_root, *supplied_workflow_root.parents))):
+            raise CampaignError("historical workflow root is unsafe")
+        workflow_root = supplied_workflow_root.resolve()
+    workflow_paths = {
+        "submit.py": workflow_root / "submit.py",
+        "campaign.py": workflow_root / "campaign.py",
+        "cluster.env": workflow_root / "slurm" / "cluster.env",
+        "force_array.sbatch": workflow_root / "slurm" / "force_array.sbatch",
+        "collect.sbatch": workflow_root / "slurm" / "collect.sbatch",
     }
+    if any(not path.is_file() or path.is_symlink() for path in workflow_paths.values()):
+        raise CampaignError("historical workflow file is missing or symlinked")
+    expected_workflow = {name: sha256_path(workflow_paths[name]) for name in
+                         ("submit.py", "campaign.py", "cluster.env", "force_array.sbatch")}
     if (
         request.get("stage") != "force"
         or request.get("attempt_id") != primary_attempt_id
@@ -4766,7 +4778,7 @@ def _force_submission_binding(
         or collector_request.get("cluster_env_sha256")
         != expected_workflow["cluster.env"]
         or collector_request.get("collector_script_sha256")
-        != sha256_path(Path(__file__).with_name("slurm") / "collect.sbatch")
+        != sha256_path(workflow_paths["collect.sbatch"])
     ):
         raise CampaignError("force afterany collector request identity/hash mismatch")
     if (
@@ -5141,6 +5153,7 @@ def _collect_force_batch(
     accounting_records: Sequence[Mapping[str, str]],
     accounting_errors: Sequence[str],
     accounting_metadata: Mapping[str, Any],
+    historical_workflow_dir: Path | None = None,
 ) -> dict[str, Any]:
     from postprocess_backend import PostprocessError, load_force_artifact
 
@@ -5211,6 +5224,7 @@ def _collect_force_batch(
             expected_primary_result_sha256=str(expected_primary_result_sha256),
             expected_primary_stage_script_sha256=str(expected_primary_stage_script_sha256),
             require_held_primary=initial_release,
+            historical_workflow_dir=historical_workflow_dir,
         )
     if initial_release:
         submission_request = load_json(
@@ -5994,6 +6008,48 @@ def command_finalize_initial_pilot(
         retry_collection_sha256=expected_retry_collection_sha256,
         output_path=output_path,
     )
+
+
+def command_recover_failed_initial_pilot_collector(
+    config_path: Path, run_dir: Path, *, failed_collector_attempt: Path,
+    primary_attempt_id: str, primary_job_id: str, force_manifest_path: Path,
+    expected_force_manifest_sha256: str, task_map_path: Path,
+    expected_task_map_sha256: str, expected_primary_request_sha256: str,
+    expected_primary_result_sha256: str, expected_primary_stage_script_sha256: str,
+    expected_accounting_sha256: str, expected_accounting_status_sha256: str,
+    expected_failed_stdout_sha256: str, historical_workflow_dir: Path,
+    expected_historical_workflow_sha256: str, output_path: Path,
+) -> dict[str, Any]:
+    """Offline recovery limited to the known failed Sr exact-six collector."""
+    for option, digest in (
+        ("--expect-force-manifest-sha", expected_force_manifest_sha256),
+        ("--expect-task-map-sha", expected_task_map_sha256),
+        ("--expect-primary-request-sha", expected_primary_request_sha256),
+        ("--expect-primary-result-sha", expected_primary_result_sha256),
+        ("--expect-primary-stage-script-sha", expected_primary_stage_script_sha256),
+        ("--expect-accounting-sha", expected_accounting_sha256),
+        ("--expect-accounting-status-sha", expected_accounting_status_sha256),
+        ("--expect-failed-stdout-sha", expected_failed_stdout_sha256),
+        ("--expect-historical-workflow-sha", expected_historical_workflow_sha256),
+    ):
+        if re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+            raise CampaignError(f"{option} must be 64 lowercase hex characters")
+    from initial_pilot import recover_failed_initial_pilot_collector
+    return recover_failed_initial_pilot_collector(
+        config_path, run_dir, failed_collector_attempt=failed_collector_attempt,
+        primary_attempt_id=primary_attempt_id, primary_job_id=primary_job_id,
+        force_manifest_path=force_manifest_path,
+        force_manifest_sha256=expected_force_manifest_sha256,
+        task_map_path=task_map_path, task_map_sha256=expected_task_map_sha256,
+        primary_request_sha256=expected_primary_request_sha256,
+        primary_result_sha256=expected_primary_result_sha256,
+        primary_stage_script_sha256=expected_primary_stage_script_sha256,
+        accounting_sha256=expected_accounting_sha256,
+        accounting_status_sha256=expected_accounting_status_sha256,
+        failed_stdout_sha256=expected_failed_stdout_sha256,
+        historical_workflow_dir=historical_workflow_dir,
+        historical_workflow_sha256=expected_historical_workflow_sha256,
+        output_path=output_path)
 
 
 def command_replay_initial_pilot_result(
@@ -6812,6 +6868,26 @@ def build_parser() -> argparse.ArgumentParser:
     finalize_initial.add_argument("--expect-retry-collection-sha")
     finalize_initial.add_argument("--output", type=Path, required=True)
 
+    recover_initial = subparsers.add_parser("recover-failed-initial-pilot-collector")
+    recover_initial.add_argument("--config", type=Path, required=True)
+    recover_initial.add_argument("--run-dir", type=Path, required=True)
+    recover_initial.add_argument("--failed-collector-attempt", type=Path, required=True)
+    recover_initial.add_argument("--primary-attempt-id", required=True)
+    recover_initial.add_argument("--primary-job-id", required=True)
+    recover_initial.add_argument("--force-manifest", type=Path, required=True)
+    recover_initial.add_argument("--expect-force-manifest-sha", required=True)
+    recover_initial.add_argument("--task-map", type=Path, required=True)
+    recover_initial.add_argument("--expect-task-map-sha", required=True)
+    recover_initial.add_argument("--expect-primary-request-sha", required=True)
+    recover_initial.add_argument("--expect-primary-result-sha", required=True)
+    recover_initial.add_argument("--expect-primary-stage-script-sha", required=True)
+    recover_initial.add_argument("--expect-accounting-sha", required=True)
+    recover_initial.add_argument("--expect-accounting-status-sha", required=True)
+    recover_initial.add_argument("--expect-failed-stdout-sha", required=True)
+    recover_initial.add_argument("--historical-workflow-dir", type=Path, required=True)
+    recover_initial.add_argument("--expect-historical-workflow-sha", required=True)
+    recover_initial.add_argument("--output", type=Path, required=True)
+
     replay_initial_result = subparsers.add_parser(
         "replay-initial-pilot-result"
     )
@@ -6963,6 +7039,26 @@ def main(argv: Iterable[str] | None = None) -> int:
                 expected_collection_sha256=args.expect_collection_sha,
                 retry_collection_path=args.retry_collection,
                 expected_retry_collection_sha256=args.expect_retry_collection_sha,
+                output_path=args.output,
+            )
+        elif args.command == "recover-failed-initial-pilot-collector":
+            result = command_recover_failed_initial_pilot_collector(
+                args.config, run_dir,
+                failed_collector_attempt=args.failed_collector_attempt,
+                primary_attempt_id=args.primary_attempt_id,
+                primary_job_id=args.primary_job_id,
+                force_manifest_path=args.force_manifest,
+                expected_force_manifest_sha256=args.expect_force_manifest_sha,
+                task_map_path=args.task_map,
+                expected_task_map_sha256=args.expect_task_map_sha,
+                expected_primary_request_sha256=args.expect_primary_request_sha,
+                expected_primary_result_sha256=args.expect_primary_result_sha,
+                expected_primary_stage_script_sha256=args.expect_primary_stage_script_sha,
+                expected_accounting_sha256=args.expect_accounting_sha,
+                expected_accounting_status_sha256=args.expect_accounting_status_sha,
+                expected_failed_stdout_sha256=args.expect_failed_stdout_sha,
+                historical_workflow_dir=args.historical_workflow_dir,
+                expected_historical_workflow_sha256=args.expect_historical_workflow_sha,
                 output_path=args.output,
             )
         elif args.command == "replay-initial-pilot-result":

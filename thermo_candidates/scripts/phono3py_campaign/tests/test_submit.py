@@ -1484,6 +1484,13 @@ class SubmissionTests(unittest.TestCase):
         self.assertIn(",PRIMARY_JOB_ID=22345", exports)
         self.assertIn(",PRIMARY_TASK_MAP_SHA256=", exports)
         self.assertIn(",PRIMARY_FORCE_MANIFEST_SHA256=", exports)
+        # Slurm splits --export at commas.  The logical task selector must
+        # therefore survive that real export grammar as one value.
+        self.assertIn(",P3_FORCE_TASK_IDS=0:1:2", exports)
+        round_tripped = dict(
+            field.split("=", 1) for field in exports.removeprefix("--export=").split(",")
+        )
+        self.assertEqual(round_tripped["P3_FORCE_TASK_IDS"], "0:1:2")
         self.assertIn(f",TASK_MAP={task_map.resolve()}", exports)
         self.assertIn(",FORCE_MANIFEST=", exports)
         self.assertIn(",FORCE_BUDGET_RECEIPT=", exports)
@@ -1596,6 +1603,72 @@ class SubmissionTests(unittest.TestCase):
                 expected_primary_stage_script_sha256=request["stage_script_sha256"],
                 require_held_primary=True,
             )
+        # A frozen historical checkout can replay a legacy submission whose
+        # source hashes deliberately differ from the running checkout.  The
+        # ordinary path must still reject that same record.
+        historical = self.run_dir.resolve() / "historical-workflow"
+        (historical / "slurm").mkdir(parents=True)
+        historical_files = {
+            "submit.py": SLURM_DIR.parent / "submit.py",
+            "campaign.py": SLURM_DIR.parent / "campaign.py",
+            "cluster.env": SLURM_DIR / "cluster.env",
+            "force_array.sbatch": SLURM_DIR / "force_array.sbatch",
+            "collect.sbatch": SLURM_DIR / "collect.sbatch",
+        }
+        for name, source in historical_files.items():
+            destination = historical / ("slurm/" + name if name.endswith("sbatch")
+                                        or name == "cluster.env" else name)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_text(source.read_text() + "\n# frozen historical copy\n")
+        historical_hashes = {
+            "submit.py": sha256_path(historical / "submit.py"),
+            "campaign.py": sha256_path(historical / "campaign.py"),
+            "cluster.env": sha256_path(historical / "slurm/cluster.env"),
+            "force_array.sbatch": sha256_path(historical / "slurm/force_array.sbatch"),
+            "collect.sbatch": sha256_path(historical / "slurm/collect.sbatch"),
+        }
+        request["hold_primary"] = True
+        request.update(
+            submit_script_sha256=historical_hashes["submit.py"],
+            stage_script_sha256=historical_hashes["force_array.sbatch"],
+            cluster_env_sha256=historical_hashes["cluster.env"],
+            workflow_sha256={key: historical_hashes[key] for key in
+                             ("submit.py", "campaign.py", "cluster.env", "force_array.sbatch")},
+        )
+        (record / "request.json").write_text(json.dumps(request))
+        collector_request = json.loads((record / "collector_request.json").read_text())
+        collector_request.update(
+            primary_request_sha256=sha256_path(record / "request.json"),
+            submit_script_sha256=historical_hashes["submit.py"],
+            campaign_cli_sha256=historical_hashes["campaign.py"],
+            cluster_env_sha256=historical_hashes["cluster.env"],
+            collector_script_sha256=historical_hashes["collect.sbatch"],
+            primary_stage_script_sha256=historical_hashes["force_array.sbatch"],
+        )
+        (record / "collector_request.json").write_text(json.dumps(collector_request))
+        attachment = json.loads((record / "collector_attachment.json").read_text())
+        attachment.update(
+            primary_request_sha256=sha256_path(record / "request.json"),
+            collector_request_sha256=sha256_path(record / "collector_request.json"),
+            workflow_sha256=request["workflow_sha256"],
+        )
+        (record / "collector_attachment.json").write_text(json.dumps(attachment))
+        release = json.loads((record / "primary_release.json").read_text())
+        release["collector_attachment_sha256"] = sha256_path(record / "collector_attachment.json")
+        (record / "primary_release.json").write_text(json.dumps(release))
+        binding_kwargs = dict(
+            config_path=self.config_path.resolve(), run_dir=self.run_dir.resolve(),
+            collector_attempt=collector_attempt, primary_attempt_id="initial-primary",
+            primary_job_id="32345", force_manifest_sha256=plan.force_manifest_sha256,
+            task_map_sha256=plan.task_map_sha256, submitted_task_ids=list(range(6)),
+            expected_primary_request_sha256=sha256_path(record / "request.json"),
+            expected_primary_result_sha256=sha256_path(record / "primary_result.json"),
+            expected_primary_stage_script_sha256=historical_hashes["force_array.sbatch"],
+            require_held_primary=True,
+        )
+        _force_submission_binding(**binding_kwargs, historical_workflow_dir=historical)
+        with self.assertRaisesRegex(CampaignError, "request identity/hash mismatch"):
+            _force_submission_binding(**binding_kwargs)
 
     def test_initial_force_collector_failure_never_releases_held_primary(self) -> None:
         self.pass_relax_gate()

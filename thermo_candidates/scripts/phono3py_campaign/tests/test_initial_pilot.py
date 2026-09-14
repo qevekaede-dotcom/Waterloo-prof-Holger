@@ -38,7 +38,7 @@ class InitialPilotTests(unittest.TestCase):
 
     def test_release_is_hash_bound_and_denies_broader_scope(self):
         with tempfile.TemporaryDirectory() as temporary:
-            run = Path(temporary) / "run"
+            run = (Path(temporary) / "run").resolve()
             final = run / "relax" / "final"
             final.mkdir(parents=True)
             shutil.copyfile(EVIDENCE / "relax/final/unitcell.in", final / "unitcell.in")
@@ -73,6 +73,37 @@ class InitialPilotTests(unittest.TestCase):
                 ip.replay_initial_pilot_release(result["release"],
                     config_path=CONFIG, run_dir=run,
                     expected_release_sha256="0" * 64)
+
+            historical = Path(temporary) / "historical-workflow"
+            historical.mkdir()
+            for name in ip.WORKFLOW_FILES:
+                destination = historical / name
+                shutil.copy2(Path(ip.__file__).resolve().parent / name, destination)
+            with patch("accepted_structure_import.verify_imported_acceptance",
+                       return_value=verified):
+                old_stable = ip._stable_release(
+                    CONFIG, run, workflow_dir=historical
+                )
+            old_release = run / "historical_release.json"
+            old_release.write_text(json.dumps({
+                **old_stable, "created_utc": "2026-09-14T00:00:00Z",
+            }))
+            old_sha = core.sha256_path(old_release)
+            with patch("accepted_structure_import.verify_imported_acceptance",
+                       return_value=verified):
+                with self.assertRaisesRegex(ip.InitialPilotError,
+                                            "workflow_sha256"):
+                    ip.replay_initial_pilot_release(
+                        old_release, config_path=CONFIG, run_dir=run,
+                        expected_release_sha256=old_sha,
+                    )
+                replayed_old = ip.replay_initial_pilot_release(
+                    old_release, config_path=CONFIG, run_dir=run,
+                    expected_release_sha256=old_sha,
+                    historical_workflow_dir=historical,
+                )
+            self.assertEqual(replayed_old["workflow_sha256"],
+                             old_stable["workflow_sha256"])
             copied = Path(temporary) / "copied-run"
             shutil.copytree(run, copied)
             copied_release = copied / "pilot_release.json"
@@ -625,7 +656,7 @@ class InitialPilotTests(unittest.TestCase):
                     force_manifest_path=force_path,
                     collection_path=collection_path,
                     collection_sha256=core.sha256_path(collection_path),
-                    output_path=output)
+                        output_path=output)
             self.assertFalse(output.exists())
             linked = run / "linked-attempts"
             linked.symlink_to(external, target_is_directory=True)
@@ -644,6 +675,120 @@ class InitialPilotTests(unittest.TestCase):
                     collection_sha256=core.sha256_path(collection_path),
                     output_path=output)
             self.assertFalse(output.exists())
+
+    def test_known_failed_collector_can_only_be_recovered_from_all_six_raw_receipts(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            run = (Path(temporary) / "run").resolve()
+            failed = run / "slurm_attempts" / "collect" / "failed-collector"
+            failed.mkdir(parents=True)
+            (failed / "context.tsv").write_text(
+                "stage\tcollect\nattempt_id\tfailed-collector\nslurm_job_id\t777\n"
+                "primary_stage\tforce\nprimary_attempt_id\tforce-1\nprimary_job_id\t123\n"
+                "primary_request_sha256\t" + "a" * 64 + "\n"
+                "primary_result_sha256\t" + "b" * 64 + "\n"
+                "primary_stage_script_sha256\t" + "c" * 64 + "\n"
+                "config\t" + str(CONFIG.resolve()) + "\n"
+                "config_sha256\t" + core.sha256_path(CONFIG) + "\n"
+                "git_commit\t" + "d" * 40 + "\n"
+            )
+            (failed / "exit_code.txt").write_text("2\n")
+            (failed / "finished_utc.txt").write_text("2026-09-14T02:00:00Z\n")
+            stdout = failed / "stdout.log"
+            stdout.write_text(json.dumps({"command": "collect", "error": ip.FAILED_COLLECTOR_IDENTITY_ERROR,
+                                          "healthy": False}) + "\n")
+            (failed / "stderr.log").write_text("")
+            accounting = failed / "primary_sacct.psv"
+            accounting.write_text("synthetic accounting\n")
+            accounting_status = failed / "primary_sacct_exit_code.txt"
+            accounting_status.write_text("0\n")
+            bundle = run / "force"
+            bundle.mkdir()
+            manifest, task_map = bundle / "force_manifest.json", bundle / "task_map.tsv"
+            manifest.write_text("{}\n")
+            task_map.write_text("task_id\n")
+            historical = run / "historical-workflow"
+            (historical / "slurm").mkdir(parents=True)
+            for name in ip.HISTORICAL_WORKFLOW_FILES:
+                source = Path(core.__file__).with_name(name) if "/" not in name else (
+                    Path(core.__file__).parent / name)
+                destination = historical / name
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source, destination)
+            historical_hashes = {
+                name: core.sha256_path(historical / name)
+                for name in ip.HISTORICAL_WORKFLOW_FILES
+            }
+            report = {
+                "expected_task_count": 6, "submitted_task_ids": list(range(6)),
+                "accepted_success_count": 6, "upstream_failure_count": 0,
+                "unfinished_or_invalid_count": 0, "collection_integrity_complete": True,
+                "batch_execution_complete": True,
+                "entries": [{"task_id": index, "outcome": "accepted_success",
+                             "evidence": {"scf.out": {}}} for index in range(6)],
+            }
+            kwargs = dict(
+                failed_collector_attempt=failed, primary_attempt_id="force-1",
+                primary_job_id="123", force_manifest_path=manifest,
+                force_manifest_sha256=core.sha256_path(manifest), task_map_path=task_map,
+                task_map_sha256=core.sha256_path(task_map), primary_request_sha256="a" * 64,
+                primary_result_sha256="b" * 64, primary_stage_script_sha256="c" * 64,
+                accounting_sha256=core.sha256_path(accounting),
+                accounting_status_sha256=core.sha256_path(accounting_status),
+                failed_stdout_sha256=core.sha256_path(stdout),
+                historical_workflow_dir=historical,
+                historical_workflow_sha256=core.canonical_sha256(historical_hashes),
+                output_path=run / "recovery.json",
+            )
+            with patch.object(core, "_read_sacct_records", return_value=([], [], {})), \
+                 patch.object(core, "_collect_force_batch", return_value=report):
+                result = ip.recover_failed_initial_pilot_collector(CONFIG, run, **kwargs)
+            artifact = core.load_json(Path(result["recovery"]))
+            self.assertTrue(artifact["original_collector_failed"])
+            self.assertFalse(artifact["slurm_collector_succeeded"])
+            self.assertEqual(artifact["reconstructed_collection_sha256"],
+                             core.canonical_sha256(report))
+            self.assertEqual(len(artifact["reconstructed_collection"]["entries"]), 6)
+            original_campaign = (historical / "campaign.py").read_text()
+            (historical / "campaign.py").write_text(original_campaign + "# altered\n")
+            with self.assertRaisesRegex(ip.InitialPilotError, "historical workflow hash"):
+                ip._historical_workflow(historical, kwargs["historical_workflow_sha256"])
+            (historical / "campaign.py").write_text(original_campaign)
+            bad_report = {**report, "entries": report["entries"][:5],
+                          "accepted_success_count": 5}
+            with patch.object(core, "_read_sacct_records", return_value=([], [], {})), \
+                 patch.object(core, "_collect_force_batch", return_value=bad_report), \
+                 self.assertRaisesRegex(ip.InitialPilotError, "exact complete six-task"):
+                ip.recover_failed_initial_pilot_collector(CONFIG, run, **kwargs)
+
+            stdout.write_text(json.dumps({"command": "collect", "error": "some other failure",
+                                          "healthy": False}) + "\n")
+            kwargs["failed_stdout_sha256"] = core.sha256_path(stdout)
+            with self.assertRaisesRegex(ip.InitialPilotError, "known task-selector"):
+                ip.recover_failed_initial_pilot_collector(CONFIG, run, **kwargs)
+            stdout.write_text(json.dumps({"command": "collect", "error": ip.FAILED_COLLECTOR_IDENTITY_ERROR,
+                                          "healthy": False, "extra": True}) + "\n")
+            kwargs["failed_stdout_sha256"] = core.sha256_path(stdout)
+            with self.assertRaisesRegex(ip.InitialPilotError, "exact known"):
+                ip.recover_failed_initial_pilot_collector(CONFIG, run, **kwargs)
+            stdout.write_text(json.dumps({"command": "collect", "error": ip.FAILED_COLLECTOR_IDENTITY_ERROR,
+                                          "healthy": False}) + "\n")
+            kwargs["failed_stdout_sha256"] = core.sha256_path(stdout)
+            for name, altered in (("context.tsv", "stage\tforce\n"),
+                                  ("exit_code.txt", "3\n"),
+                                  ("finished_utc.txt", "not-a-time\n"),
+                                  ("stderr.log", "unexpected stderr\n")):
+                path = failed / name
+                original = path.read_text()
+                path.write_text(altered)
+                with self.subTest(raw_failure_evidence=name), self.assertRaises(ip.InitialPilotError):
+                    ip.recover_failed_initial_pilot_collector(CONFIG, run, **kwargs)
+                path.write_text(original)
+            outside = run / "outside-context.tsv"
+            outside.write_text((failed / "context.tsv").read_text())
+            (failed / "context.tsv").unlink()
+            (failed / "context.tsv").symlink_to(outside)
+            with self.assertRaisesRegex(ip.InitialPilotError, "symlink"):
+                ip.recover_failed_initial_pilot_collector(CONFIG, run, **kwargs)
 
 
 if __name__ == "__main__":
