@@ -312,6 +312,15 @@ End final coordinates
             )
         with self.assertRaisesRegex(QEInputError, "no complete"):
             extract_final_coordinates("PWSCF output without final geometry")
+        with self.assertRaisesRegex(QEInputError, "no complete"):
+            extract_final_coordinates(
+                "ATOMIC_POSITIONS (crystal)\n"
+                "A 0.0 0.0 0.0\n"
+                "The maximum number of steps has been reached.\n"
+                "End of FIRE minimization\n"
+                "JOB DONE.\n",
+                expected_atoms=1,
+            )
 
     def test_builds_pristine_scf_with_high_precision_positions(self) -> None:
         generated = build_pristine_scf_input(

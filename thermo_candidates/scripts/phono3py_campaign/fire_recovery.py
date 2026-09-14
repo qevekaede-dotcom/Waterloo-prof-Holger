@@ -21,6 +21,11 @@ from typing import Any, Mapping, Sequence
 
 import campaign as core
 from qe_input import (
+    FinalCoordinates,
+    QEInputError,
+    _find_card,
+    _parse_rows,
+    _position_row,
     _set_namelist_values,
     build_fixed_cell_relax_input,
     extract_final_coordinates,
@@ -45,6 +50,20 @@ REQUIRED_SEED_FILES = (
 )
 STANDARDIZATION_AUDIT = "lineage_source/one_reset_attempt/starting_structure_audit.json"
 FIRE_MARKERS = ("FIRE: convergence achieved in", "End of FIRE minimization")
+_FINAL_COORDINATE_MARKER = re.compile(
+    r"(?im)^[ \t]*(?:Begin|End) final coordinates[ \t]*$"
+)
+_ATOMIC_POSITIONS_HEADER = re.compile(
+    r"(?im)^[ \t]*ATOMIC_POSITIONS\b[^\r\n]*(?:\r?\n|$)"
+)
+_BARE_CRYSTAL_POSITIONS_HEADER = re.compile(
+    r"(?m)^[ \t]*ATOMIC_POSITIONS \(crystal\)[ \t]*(?:\r?\n|$)"
+)
+_MAXIMUM_STEPS_MARKER = re.compile(
+    r"(?m)^[ \t]*The maximum number of steps has been reached\.[ \t]*$"
+)
+_END_FIRE_MARKER = re.compile(r"(?m)^[ \t]*End of FIRE minimization[ \t]*$")
+_JOB_DONE_MARKER = re.compile(r"(?m)^[ \t]*JOB DONE\.[ \t]*$")
 PWSCF_VERSION_HEADER = re.compile(
     r"^\s*Program PWSCF\s+v\.([^\s]+)\s+starts(?:\s|$)", re.MULTILINE
 )
@@ -2175,6 +2194,95 @@ def _sbatch_stdout_matches_job(stdout: object, job_id: str) -> bool:
     ) is not None
 
 
+def _extract_fire_pilot_final_coordinates(
+    run_text: str,
+    records: Sequence[Any],
+    expected_atoms: int,
+) -> tuple[FinalCoordinates, bool]:
+    """Extract the normal final block or QE 7.3.1's exact nstep=8 fallback.
+
+    The fallback is deliberately local to the bounded FIRE pilot.  It does not
+    broaden ``qe_input.extract_final_coordinates`` and is unavailable if QE
+    emitted even one Begin/End final-coordinate marker.
+    """
+
+    final_markers = list(_FINAL_COORDINATE_MARKER.finditer(run_text))
+    if final_markers:
+        final_begins = [
+            marker.start()
+            for marker in final_markers
+            if marker.group(0).strip().lower().startswith("begin")
+        ]
+        final_ends = [
+            marker.end()
+            for marker in final_markers
+            if marker.group(0).strip().lower().startswith("end")
+        ]
+        ordered = (
+            len(final_begins) == 1
+            and len(final_ends) == 1
+            and bool(records)
+            and records[-1].block_end < final_begins[0] < final_ends[0]
+        )
+        job_done = run_text.find("JOB DONE", final_ends[0] if final_ends else 0)
+        if job_done >= 0 and final_ends and final_ends[0] >= job_done:
+            ordered = False
+        return (
+            extract_final_coordinates(run_text, expected_atoms=expected_atoms),
+            ordered,
+        )
+
+    if len(records) != 8:
+        raise QEInputError(
+            "bare FIRE terminal coordinates require exactly eight complete force steps"
+        )
+    tail_start = records[-1].block_end
+    tail = run_text[tail_start:]
+    all_position_headers = list(_ATOMIC_POSITIONS_HEADER.finditer(tail))
+    bare_headers = list(_BARE_CRYSTAL_POSITIONS_HEADER.finditer(tail))
+    maximum_steps = list(_MAXIMUM_STEPS_MARKER.finditer(tail))
+    fire_ends = list(_END_FIRE_MARKER.finditer(tail))
+    job_dones = list(_JOB_DONE_MARKER.finditer(tail))
+    if len(all_position_headers) != 1 or len(bare_headers) != 1:
+        raise QEInputError(
+            "bare FIRE terminal output requires one unique ATOMIC_POSITIONS (crystal) card"
+        )
+    if len(maximum_steps) != 1:
+        raise QEInputError(
+            "bare FIRE terminal output requires one exact maximum-step marker"
+        )
+    if len(fire_ends) != 1:
+        raise QEInputError(
+            "bare FIRE terminal output requires one exact End of FIRE minimization marker"
+        )
+    if len(job_dones) != 1:
+        raise QEInputError("bare FIRE terminal output requires one exact JOB DONE marker")
+    header = bare_headers[0]
+    maximum_step = maximum_steps[0]
+    fire_end = fire_ends[0]
+    job_done = job_dones[0]
+    if not (
+        header.start() < maximum_step.start() < fire_end.start() < job_done.start()
+    ):
+        raise QEInputError(
+            "bare FIRE terminal markers are not in positions/maximum-step/End-FIRE/JOB-DONE order"
+        )
+
+    positions_block = tail[header.start() : maximum_step.start()]
+    card = _find_card(positions_block, "ATOMIC_POSITIONS")
+    assert card is not None
+    if card.qualifier != "crystal":
+        raise QEInputError("bare FIRE terminal coordinates must use crystal units")
+    positions, (_, positions_end) = _parse_rows(
+        positions_block, card, expected_atoms, _position_row
+    )
+    if positions_block[positions_end:].strip():
+        raise QEInputError(
+            "bare FIRE terminal output contains records between positions and maximum-step marker"
+        )
+    return FinalCoordinates("crystal", positions), True  # type: ignore[arg-type]
+
+
 def _pilot_trajectory(output_path: Path, seed_path: Path, expected_atoms: int) -> dict[str, Any]:
     text = output_path.read_text(errors="replace")
     starts = list(RUN_START.finditer(text))
@@ -2210,23 +2318,14 @@ def _pilot_trajectory(output_path: Path, seed_path: Path, expected_atoms: int) -
         errors.append("non-converged SCF follows the last complete force block")
     if "convergence has been achieved" in run_text[previous_end:]:
         errors.append("later SCF cycle has no complete force block")
-    final_begins = [match.start() for match in re.finditer(r"(?m)^\s*Begin final coordinates\s*$", run_text)]
-    final_ends = [match.end() for match in re.finditer(r"(?m)^\s*End final coordinates\s*$", run_text)]
-    final_coordinates_after_trajectory = (
-        len(final_begins) == 1
-        and len(final_ends) == 1
-        and bool(records)
-        and records[-1].block_end < final_begins[0] < final_ends[0]
+    final, final_coordinates_after_trajectory = _extract_fire_pilot_final_coordinates(
+        run_text, records, expected_atoms
     )
-    job_done = run_text.find("JOB DONE", final_ends[0] if final_ends else 0)
-    if job_done >= 0 and final_ends and final_ends[0] >= job_done:
-        final_coordinates_after_trajectory = False
     if not final_coordinates_after_trajectory:
         errors.append(
             "selected final coordinates are not one unique block after the eighth force step"
         )
     seed = parse_qe_input(seed_path.read_text())
-    final = extract_final_coordinates(run_text, expected_atoms=expected_atoms)
     labels = [item.label for item in final.atomic_positions]
     seed_labels = [item.label for item in seed.atomic_positions]
     order_unchanged = labels == seed_labels

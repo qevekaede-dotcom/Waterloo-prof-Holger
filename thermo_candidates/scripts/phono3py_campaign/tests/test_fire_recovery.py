@@ -1637,6 +1637,104 @@ class FireRecoveryTests(unittest.TestCase):
         chunks.append("End final coordinates\nJOB DONE.\n")
         return "".join(chunks)
 
+    def _bare_nstep_pilot_output(self, *, final_force: float = 5e-5) -> str:
+        """QE 7.3.1 format observed at the exact eight-step FIRE limit."""
+        output = self._pilot_output(final_force=final_force)
+        output = output.replace("Begin final coordinates\n", "", 1)
+        return output.replace(
+            "End final coordinates\nJOB DONE.\n",
+            "\n     The maximum number of steps has been reached.\n"
+            "     End of FIRE minimization\n\n"
+            "     JOB DONE.\n",
+            1,
+        )
+
+    def test_pilot_trajectory_accepts_exact_qe_7p3p1_bare_nstep_terminal(self) -> None:
+        seed_path = core.resolve_repo_source(self.config, "source.qe_scf_input")
+        output = self.root / "bare-nstep-pilot.out"
+        output.write_text(self._bare_nstep_pilot_output())
+        with patch(
+            "campaign.symmetry_scan",
+            return_value=[{
+                "symprec_angstrom": 1e-6,
+                "spacegroup_number": 72,
+                "spacegroup_symbol": "Ibam",
+            }],
+        ):
+            report = fire._pilot_trajectory(output, seed_path, 18)
+        self.assertTrue(all(report["checks"].values()))
+        self.assertEqual(report["force_step_count"], 8)
+        self.assertNotIn("Begin final coordinates", output.read_text())
+
+    def test_real_bare_terminal_force_still_fails_pilot_threshold(self) -> None:
+        seed_path = core.resolve_repo_source(self.config, "source.qe_scf_input")
+        output = self.root / "real-force-bare-nstep-pilot.out"
+        output.write_text(self._bare_nstep_pilot_output(final_force=1.5722e-4))
+        with patch(
+            "campaign.symmetry_scan",
+            return_value=[{
+                "symprec_angstrom": 1e-6,
+                "spacegroup_number": 72,
+                "spacegroup_symbol": "Ibam",
+            }],
+        ):
+            report = fire._pilot_trajectory(output, seed_path, 18)
+        self.assertTrue(report["checks"]["final_coordinates_follow_eighth_force_step"])
+        self.assertAlmostEqual(report["final_max_force_component_ry_bohr"], 1.5722e-4)
+        self.assertFalse(
+            report["checks"]["final_max_component_le_1e-4_Ry_per_bohr"]
+        )
+
+    def test_pilot_trajectory_rejects_malformed_bare_nstep_terminals(self) -> None:
+        seed_path = core.resolve_repo_source(self.config, "source.qe_scf_input")
+        valid = self._bare_nstep_pilot_output()
+        header = "ATOMIC_POSITIONS (crystal)\n"
+        maximum = "     The maximum number of steps has been reached.\n"
+        fire_end = "     End of FIRE minimization\n"
+        job_done = "     JOB DONE.\n"
+        seed = parse_qe_input(seed_path.read_text())
+        last_row = "{0} {1:.12f} {2:.12f} {3:.12f}\n".format(
+            seed.atomic_positions[-1].label,
+            *seed.atomic_positions[-1].coordinates,
+        )
+        cases = {
+            "duplicate_positions": valid.replace(header, header + header, 1),
+            "incomplete_positions": valid.replace(last_row, "", 1),
+            "extra_position": valid.replace(maximum, last_row + maximum, 1),
+            "intervening_card": valid.replace(
+                maximum, "CELL_PARAMETERS (angstrom)\n" + maximum, 1
+            ),
+            "inexact_maximum_marker": valid.replace(
+                "The maximum number of steps has been reached.",
+                "The maximum number of steps has been reached",
+                1,
+            ),
+            "maximum_before_positions": valid.replace(maximum, "", 1).replace(
+                header, maximum + header, 1
+            ),
+            "end_before_maximum": valid.replace(fire_end, "", 1).replace(
+                maximum, fire_end + maximum, 1
+            ),
+            "job_before_end": valid.replace(job_done, "", 1).replace(
+                fire_end, job_done + fire_end, 1
+            ),
+            "duplicate_job_done": valid + job_done,
+            "partial_begin_end": valid.replace(
+                header, "Begin final coordinates\n" + header, 1
+            ),
+            "only_seven_force_steps": valid.replace(
+                "Forces acting on atoms (cartesian axes, Ry/au):",
+                "Not a force header:",
+                1,
+            ),
+        }
+        output = self.root / "malformed-bare-nstep-pilot.out"
+        for name, text in cases.items():
+            with self.subTest(name=name):
+                output.write_text(text)
+                with self.assertRaises(ValueError):
+                    fire._pilot_trajectory(output, seed_path, 18)
+
     def test_pilot_trajectory_success_and_failure_matrix(self) -> None:
         seed_path = core.resolve_repo_source(self.config, "source.qe_scf_input")
         output = self.root / "pilot.out"
