@@ -13,12 +13,14 @@ umask 027
 
 : "${P3_CLUSTER_ENV:?submit with the exact cluster.env path}"
 : "${P3_EXPECTED_TASK_MAP_SHA256:?submit with the exact task_map.tsv SHA256}"
+: "${P3_RUN_DIR:?submit with the exact isolated run directory}"
 [[ "$P3_CLUSTER_ENV" == /* && -f "$P3_CLUSTER_ENV" && ! -L "$P3_CLUSTER_ENV" ]]
 # shellcheck disable=SC1090
 source "$P3_CLUSTER_ENV"
 p3_require_compute_node
 
-cd "$SLURM_SUBMIT_DIR"
+[[ "$P3_RUN_DIR" == /* && -d "$P3_RUN_DIR" && ! -L "$P3_RUN_DIR" ]]
+cd "$P3_RUN_DIR"
 [[ ! -L task_map.tsv && -f task_map.tsv ]]
 [[ "$(sha256sum task_map.tsv | awk '{print $1}')" == "$P3_EXPECTED_TASK_MAP_SHA256" ]]
 [[ "${SLURM_ARRAY_TASK_ID:?}" =~ ^[0-9]+$ ]]

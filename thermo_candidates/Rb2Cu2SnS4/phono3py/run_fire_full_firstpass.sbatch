@@ -13,12 +13,14 @@ umask 027
 
 : "${P3_CLUSTER_ENV:?submit with the exact cluster.env path}"
 : "${P3_EXPECTED_INPUT_SHA256:?submit with the exact fire-full.in SHA256}"
+: "${P3_RUN_DIR:?submit with the exact isolated run directory}"
 [[ "$P3_CLUSTER_ENV" == /* && -f "$P3_CLUSTER_ENV" && ! -L "$P3_CLUSTER_ENV" ]]
 # shellcheck disable=SC1090
 source "$P3_CLUSTER_ENV"
 p3_require_compute_node
 
-cd "$SLURM_SUBMIT_DIR"
+[[ "$P3_RUN_DIR" == /* && -d "$P3_RUN_DIR" && ! -L "$P3_RUN_DIR" ]]
+cd "$P3_RUN_DIR"
 [[ ! -L fire-full.in && -f fire-full.in ]]
 [[ "$(sha256sum fire-full.in | awk '{print $1}')" == "$P3_EXPECTED_INPUT_SHA256" ]]
 [[ ! -e fire-full.out && ! -e fire-full.err && ! -e exit_code.txt ]]
