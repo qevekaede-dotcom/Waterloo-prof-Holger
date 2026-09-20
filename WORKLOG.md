@@ -179,3 +179,37 @@ structure, pristine gate, preflight, forces, FC2/FC3, or kappa_L.  FIRE pilot,
 collector, finalizer, and all downstream release paths remain deliberately
 unimplemented or hard-locked.  SrZrS3 is unchanged and remains at the
 count-only gate.
+
+## 2026-09-20 — remaining-material evidence checkpoint and SrCu2SnS4 correction audit
+
+Pushed checkpoint `30bc4ad` on `codex/complete-three-material-phonons`, adding
+the curated SrZrS3 rejected-first-pass evidence and Rb2Cu2SnS4 active
+first-pass evidence. The campaign suite passed 420 tests with one optional
+spglib skip; Python compilation, Slurm shell syntax and whitespace checks
+passed. A separate top-level fifth-step index now records what was done for
+the two remaining materials without duplicating heavy QE/HDF5 artifacts or
+creating another attachment directory.
+
+On Nibi, the missing Rb task 462 infrastructure failure and the failed old
+postprocess were archived with verified SHA-256 manifests. Only task 462 was
+resubmitted as job `22312416`, with strict dependent postprocess `22312417`.
+The submission snapshot showed priority/dependency pending states; neither is
+recorded as complete or scientifically accepted. A quiet hourly same-thread
+monitor replaces repeated manual polling.
+
+The SrCu2SnS4 historical lattice pass was also re-audited. Its intended 4-A
+cutoff had been supplied as 4.0 in QE atomic units, so the actual cutoff was
+4.0 bohr (2.11670884 A); all 24 included pair groups were onsite, while the
+shortest excluded nonzero pair was 4.33833022 bohr. The pristine force block
+is traceable and was used by `--cfz`, but the QE run later hit `seqopn(90)`
+and MPI abort. Fourteen of 168 displaced outputs fail the current terminal
+health gate, the force settings are not uniform, and the corrected q-mesh
+ladder fails the current tensor criterion. Documentation and fail-closed local
+validators are corrected in this milestone; the raw record and every frozen
+attachment remain unchanged. A scientifically corrected 4-A value requires a
+new uniform Nibi force campaign and q-mesh ladder.
+
+Final local validation after both review-fix cycles passed all 434 tests with
+one optional-spglib skip, Python compilation, shell syntax, JSON parsing,
+Markdown link checks, frozen-attachment checks, and `git diff --check`. The
+fresh independent Sol review returned `SHIP` with no remaining findings.

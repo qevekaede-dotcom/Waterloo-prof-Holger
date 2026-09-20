@@ -1,15 +1,13 @@
 # Research handoff — current state
 
-Last repository/evidence audit: 2026-09-14. Current continuation is in the
-separate worktree `/Users/kaede/research/Waterloo-Holger-remaining-phonons`,
-branch `codex/remaining-two-phonons`. The submission workflow is fixed at
-implementation commit `cf0b1d1`; the evidence-preparation milestone began at
-`e524d6e`. It was forked from the fetched active research commit `5fdd4a1` on
-`origin/codex/two-material-phonons`; the original worktree was left clean and
-unchanged. Historical repository reconciliation and the merge through
+Last repository/evidence audit: 2026-09-20. Current continuation is in branch
+`codex/complete-three-material-phonons`; checkpoint commit `30bc4ad` is pushed
+to the same remote branch. The two remaining-material records are indexed in
+`fifth step result (remaining-material phono3py first passes)/`. Historical
+repository reconciliation and the merge through
 [PR #1](https://github.com/qevekaede-dotcom/Waterloo-prof-Holger/pull/1)
 remain documented in [the repository audit](docs/REPOSITORY_AUDIT.md), but
-`main` is not the current two-material research tip.
+`main` is not the current research tip.
 
 Read [CLAUDE.md](CLAUDE.md) for standing rules and [AGENTS.md](AGENTS.md)
 for continuity. This file records state, not authorization to launch work.
@@ -18,9 +16,9 @@ for continuity. This file records state, not authorization to launch work.
 
 | Material | Electronic first pass | Sampled PBE gap [calculated] | Lattice thermal conductivity |
 | --- | --- | --- | --- |
-| SrCu2SnS4 | QE + BoltzTraP2 complete | 0.3445 eV | First pass complete |
-| SrZrS3 | QE + BoltzTraP2 complete | 0.6096 eV | Structure gate passed; preflight over cap; no kappa result |
-| Rb2Cu2SnS4 | QE + BoltzTraP2 complete | 0.7811 eV | One-reset recovery failed BFGS; no kappa result |
+| SrCu2SnS4 | QE + BoltzTraP2 complete | 0.3445 eV | Historical first pass only; current-contract unconverged/rejected |
+| SrZrS3 | QE + BoltzTraP2 complete | 0.6096 eV | 788 forces and FC2/FC3 complete; imaginary-mode gate rejected kappa |
+| Rb2Cu2SnS4 | QE + BoltzTraP2 complete | 0.7811 eV | Narrow force recovery pending; no FC2/FC3 or kappa result |
 
 Each electronic pass includes independent convergence tests, vc-relax,
 final SCF, dense NSCF, and 300–900 K transport tables. Evidence:
@@ -31,8 +29,10 @@ carrier preference; reported zT_e comparisons use PF-selected grid points,
 not independently optimized zT_e.
 
 SrCu2SnS4 lattice evidence: `thermo_candidates/SrCu2SnS4/phono3py/` and
-`thermo_candidates/SrCu2SnS4/results/`. All 168 displacement outputs have
-completed SCF/force records. Residual-corrected `kappa-m13136.hdf5` matches
+`thermo_candidates/SrCu2SnS4/results/`. All 168 displacement outputs contain
+parseable force records, but only 154 satisfy the current terminal-output
+health gate; the force inputs also mix three setting families. Historical
+residual-corrected `kappa-m13136.hdf5` matches
 `results/kappa_L_first_pass.csv`: average **0.3639 at 300 K** and
 **0.1213 at 900 K**, in W m^-1 K^-1 [calculated].
 
@@ -44,6 +44,21 @@ historical phono3py `cutoff_pair_distance=4.0` in QE units, i.e. **4.0 bohr
 after a force-difference test (5.2e-6 Ry/bohr versus a 5e-5 threshold).
 Pristine residual maximum component 5.4513e-4 Ry/bohr was measured and
 subtracted using `--cfz`.
+
+SrZrS3 force accounting is complete for one pristine plus 787 displacements,
+and the FC2/FC3 arrays passed shape and finite-value checks. The explicit
+non-NAC 12x5x3 calculation has a minimum sampled frequency of
+`-1.0716026422440281 THz`, with 12 modes below `-0.1 THz`. The finite tensor
+is retained only as a rejected diagnostic; there is no valid kappa_L for zT.
+
+Rb2Cu2SnS4 passed the FIRE, independent pristine, count-only preflight, and
+seven-task force-pilot gates. Original production task 361 was recovered, but
+task 462 failed before QE module start-up and made strict postprocess
+`21963654` fail. The original failures are now separately archived. Narrow
+recovery `22312416` and dependent strict postprocess `22312417` were confirmed
+queued on 2026-09-20. This is a submission state, not force or scientific
+acceptance; no FC2/FC3, q-mesh result, or kappa_L exists yet. Do not touch the
+historical blocked job `21934081`.
 
 ## Scientific limits and open technical issue
 

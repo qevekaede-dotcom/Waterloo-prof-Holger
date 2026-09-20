@@ -6,20 +6,25 @@ source is [`campaign.json`](campaign.json); its still-null production choices
 remain valid for the strict convergence campaign and have not been silently
 rewritten to describe the bounded screen.
 
-Current first-pass status (2026-09-15 local record date): full FIRE job
+Current first-pass status (2026-09-20 local record date): full FIRE job
 `21888372` passed normal-convergence, force, cell, atom-order, coordinate, and
 Ibam gates; independent pristine job `21924016` passed at the exact terminal
 geometry. Count-only preflight `21926309` selected the sole sub-1000 candidate,
 M72 with a 3.70-A FC3 cutoff (679 displaced supercells), and force pilot
 `21926602` passed duplicate, cutoff, k-point, and pristine-residual gates.
-Production array `21934047` is running one pristine plus 679 displacement
-forces at 100/800 Ry and 2x2x2 with a 32-task cap. Element 361 suffered an
-all-rank SIGBUS on node `c189`; its incomplete output is archived and cannot
-pass the strict QE parser. Single-element recovery `21963653` waits for the
-original array, and replacement postprocess `21963654` waits for that recovery
-before auditing all final outputs, constructing FC2/FC3, and running the
-explicit non-NAC RTA q-grid ladder. Original postprocess `21934081` remains
-fail-closed behind the now-unsatisfiable original `afterok` dependency.
+Production array `21934047` ran one pristine plus 679 displacement forces at
+100/800 Ry and 2x2x2 with a 32-task cap. Element 361 suffered an all-rank
+SIGBUS on node `c189`; its incomplete output was archived and recovery
+`21963653` produced a valid replacement. Element 462 (`disp03843`) failed
+before QE because its module load failed, so replacement postprocess
+`21963654` correctly failed the strict whole-production audit. On 2026-09-20
+the original 462 failure and failed postprocess were separately archived with
+SHA-256 manifests, then only element 462 was resubmitted as `22312416`.
+Replacement postprocess `22312417` depends on its success. At this record point
+both were merely confirmed queued; neither the replacement force, FC2/FC3,
+q-mesh ladder, nor kappa_L has completed or passed. Original postprocess
+`21934081` remains untouched and fail-closed behind the unsatisfied original
+dependency.
 Curated evidence is under
 [`evidence/firstpass_20260914/`](evidence/firstpass_20260914/).
 

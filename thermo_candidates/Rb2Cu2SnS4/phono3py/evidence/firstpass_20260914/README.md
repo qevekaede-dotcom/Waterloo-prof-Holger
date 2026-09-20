@@ -1,6 +1,7 @@
 # Rb2Cu2SnS4 cost-bounded phonon first pass
 
-Status recorded 2026-09-15 (Asia/Shanghai): force production is running. This
+Status updated 2026-09-20 (Asia/Shanghai): original force production is
+terminal but one infrastructure-failed element is in narrow recovery. This
 directory contains only curated, lightweight, machine-readable evidence. Raw
 QE logs, force sets, force-constant HDF5 files, and kappa HDF5 files remain in
 the remote run directory:
@@ -23,19 +24,24 @@ the remote run directory:
   `3.97069e-7 Ry/bohr`, `1.20e-6 Ry/bohr`, and 0.2477%; cutoff differences
   were `5.27542e-7 Ry/bohr`, `1.74e-6 Ry/bohr`, and 0.3290%.
 
-## Running chain
+## Production and recovery chain
 
 - Production array `21934047`: tasks `0-679%32`, 100/800 Ry, 2x2x2,
   `conv_thr=1e-10 Ry`, fixed occupations, `nosym/noinv`, one pristine plus 679
   displaced 72-atom supercells. Element 361 failed `135:0` on node `c189`
   after all ranks received SIGBUS; its incomplete output is archived under
   `production/failure-21934047_361/` and is not accepted as a force result.
-- Recovery `21963653`: only array element 361, with `afterany:21934047`.
-- Replacement postprocess `21963654`: `afterok:21963653`; captures authoritative
-  accounting, runs the strict QE-output audit, builds FC2/FC3, then executes
-  explicit `--nonac` RTA conductivity at 300, 600, and 900 K over the
-  material-specific generalized-grid ladder. Original postprocess `21934081`
-  remains fail-closed behind `afterok:21934047` and is not reused.
+- Recovery `21963653` produced a valid replacement for only array element 361.
+- Original element 462 (`disp03843`) failed before QE during module start-up;
+  replacement postprocess `21963654` therefore failed its strict complete-set
+  audit. Both failures were archived separately with verified SHA-256
+  manifests.
+- Narrow recovery `22312416` resubmits only element 462. Strict postprocess
+  `22312417` depends on its success and will re-audit the full force set before
+  FC2/FC3 or explicit `--nonac` RTA work. The sole recorded state here is the
+  post-submission queued snapshot, not completion. See
+  [`production/recovery462_submission_20260920.json`](production/recovery462_submission_20260920.json).
+  Original postprocess `21934081` remains untouched and is not reused.
 
 ## Key SHA-256 provenance
 

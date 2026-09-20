@@ -21,15 +21,18 @@ Quantum ESPRESSO, BoltzTraP2, and phono3py.
 
 | Material | Electronic first pass | Lattice thermal conductivity |
 | --- | --- | --- |
-| SrCu2SnS4 | Complete | First pass complete; convergence limits remain |
-| SrZrS3 | Complete | Structure accepted; targeted 3.5541348625-A count verified at 787; pilot and production remain blocked |
-| Rb2Cu2SnS4 | Complete | Diagnostic narrowly passed; sole reviewed BFGS polish failed and no structure is accepted |
+| SrCu2SnS4 | Complete | Historical first pass preserved; rejected by the current 4-A/uniform-force/tensor-q-mesh contract |
+| SrZrS3 | Complete | Forces and FC2/FC3 complete; imaginary-mode gate failed, so no valid kappa_L |
+| Rb2Cu2SnS4 | Complete | Force production recovery is pending; no FC2/FC3 or kappa_L yet |
 
 Each electronic workflow has independent convergence tests, relaxation,
-SCF/NSCF, and 300–900 K transport tables. SrCu2SnS4's residual-corrected
-first-pass average kappa_L is 0.3639 W m^-1 K^-1 at 300 K [calculated,
-PBE, no SOC, RTA, no NAC]. This is not a fully converged tensor or a final
-zT; see [status and limitations](HANDOFF.md).
+SCF/NSCF, and 300–900 K transport tables. SrCu2SnS4's preserved historical
+calculation produced an average 0.3639 W m^-1 K^-1 at 300 K [calculated,
+PBE, no SOC, RTA, no NAC], but it used 4.0 bohr (about 2.1167 A), not 4 A,
+and only onsite pair groups. Its pristine correction source ended unhealthily
+and its tensor q-mesh criterion does not pass the current contract. Treat the
+number as an unconverged historical first-pass record, not a validated
+material property or final zT; see [status and limitations](HANDOFF.md).
 
 The numbered step-result folders are presentation packages; the material
 workspace retains the authoritative raw/derived records. Every

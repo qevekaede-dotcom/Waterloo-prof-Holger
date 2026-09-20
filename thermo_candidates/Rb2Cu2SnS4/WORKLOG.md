@@ -543,3 +543,35 @@ untouched and cannot satisfy its `afterok:21934047` dependency after the
 recorded failure.  This is a node-failure recovery, not acceptance of the
 truncated force or a whole-array rerun.  Production and recovery remain
 incomplete at this record point.
+
+---
+
+## 2026-09-20 — task 462 infrastructure failure archived; narrow recovery submitted
+
+A bounded live Nibi audit confirmed that original production element
+`21934047_462` (`disp03843`) had failed before scientific execution during QE
+module start-up. Its task directory still contained only the hash-matching
+`scf.in`; no `scf.out`, `scf.err`, exit-code, start, finish, or temporary
+record was present. The task-map SHA-256 remained
+`6e115d64d38a4e7c4e13ad2bafe8e9ae4803cb3eed82c566ee7a559c4afa1797`,
+and the task input SHA-256 remained
+`cccbe682b5f7b6fba229721a4839c390094d3dd0acaca4d18f28298712a33bbb`.
+The current `cluster.env` loaded Quantum ESPRESSO 7.3.1 successfully before
+submission.
+
+Two new timestamped, read-only evidence archives were created without
+overwriting prior records: one for original force failure `21934047_462`, and
+one for failed strict postprocess `21963654`. Each contains source-path and
+SHA-256 manifests that passed `sha256sum -c`. Only array element 462 was then
+submitted as recovery job `22312416`; dependent postprocess `22312417` uses
+`afterok:22312416` and re-audits the complete original production set before
+any FC2/FC3 or transport work. One post-submission scheduler check confirmed
+`22312416` pending for priority and `22312417` pending on its dependency.
+There was no repeated polling, full-array rerun, concurrency increase, or
+cancellation of historical postprocess `21934081`.
+
+**Scientific boundary:** this milestone confirms only provenance, submission,
+and dependency wiring. It does not establish a valid task-462 force, a passing
+whole-production audit, FC2/FC3, phonon stability, q-mesh convergence, or
+kappa_L. The lane remains `first_pass_unconverged` even if the recovery chain
+later passes.

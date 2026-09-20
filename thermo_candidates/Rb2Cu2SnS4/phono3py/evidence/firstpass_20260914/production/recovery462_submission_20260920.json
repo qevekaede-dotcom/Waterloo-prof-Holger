@@ -1,0 +1,41 @@
+{
+  "recorded_utc": "2026-09-20T05:52:34Z",
+  "material": "Rb2Cu2SnS4",
+  "scope": "single failed force element and dependent strict postprocess",
+  "original_production_job_id": 21934047,
+  "original_task_id": 462,
+  "displacement_id": "disp03843",
+  "original_task_state": "FAILED",
+  "original_task_exit_code": "1:0",
+  "failure_class": "QE module startup failure before scientific output",
+  "task_map_sha256": "6e115d64d38a4e7c4e13ad2bafe8e9ae4803cb3eed82c566ee7a559c4afa1797",
+  "input_sha256": "cccbe682b5f7b6fba229721a4839c390094d3dd0acaca4d18f28298712a33bbb",
+  "recovery_job": {
+    "job_id": 22312416,
+    "array": "462",
+    "submission_snapshot_state": "PENDING",
+    "submission_snapshot_reason": "Priority"
+  },
+  "postprocess_job": {
+    "job_id": 22312417,
+    "dependency": "afterok:22312416",
+    "submission_snapshot_state": "PENDING",
+    "submission_snapshot_reason": "Dependency",
+    "production_job_id_for_audit": 21934047
+  },
+  "remote_archives": [
+    "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/evidence_archives/original-force-failure-21934047-task462-20260920T055234Z",
+    "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/evidence_archives/failed-postprocess-21963654-20260920T055234Z"
+  ],
+  "archive_validation": {
+    "sha256sum_check": "PASS",
+    "directory_mode": "550",
+    "file_mode": "440"
+  },
+  "scientific_acceptance": false,
+  "limitations": [
+    "Submission and dependency wiring only; task 462 had not completed at this snapshot.",
+    "No passing whole-production audit, FC2, FC3, q-mesh result, or kappa_L existed at this snapshot.",
+    "The original postprocess job 21934081 was not modified or cancelled."
+  ]
+}
