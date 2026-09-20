@@ -1,0 +1,106 @@
+{
+  "schema_version": 2,
+  "material": "Rb2Cu2SnS4",
+  "evidence_date": "2026-09-20",
+  "source_evidence": "postprocess_22312417_failure_evidence_20260920.txt",
+  "source_evidence_sha256": "284ec72b6e90d3d183c1a92df4f4f8d60ae11fd57ccce902aaacf2277056a384",
+  "source_collected_utc": "2026-09-20T08:06:40Z",
+  "readonly_hdf5_audit": {
+    "file": "postprocess_22312417_hdf5_readonly_audit_20260920.json",
+    "collected_utc": "2026-09-20T08:30:09.963989+00:00",
+    "scope": "One bounded read-only SSH audit of the saved remote artifacts; no remote write, recomputation, submission, cancellation, or summary generation was performed.",
+    "directly_verified": [
+      "FC2 and FC3 file integrity, expected shapes, float64 dtype, and finite values",
+      "FC2/FC3 primitive-to-supercell map, phono3py version, and 18-primitive/72-supercell atom binding",
+      "harmonic-stability and off-diagonal checks"
+    ],
+    "results": {
+      "harmonic_stability_pass": true,
+      "offdiagonal_check_pass": true,
+      "phono3py_version": "4.4.0"
+    },
+    "limitation": "These structural/numerical checks do not establish force-constant scientific validity, full phonon stability, q-mesh convergence, or an accepted lattice thermal conductivity."
+  },
+  "scope": "Local synthesis of the saved terminal capture plus one bounded read-only remote artifact audit; no remote write, recomputation, submission, cancellation, or summary generation was performed.",
+  "scheduler": {
+    "22312416": {
+      "job_name": "Rb-p3-force",
+      "state": "COMPLETED",
+      "exit_code": "0:0"
+    },
+    "22312417": {
+      "job_name": "Rb-p3-kappa",
+      "state": "FAILED",
+      "exit_code": "1:0"
+    }
+  },
+  "production_force_audit": {
+    "status": "independently_rechecked_pass",
+    "direct_evidence": [
+      "The bounded read-only audit loaded production_audit.json and recorded audit_pass=true with task_count=680.",
+      "Recovered disp03843 is healthy with 72 atoms and bound input, output, source, stderr, and exit-code hashes.",
+      "The postprocess run proceeded to collect forces and create fc2.hdf5 and fc3.hdf5."
+    ],
+    "limitation": "This rechecks the saved production audit and recovered task evidence; it does not by itself establish force-constant scientific validity or convergence."
+  },
+  "postprocess_artifacts": {
+    "force_collection_exit_code": 0,
+    "force_constants_files_present": [
+      "fc2.hdf5",
+      "fc3.hdf5"
+    ],
+    "qmesh_commands": {
+      "direct_exit_code_zero": [
+        "qmesh_00_45A",
+        "qmesh_01_60A",
+        "qmesh_02_75A",
+        "qmesh_03_90A",
+        "qmesh_04_105A"
+      ],
+      "terminal_capture_only_control_flow_implied_success": [
+        "qmesh_00_45A",
+        "qmesh_01_60A",
+        "qmesh_02_75A",
+        "qmesh_03_90A"
+      ],
+      "basis": "The first terminal capture retains only qmesh_04_105A's literal 0, so earlier stages are control-flow-implied within that capture. The later bounded read-only artifact audit directly hashes all five exit-code files to the SHA-256 of the exact bytes `0\\n` and all five stderr files to the empty-file SHA-256."
+    },
+    "kappa_hdf5_files_present": [
+      "kappa-m1448.hdf5",
+      "kappa-m11440.hdf5",
+      "kappa-m12420.hdf5",
+      "kappa-m2896.hdf5",
+      "kappa-m112736.hdf5"
+    ],
+    "missing_summary_outputs": [
+      "kappa_summary.json",
+      "kappa_L_first_pass.csv"
+    ],
+    "qmesh_diagnostic": {
+      "status": "rejected_diagnostic_only",
+      "basis": "The read-only HDF5 audit evaluates every ladder transition and finds every transition fails the repository's per-temperature, each-diagonal convergence gate. For the final 90-A to 105-A transition, trace/3 relative changes are 4.2663%, 4.0831%, and 4.04694% and maximum diagonal relative changes are about 10.192%, 9.692%, and 9.594% at 300, 600, and 900 K, respectively.",
+      "qmesh_ladder_converged": false,
+      "limitation": "The 105-A HDF5 result is retained only as a rejected diagnostic. The missing wrapper summaries and failed q-mesh gate mean no kappa values are promoted to an authoritative first-pass report."
+    }
+  },
+  "wrapper_failure": {
+    "failure_stage": "final force-constant scan after q-mesh commands",
+    "sole_recorded_exception": "ValueError: fc3.hdf5 lacks force_constants",
+    "wrapper_status": "FAILED",
+    "wrapper_exit_code": "1:0"
+  },
+  "interpretation_boundary": {
+    "scheduler_completion": "22312416 completed successfully; 22312417 did not.",
+    "numerical_artifact_existence": "FC2, FC3, and five kappa HDF5 files are present; the saved read-only audit also directly verifies their listed structural/numerical integrity and atom binding.",
+    "scientific_acceptance": "not established; the 105-A kappa result is rejected diagnostic only.",
+    "not_inferred": [
+      "accepted kappa values",
+      "full phonon stability",
+      "q-mesh convergence",
+      "force-constant scientific validity",
+      "converged intrinsic lattice thermal conductivity"
+    ],
+    "campaign_status": "first_pass_unconverged",
+    "qmesh_convergence": "Fails at every 45->60, 60->75, 75->90, and 90->105 A ladder transition in the saved HDF5 audit; it is not an accepted convergence result."
+  }
+}

@@ -23,7 +23,7 @@ Quantum ESPRESSO, BoltzTraP2, and phono3py.
 | --- | --- | --- |
 | SrCu2SnS4 | Complete | Historical first pass preserved; rejected by the current 4-A/uniform-force/tensor-q-mesh contract |
 | SrZrS3 | Complete | Forces and FC2/FC3 complete; imaginary-mode gate failed, so no valid kappa_L |
-| Rb2Cu2SnS4 | Complete | Force production recovery is pending; no FC2/FC3 or kappa_L yet |
+| Rb2Cu2SnS4 | Complete | Recovery complete; FC2/FC3 and q-mesh artifacts pass a limited structural HDF5 audit, but q-mesh is unconverged and no accepted kappa_L exists |
 
 Each electronic workflow has independent convergence tests, relaxation,
 SCF/NSCF, and 300–900 K transport tables. SrCu2SnS4's preserved historical

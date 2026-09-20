@@ -1,0 +1,1818 @@
+Warning: truncated output (original token count: 53401)
+Total output lines: 3758
+
+
+set -u
+ROOT=/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4
+printf 'COLLECTED_UTC='
+date -u +%Y-%m-%dT%H:%M:%SZ
+printf 'HOST='
+hostname
+printf '\n=== SACCT ===\n'
+sacct -n -P -j 22312416,22312417 --format=JobIDRaw,JobName,State,ExitCode,Elapsed,Start,End,NodeList,Reason
+printf '\n=== SELECTED FILE INVENTORY ===\n'
+find "$ROOT" -maxdepth 3 -type f \( -name 'slurm-22312417*' -o -name 'production_audit.json*' -o -name 'postprocess.stdout' -o -name 'postprocess.stderr' -o -name '*.exit_code.txt' -o -name '*.command.json' -o -path '*/postprocess/*.stdout' -o -path '*/postprocess/*.stderr' -o -path '*/postprocess/kappa_summary.json' -o -path '*/postprocess/kappa_L_first_pass.csv' \) -print | LC_ALL=C sort | while IFS= read -r f; do
+  stat -c '%n|size=%s|mode=%a|mtime=%y' "$f"
+done
+printf '\n=== POSTPROCESS DIRECTORY INVENTORY ===\n'
+if [ -d "$ROOT/postprocess" ]; then
+  find "$ROOT/postprocess" -maxdepth 1 -type f -printf '%f|size=%s|mtime=%TY-%Tm-%TdT%TH:%TM:%TSZ\n' | LC_se
+  printf 'MISSING postprocess directory\n'
+fi
+printf '\n=== TEXT EVIDENCE CONTENTS (TAIL 24000 BYTES EACH) ===\n'
+{
+  find "$ROOT" -maxdepth 2 -type f \( -name 'slurm-22312417*' -o -name 'production_audit.json' -o -name 'production_audit.json.tmp' -o -name 'postprocess.stdout' -o -name 'postprocess.stderr' \) -print
+  if [ -d "$ROOT/postprocess" ]; then
+    find "$ROOT/postprocess" -maxdepth 1 -type f \( -name '*.exit_code.txt' -o -name '*.command.json' -o -name '*.stdout' -o -name '*.stderr' -o -name 'kappa_summary.json' -o -name 'kappa_L_first_pass.csv' \) -print
+  fi
+} | LC_ALL=C sort -u | while IFS= read -r f; do
+  [ -f "$f" ] || continue
+  rel="${f#"$ROOT"/}"
+  printf '\n--- FILE %s ---\n' "$rel"
+  sha256sum "$f"
+  tail -c 24000 "$f"
+  printf '\n--- END FILE ---\n'
+done
+exit
+COLLECTED_UTC=2026-09-20T08:06:40Z
+HOST=l1.nibi.sharcnet
+
+=== SACCT ===
+22312416|Rb-p3-force|COMPLETED|0:0|00:24:50|2026-09-20T01:55:52|2026-09-20T02:20:42|c506|None
+22312416.batch|batch|COMPLETED|0:0|00:24:50|2026-09-20T01:55:52|2026-09-20T02:20:42|c506|
+22312416.extern|extern|COMPLETED|0:0|00:24:50|2026-09-20T01:55:52|2026-09-20T02:20:42|c506|
+22312416.0|pw.x|COMPLETED|0:0|00:24:39|2026-09-20T01:56:02|2026-09-20T02:20:41|c506|
+22312417|Rb-p3-kappa|FAILED|1:0|00:21:40|2026-09-20T02:21:57|2026-09-20T02:43:37|c582|Dependency
+22312417.batch|batch|FAILED|1:0|00:21:40|2026-09-20T02:21:57|2026-09-20T02:43:37|c582|
+22312417.extern|extern|COMPLETED|0:0|00:21:40|2026-09-20T02:21:57|2026-09-20T02:43:37|c582|
+
+=== SELECTED FILE INVENTORY ===
+/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/evidence_archives/failed-postprocess-21963654-20260920T055234Z/production_audit.json.tmp|size=946093|mode=440|mtime=2026-09-15 03:14:55.185500976 -0400
+/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/postprocess.stderr|size=685|mode=640|mtime=2026-09-20 02:43:37.297615785 -0400
+/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/postprocess.stdout|size=0|mode=640|mtime=2026-09-20 02:22:22.495119341 -0400
+/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/postprocess/collect_forces_fc3.command.json|size=81653|mode=640|mtime=2026-09-20 02:22:25.669731961 -0400
+/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/postprocess/collect_forces_fc3.exit_code.txt|size=2|mode=640|mtime=2026-09-20 02:22:27.746821322 -0400
+/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/postprocess/collect_forces_fc3.stderr|size=0|mode=640|mtime=2026-09-20 02:22:25.674471241 -0400
+/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/postprocess/collect_forces_fc3.stdout|size=132179|mode=640|mtime=2026-09-20 02:22:27.739059823 -0400
+/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/postprocess/qmesh_00_45A.command.json|size=173|mode=640|mtime=2026-09-20 02:22:28.145712324 -0400
+/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/postprocess/qmesh_00_45A.exit_code.txt|size=2|mode=640|mtime=2026-09-20 02:22:43.534351280 -0400
+/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/postprocess/qmesh_00_45A.stderr|size=0|mode=640|mtime=2026-09-20 02:22:28.152773965 -0400
+/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/postprocess/qmesh_00_45A.stdout|size=134957|mode=640|mtime=2026-09-20 02:22:43.529161783 -0400
+/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/postprocess/qmesh_01_60A.command.json|size=147|mode=640|mtime=2026-09-20 02:22:43.576731560 -0400
+/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/postprocess/qmesh_01_60A.exit_code.txt|size=2|mode=640|mtime=2026-09-20 02:23:11.110659474 -0400
+/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/postprocess/qmesh_01_60A.stderr|size=0|mode=640|mtime=2026-09-20 02:22:43.584897353 -0400
+/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/postprocess/qmesh_01_60A.stdout|size=260384|mode=640|mtime=2026-09-20 02:23:11.103553307 -0400
+/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/postprocess/qmesh_02_75A.command.json|size=147|mode=640|mtime=2026-09-20 02:23:11.233847955 -0400
+/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/postprocess/qmesh_02_75A.exit_code.txt|size=2|mode=640|mtime=2026-09-20 02:24:34.443461091 -0400
+/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/postprocess/qmesh_02_75A.stderr|size=0|mode=640|mtime=2026-09-20 02:23:11.238559980 -0400
+/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/postprocess/qmesh_02_75A.stdout|size=458290|mode=640|mtime=2026-09-20 02:24:34.437105687 -0400
+/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/postprocess/qmesh_03_90A.command.json|size=147|mode=640|mtime=2026-09-20 02:24:34.542644752 -0400
+/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/postprocess/qmesh_03_90A.exit_code.txt|size=2|mode=640|mtime=2026-09-20 02:29:15.708403125 -0400
+/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/postprocess/qmesh_03_90A.stderr|size=0|mode=640|mtime=2026-09-20 02:24:34.552419915 -0400
+/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/postprocess/qmesh_03_90A.stdout|size=793727|mode=640|mtime=2026-09-20 02:29:15.701902770 -0400
+/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/postprocess/qmesh_04_105A.command.json|size=148|mode=640|mtime=2026-09-20 02:29:15.819589789 -0400
+/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/postprocess/qmesh_04_105A.exit_code.txt|size=2|mode=640|mtime=2026-09-20 02:43:37.114547523 -0400
+/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/postprocess/qmesh_04_105A.stderr|size=0|mode=640|mtime=2026-09-20 02:29:15.825649755 -0400
+/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/postprocess/qmesh_04_105A.stdout|size=1292849|mode=640|mtime=2026-09-20 02:43:37.106221436 -0400
+/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/production_audit.json|size=947245|mode=640|mtime=2026-09-20 02:22:22.457763413 -0400
+
+=== POSTPROCESS DIRECTORY INVENTORY ===
+FORCES_FC3|size=21360090|mtime=2026-09-20T02:22:27.6872807790Z
+collect_forces_fc3.command.json|size=81653|mtime=2026-09-20T02:22:25.6697319610Z
+collect_forces_fc3.exit_code.txt|size=2|mtime=2026-09-20T02:22:27.7468213220Z
+collect_forces_fc3.stderr|size=0|mtime=2026-09-20T02:22:25.6744712410Z
+collect_forces_fc3.stdout|size=132179|mtime=2026-09-20T02:22:27.7390598230Z
+fc2.hdf5|size=95291|mtime=2026-09-20T02:22:36.8417364510Z
+fc3.hdf5|size=524554|mtime=2026-09-20T02:22:36.7844994200Z
+kappa-m112736.hdf5|size=6330876|mtime=2026-09-20T02:43:37.0301578080Z
+kappa-m11440.hdf5|size=1280615|mtime=2026-09-20T02:23:10.9845836290Z
+kappa-m12420.hdf5|size=2250214|mtime=2026-09-20T02:24:34.3514418340Z
+kappa-m1448.hdf5|size=667234|mtime=2026-09-20T02:22:43.4117885880Z
+kappa-m2896.hdf5|size=3834826|mtime=2026-09-20T02:29:15.6172858460Z
+phono3py.yaml|size=16377|mtime=2026-09-20T02:43:37.0456539650Z
+phono3py_disp.yaml|size=593178|mtime=2026-09-20T02:22:25.1116923480Z
+qmesh_00_45A.command.json|size=173|mtime=2026-09-20T02:22:28.1457123240Z
+qmesh_00_45A.exit_code.txt|size=2|mtime=2026-09-20T02:22:43.5343512800Z
+qmesh_00_45A.stderr|size=0|mtime=2026-09-20T02:22:28.1527739650Z
+qmesh_00_45A.stdout|size=134957|mtime=2026-09-20T02:22:43.5291617830Z
+qmesh_01_60A.command.json|size=147|mtime=2026-09-20T02:22:43.5767315600Z
+qmesh_01_60A.exit_code.txt|size=2|mtime=2026-09-20T02:23:11.1106594740Z
+qmesh_01_60A.stderr|size=0|mtime=2026-09-20T02:22:43.5848973530Z
+qmesh_01_60A.stdout|size=260384|mtime=2026-09-20T02:23:11.1035533070Z
+qmesh_02_75A.command.json|size=147|mtime=2026-09-20T02:23:11.2338479550Z
+qmesh_02_75A.exit_code.txt|size=2|mtime=2026-09-20T02:24:34.4434610910Z
+qmesh_02_75A.stderr|size=0|mtime=2026-09-20T02:23:11.2385599800Z
+qmesh_02_75A.stdout|size=458290|mtime=2026-09-20T02:24:34.4371056870Z
+qmesh_03_90A.command.json|size=147|mtime=2026-09-20T02:24:34.5426447520Z
+qmesh_03_90A.exit_code.txt|size=2|mtime=2026-09-20T02:29:15.7084031250Z
+qmesh_03_90A.stderr|size=0|mtime=2026-09-20T02:24:34.5524199150Z
+qmesh_03_90A.stdout|size=793727|mtime=2026-09-20T02:29:15.7019027700Z
+qmesh_04_105A.command.json|size=148|mtime=2026-09-20T02:29:15.8195897890Z
+qmesh_04_105A.exit_code.txt|size=2|mtime=2026-09-20T02:43:37.1145475230Z
+qmesh_04_105A.stderr|size=0|mtime=2026-09-20T02:29:15.8256497550Z
+qmesh_04_105A.stdout|size=1292849|mtime=2026-09-20T02:43:37.1062214360Z
+
+=== TEXT EVIDENCE CONTENTS (TAIL 24000 BYTES EACH) ===
+
+--- FILE postprocess.stderr ---
+f7abaa83a9b2c564307f614d6865969d0e10c6b311483496324b8d733fa924b9  /scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/postprocess.stderr
+Traceback (most recent call last):
+  File "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/run_postprocess_firstpass.py", line 319, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/run_postprocess_firstpass.py", line 277, in main
+    "fc3": scan_force_constants(fc3),
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/run_postprocess_firstpass.py", line 146, in scan_force_constants
+    raise ValueError(f"{path.name} lacks force_constants")
+ValueError: fc3.hdf5 lacks force_constants
+
+--- END FILE ---
+
+--- FILE postprocess.stdout ---
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/postprocess.stdout
+
+--- END FILE ---
+
+--- FILE postprocess/collect_forces_fc3.command.json ---
+7a5d35236762e4f58f84b58a31f356358bcd633de32d8e5d32e523f3376dccbc  /scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/postprocess/collect_forces_fc3.command.json
+/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00481-disp03952/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00482-disp03995/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00483-disp03996/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00484-disp03997/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00485-disp03998/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00486-disp03999/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00487-disp04000/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00488-disp04187/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00489-disp04188/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00490-disp04189/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00491-disp04190/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00492-disp04191/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00493-disp04192/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00494-disp04217/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00495-disp04218/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00496-disp04219/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00497-disp04220/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00498-disp04221/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00499-disp04222/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00500-disp04223/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00501-disp04224/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00502-disp04225/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00503-disp04226/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00504-disp04227/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00505-disp04228/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00506-disp04271/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00507-disp04272/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00508-disp04273/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00509-disp04274/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00510-disp04275/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00511-disp04276/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00512-disp04295/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00513-disp04296/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00514-disp04297/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00515-disp04298/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00516-disp04299/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00517-disp04300/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00518-disp04313/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00519-disp04314/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00520-disp04315/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00521-disp04316/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00522-disp04317/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00523-disp04318/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00524-disp04379/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00525-disp04380/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00526-disp04381/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00527-disp04382/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00528-disp04383/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00529-disp04384/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00530-disp04427/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00531-disp04428/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00532-disp04429/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00533-disp04430/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00534-disp04431/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00535-disp04432/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00536-disp04619/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00537-disp04620/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00538-disp04621/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00539-disp04622/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00540-disp04623/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00541-disp04624/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00542-disp04649/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00543-disp04650/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00544-disp04651/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00545-disp04652/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00546-disp04653/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00547-disp04654/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00548-disp04655/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00549-disp04656/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00550-disp04657/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00551-disp04658/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00552-disp04659/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00553-disp04660/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00554-disp04703/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00555-disp04704/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00556-disp04705/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00557-disp04706/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00558-disp04707/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00559-disp04708/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00560-disp04727/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00561-disp04728/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00562-disp04729/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00563-disp04730/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00564-disp04731/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00565-disp04732/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00566-disp04745/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00567-disp04746/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00568-disp04747/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00569-disp04748/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00570-disp04749/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00571-disp04750/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00572-disp04811/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00573-disp04812/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00574-disp04813/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00575-disp04814/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00576-disp04815/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00577-disp04816/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00578-disp04859/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00579-disp04860/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00580-disp04861/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00581-disp04862/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00582-disp04863/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00583-disp04864/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00584-disp05051/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00585-disp05052/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00586-disp05053/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00587-disp05054/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00588-disp05055/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00589-disp05056/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00590-disp05081/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00591-disp05082/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00592-disp05083/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00593-disp05084/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00594-disp05085/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00595-disp05086/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00596-disp05087/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00597-disp05088/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00598-disp05089/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00599-disp05090/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00600-disp05091/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00601-disp05092/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00602-disp05135/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00603-disp05136/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00604-disp05137/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00605-disp05138/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00606-disp05139/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00607-disp05140/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00608-disp05159/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00609-disp05160/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00610-disp05161/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00611-disp05162/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00612-disp05163/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00613-disp05164/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00614-disp05177/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00615-disp05178/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00616-disp05179/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00617-disp05180/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00618-disp05181/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00619-disp05182/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00620-disp05243/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00621-disp05244/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00622-disp05245/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00623-disp05246/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00624-disp05247/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00625-disp05248/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00626-disp05291/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00627-disp05292/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00628-disp05293/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00629-disp05294/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00630-disp05295/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00631-disp05296/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00632-disp05483/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00633-disp05484/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00634-disp05485/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00635-disp05486/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00636-disp05487/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00637-disp05488/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00638-disp05513/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00639-disp05514/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00640-disp05515/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00641-disp05516/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00642-disp05517/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00643-disp05518/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00644-disp05519/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00645-disp05520/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00646-disp05521/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00647-disp05522/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00648-disp05523/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00649-disp05524/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00650-disp05567/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00651-disp05568/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00652-disp05569/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00653-disp05570/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00654-disp05571/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00655-disp05572/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00656-disp05591/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00657-disp05592/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00658-disp05593/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00659-disp05594/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00660-disp05595/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00661-disp05596/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00662-disp05609/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00663-disp05610/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00664-disp05611/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00665-disp05612/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00666-disp05613/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00667-disp05614/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00668-disp05675/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00669-disp05676/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00670-disp05677/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00671-disp05678/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00672-disp05679/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00673-disp05680/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00674-disp05723/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00675-disp05724/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00676-disp05725/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00677-disp05726/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00678-disp05727/scf.out",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00679-disp05728/scf.out",
+  "--cfz",
+  "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00000-pristine/scf.out"
+]
+
+--- END FILE ---
+
+--- FILE postprocess/collect_forces_fc3.exit_code.txt ---
+9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa  /scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/postprocess/collect_forces_fc3.exit_code.txt
+0
+
+--- END FILE ---
+
+--- FILE postprocess/collect_forces_fc3.stderr ---
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/postprocess/collect_forces_fc3.stderr
+
+--- END FILE ---
+
+--- FILE postprocess/collect_forces_fc3.stdout ---
+ebca7062db7f559565378f156d00af3fd1233f6ea14dc51649adb15b34041fb5  /scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/postprocess/collect_forces_fc3.stdout
+k-00558-disp04707/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+559. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00559-disp04708/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+560. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00560-disp04727/scf.out" to be subtracted
+ -0.00000000   0.00000000  -0.00000000
+561. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00561-disp04728/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+562. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00562-disp04729/scf.out" to be subtracted
+ -0.00000000  -0.00000000  -0.00000000
+563. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00563-disp04730/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+564. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00564-disp04731/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+565. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00565-disp04732/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+566. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00566-disp04745/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+567. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00567-disp04746/scf.out" to be subtracted
+  0.00000000  -0.00000000  -0.00000000
+568. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00568-disp04747/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+569. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00569-disp04748/scf.out" to be subtracted
+ -0.00000000  -0.00000000  -0.00000000
+570. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00570-disp04749/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+571. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00571-disp04750/scf.out" to be subtracted
+  0.00000000  -0.00000000  -0.00000000
+572. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00572-disp04811/scf.out" to be subtracted
+ -0.00000000  -0.00000000  -0.00000000
+573. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00573-disp04812/scf.out" to be subtracted
+  0.00000000  -0.00000000  -0.00000000
+574. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00574-disp04813/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+575. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00575-disp04814/scf.out" to be subtracted
+ -0.00000000  -0.00000000  -0.00000000
+576. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00576-disp04815/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+577. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00577-disp04816/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+578. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00578-disp04859/scf.out" to be subtracted
+ -0.00000000   0.00000000  -0.00000000
+579. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00579-disp04860/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+580. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00580-disp04861/scf.out" to be subtracted
+  0.00000000  -0.00000000  -0.00000000
+581. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00581-disp04862/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+582. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00582-disp04863/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+583. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00583-disp04864/scf.out" to be subtracted
+  0.00000000  -0.00000000  -0.00000000
+584. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00584-disp05051/scf.out" to be subtracted
+  0.00000000  -0.00000000   0.00000000
+585. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00585-disp05052/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+586. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00586-disp05053/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+587. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00587-disp05054/scf.out" to be subtracted
+ -0.00000000   0.00000000  -0.00000000
+588. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00588-disp05055/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+589. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00589-disp05056/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+590. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00590-disp05081/scf.out" to be subtracted
+ -0.00000000  -0.00000000  -0.00000000
+591. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00591-disp05082/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+592. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00592-disp05083/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+593. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00593-disp05084/scf.out" to be subtracted
+  0.00000000  -0.00000000   0.00000000
+594. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00594-disp05085/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+595. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00595-disp05086/scf.out" to be subtracted
+  0.00000000  -0.00000000  -0.00000000
+596. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00596-disp05087/scf.out" to be subtracted
+  0.00000000  -0.00000000   0.00000000
+597. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00597-disp05088/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+598. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00598-disp05089/scf.out" to be subtracted
+  0.00000000  -0.00000000  -0.00000000
+599. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00599-disp05090/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+600. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00600-disp05091/scf.out" to be subtracted
+  0.00000000  -0.00000000   0.00000000
+601. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00601-disp05092/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+602. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00602-disp05135/scf.out" to be subtracted
+  0.00000000  -0.00000000   0.00000000
+603. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00603-disp05136/scf.out" to be subtracted
+ -0.00000000  -0.00000000  -0.00000000
+604. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00604-disp05137/scf.out" to be subtracted
+ -0.00000000  -0.00000000  -0.00000000
+605. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00605-disp05138/scf.out" to be subtracted
+  0.00000000  -0.00000000   0.00000000
+606. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00606-disp05139/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+607. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00607-disp05140/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+608. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00608-disp05159/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+609. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00609-disp05160/scf.out" to be subtracted
+  0.00000000  -0.00000000   0.00000000
+610. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00610-disp05161/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+611. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00611-disp05162/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+612. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00612-disp05163/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+613. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00613-disp05164/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+614. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00614-disp05177/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+615. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00615-disp05178/scf.out" to be subtracted
+  0.00000000  -0.00000000  -0.00000000
+616. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00616-disp05179/scf.out" to be subtracted
+ -0.00000000   0.00000000  -0.00000000
+617. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00617-disp05180/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+618. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00618-disp05181/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+619. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00619-disp05182/scf.out" to be subtracted
+  0.00000000  -0.00000000   0.00000000
+620. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00620-disp05243/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+621. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00621-disp05244/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+622. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00622-disp05245/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+623. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00623-disp05246/scf.out" to be subtracted
+ -0.00000000   0.00000000  -0.00000000
+624. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00624-disp05247/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+625. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00625-disp05248/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+626. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00626-disp05291/scf.out" to be subtracted
+ -0.00000000   0.00000000  -0.00000000
+627. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00627-disp05292/scf.out" to be subtracted
+ -0.00000000  -0.00000000  -0.00000000
+628. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00628-disp05293/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+629. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00629-disp05294/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+630. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00630-disp05295/scf.out" to be subtracted
+  0.00000000  -0.00000000   0.00000000
+631. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00631-disp05296/scf.out" to be subtracted
+  0.00000000  -0.00000000  -0.00000000
+632. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00632-disp05483/scf.out" to be subtracted
+  0.00000000  -0.00000000   0.00000000
+633. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00633-disp05484/scf.out" to be subtracted
+ -0.00000000   0.00000000  -0.00000000
+634. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00634-disp05485/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+635. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00635-disp05486/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+636. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00636-disp05487/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+637. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00637-disp05488/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+638. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00638-disp05513/scf.out" to be subtracted
+  0.00000000  -0.00000000   0.00000000
+639. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00639-disp05514/scf.out" to be subtracted
+  0.00000000  -0.00000000   0.00000000
+640. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00640-disp05515/scf.out" to be subtracted
+ -0.00000000   0.00000000  -0.00000000
+641. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00641-disp05516/scf.out" to be subtracted
+  0.00000000  -0.00000000  -0.00000000
+642. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00642-disp05517/scf.out" to be subtracted
+ -0.00000000   0.00000000  -0.00000000
+643. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00643-disp05518/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+644. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00644-disp05519/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+645. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00645-disp05520/scf.out" to be subtracted
+  0.00000000  -0.00000000   0.00000000
+646. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00646-disp05521/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+647. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00647-disp05522/scf.out" to be subtracted
+ -0.00000000   0.00000000  -0.00000000
+648. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00648-disp05523/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+649. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00649-disp05524/scf.out" to be subtracted
+ -0.00000000   0.00000000  -0.00000000
+650. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00650-disp05567/scf.out" to be subtracted
+ -0.00000000   0.00000000  -0.00000000
+651. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00651-disp05568/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+652. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00652-disp05569/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+653. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00653-disp05570/scf.out" to be subtracted
+ -0.00000000  -0.00000000  -0.00000000
+654. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00654-disp05571/scf.out" to be subtracted
+ -0.00000000  -0.00000000  -0.00000000
+655. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00655-disp05572/scf.out" to be subtracted
+  0.00000000  -0.00000000  -0.00000000
+656. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00656-disp05591/scf.out" to be subtracted
+ -0.00000000  -0.00000000  -0.00000000
+657. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00657-disp05592/scf.out" to be subtracted
+  0.00000000  -0.00000000  -0.00000000
+658. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00658-disp05593/scf.out" to be subtracted
+ -0.00000000   0.00000000  -0.00000000
+659. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00659-disp05594/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+660. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00660-disp05595/scf.out" to be subtracted
+ -0.00000000  -0.00000000  -0.00000000
+661. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00661-disp05596/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+662. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00662-disp05609/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+663. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00663-disp05610/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+664. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00664-disp05611/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+665. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00665-disp05612/scf.out" to be subtracted
+  0.00000000   0.00000000   0.00000000
+666. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00666-disp05613/scf.out" to be subtracted
+  0.00000000  -0.00000000  -0.00000000
+667. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00667-disp05614/scf.out" to be subtracted
+  0.00000000  -0.00000000   0.00000000
+668. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00668-disp05675/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+669. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00669-disp05676/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+670. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00670-disp05677/scf.out" to be subtracted
+ -0.00000000   0.00000000   0.00000000
+671. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00671-disp05678/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+672. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00672-disp05679/scf.out" to be subtracted
+ -0.00000000   0.00000000  -0.00000000
+673. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00673-disp05680/scf.out" to be subtracted
+  0.00000000  -0.00000000  -0.00000000
+674. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00674-disp05723/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+675. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00675-disp05724/scf.out" to be subtracted
+  0.00000000   0.00000000  -0.00000000
+676. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00676-disp05725/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+677. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00677-disp05726/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+678. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00678-disp05727/scf.out" to be subtracted
+  0.00000000  -0.00000000  -0.00000000
+679. Drift force of "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00679-disp05728/scf.out" to be subtracted
+ -0.00000000  -0.00000000   0.00000000
+1. Drift force of "/scratch/yuh…23401 tokens truncated…767    0.000    0.000)    3.767
+======================= Grid point 721 (274/276) =======================
+q-point: ( 0.44  0.56 -0.56)
+Boundary mean free path (millimeter): 1000.000
+Number of triplets: 240
+Frequency     group velocity (x, y, z)     |gv|
+   0.663   (   0.000   -0.653    0.000)    0.653
+   0.760   (   0.000  -14.735    0.000)   14.735
+   0.823   (  -0.000   10.094   -0.000)   10.094
+   0.947   (  -0.000    2.376   -0.000)    2.376
+   1.020   (   0.000   -1.213    0.000)    1.213
+   1.035   (   0.000   -2.147    0.000)    2.147
+   1.408   (   0.000   -5.639    0.000)    5.639
+   1.433   (  -0.000    0.680   -0.000)    0.680
+   1.594   (  -0.000    1.069   -0.000)    1.069
+   1.606   (  -0.000    0.215   -0.000)    0.215
+   1.623   (  -0.000    4.334   -0.000)    4.334
+   1.735   (  -0.000    5.951   -0.000)    5.951
+   1.791   (   0.000   -4.477    0.000)    4.477
+   1.816   (   0.000   -1.329    0.000)    1.329
+   1.888   (   0.000   -2.359    0.000)    2.359
+   2.023   (  -0.000    1.199   -0.000)    1.199
+   2.031   (  -0.000    5.295   -0.000)    5.295
+   2.083   (  -0.000    0.864   -0.000)    0.864
+   2.175   (   0.000   -4.847    0.000)    4.847
+   2.207   (  -0.000    5.343   -0.000)    5.343
+   2.266   (   0.000   -2.244    0.000)    2.244
+   2.286   (  -0.000    1.101   -0.000)    1.101
+   2.306   (  -0.000    0.753   -0.000)    0.753
+   2.399   (   0.000   -0.430    0.000)    0.430
+   2.458   (  -0.000    2.318   -0.000)    2.318
+   2.550   (  -0.000    0.064   -0.000)    0.064
+   2.628   (  -0.000    2.257   -0.000)    2.257
+   2.959   (  -0.000    6.680   -0.000)    6.680
+   3.018   (   0.000   -7.101    0.000)    7.101
+   3.068   (   0.000   -3.351    0.000)    3.351
+   3.498   (   0.000   -6.568    0.000)    6.568
+   3.904   (  -0.000    5.458   -0.000)    5.458
+   4.011   (   0.000   -3.811    0.000)    3.811
+   4.161   (  -0.000    0.805   -0.000)    0.805
+   4.234   (  -0.000    0.581   -0.000)    0.581
+   4.784   (  -0.000   11.057   -0.000)   11.057
+   4.978   (   0.000   -6.754    0.000)    6.754
+   5.129   (  -0.000    0.950   -0.000)    0.950
+   5.802   (   0.000   -2.542    0.000)    2.542
+   6.290   (   0.000   -2.290    0.000)    2.290
+   6.583   (  -0.000    6.620   -0.000)    6.620
+   6.908   (  -0.000    9.111   -0.000)    9.111
+   7.165   (   0.000   -8.004    0.000)    8.004
+   7.165   (   0.000   -4.491    0.000)    4.491
+   7.225   (  -0.000    1.313   -0.000)    1.313
+   7.432   (  -0.000    1.673   -0.000)    1.673
+   8.947   (   0.000   -0.048    0.000)    0.048
+   8.957   (  -0.000    0.496   -0.000)    0.496
+   9.107   (   0.000   -0.900    0.000)    0.900
+   9.151   (  -0.000    3.830   -0.000)    3.830
+   9.259   (   0.000   -3.896    0.000)    3.896
+   9.601   (   0.000   -3.047    0.000)    3.047
+   9.865   (  -0.000    2.004   -0.000)    2.004
+  10.341   (  -0.000    4.261   -0.000)    4.261
+======================= Grid point 767 (275/276) =======================
+q-point: (-0.47 -0.53  0.47)
+Boundary mean free path (millimeter): 1000.000
+Number of triplets: 256
+Frequency     group velocity (x, y, z)     |gv|
+   0.703   (  -7.248   -0.000   -0.000)    7.248
+   0.706   (  -5.323   -0.000   -0.000)    5.323
+   0.914   (  -5.038   -0.000   -0.000)    5.038
+   0.976   (  -2.840   -0.000   -0.000)    2.840
+   1.032   (  -3.076   -0.000   -0.000)    3.076
+   1.038   (  -3.183   -0.000   -0.000)    3.183
+   1.387   (  -2.236   -0.000   -0.000)    2.236
+   1.431   (   0.903    0.000    0.000)    0.903
+   1.540   (   8.847    0.000    0.000)    8.847
+   1.599   (   0.158    0.000    0.000)    0.158
+   1.638   (   1.931    0.000    0.000)    1.931
+   1.764   (   3.293    0.000    0.000)    3.293
+   1.782   (   0.944    0.000    0.000)    0.944
+   1.821   (  -6.709   -0.000   -0.000)    6.709
+   1.872   (   0.478    0.000    0.000)    0.478
+   2.017   (   2.433    0.000    0.000)    2.433
+   2.070   (   1.024    0.000    0.000)    1.024
+   2.094   (  -2.170   -0.000   -0.000)    2.170
+   2.140   (  -0.154   -0.000   -0.000)    0.154
+   2.242   (   1.851    0.000    0.000)    1.851
+   2.247   (  -2.769   -0.000   -0.000)    2.769
+   2.311   (  -0.001   -0.000   -0.000)    0.001
+   2.320   (  -3.744   -0.000   -0.000)    3.744
+   2.397   (  -0.213   -0.000   -0.000)    0.213
+   2.461   (   1.850    0.000    0.000)    1.850
+   2.541   (   1.723    0.000    0.000)    1.723
+   2.643   (  -0.279   -0.000   -0.000)    0.279
+   2.981   (  -0.807   -0.000   -0.000)    0.807
+   3.000   (  -0.341   -0.000   -0.000)    0.341
+   3.055   (  -0.908   -0.000   -0.000)    0.908
+   3.459   (   0.296    0.000    0.000)    0.296
+   3.889   (   8.194    0.000    0.000)    8.194
+   3.965   (   2.294    0.000    0.000)    2.294
+   4.218   (  -7.572   -0.000   -0.000)    7.572
+   4.247   (  -1.757   -0.000   -0.000)    1.757
+   4.848   (   4.330    0.000    0.000)    4.330
+   4.907   (   0.944    0.000    0.000)    0.944
+   5.129   (   0.949    0.000    0.000)    0.949
+   5.802   (  -2.229   -0.000   -0.000)    2.229
+   6.274   (   0.770    0.000    0.000)    0.770
+   6.619   (   0.299    0.000    0.000)    0.299
+   6.961   (   1.772    0.000    0.000)    1.772
+   7.112   (  -0.846   -0.000   -0.000)    0.846
+   7.145   (  -0.897   -0.000   -0.000)    0.897
+   7.229   (   0.487    0.000    0.000)    0.487
+   7.433   (   1.222    0.000    0.000)    1.222
+   8.945   (   0.203    0.000    0.000)    0.203
+   8.960   (  -0.056   -0.000   -0.000)    0.056
+   9.119   (  -2.793   -0.000   -0.000)    2.793
+   9.183   (  -0.649   -0.000   -0.000)    0.649
+   9.231   (  -0.138   -0.000   -0.000)    0.138
+   9.587   (  -0.368   -0.000   -0.000)    0.368
+   9.866   (   1.742    0.000    0.000)    1.742
+  10.353   (   1.965    0.000    0.000)    1.965
+======================= Grid point 816 (276/276) =======================
+q-point: (-0.50 -0.50  0.50)
+Boundary mean free path (millimeter): 1000.000
+Number of triplets: 180
+Frequency     group velocity (x, y, z)     |gv|
+   0.659   (  -0.000   -0.000    0.000)    0.000
+   0.675   (  -0.000   -0.000    0.000)    0.000
+   0.884   (   0.000   -0.000   -0.000)    0.000
+   0.960   (  -0.000    0.000    0.000)    0.000
+   1.014   (  -0.000   -0.000   -0.000)    0.000
+   1.019   (  -0.000    0.000    0.000)    0.000
+   1.375   (   0.000   -0.000   -0.000)    0.000
+   1.436   (   0.000   -0.000    0.000)    0.000
+   1.600   (  -0.000    0.000    0.000)    0.000
+   1.605   (   0.000    0.000   -0.000)    0.000
+   1.651   (  -0.000   -0.000   -0.000)    0.000
+   1.762   (  -0.000    0.000   -0.000)    0.000
+   1.788   (   0.000    0.000    0.000)    0.000
+   1.790   (   0.000   -0.000    0.000)    0.000
+   1.875   (   0.000    0.000    0.000)    0.000
+   2.031   (  -0.000   -0.000   -0.000)    0.000
+   2.075   (  -0.000   -0.000   -0.000)    0.000
+   2.081   (  -0.000    0.000   -0.000)    0.000
+   2.139   (  -0.000    0.000    0.000)    0.000
+   2.231   (   0.000   -0.000    0.000)    0.000
+   2.252   (   0.000   -0.000   -0.000)    0.000
+   2.297   (   0.000    0.000    0.000)    0.000
+   2.310   (   0.000    0.000   -0.000)    0.000
+   2.397   (  -0.000    0.000    0.000)    0.000
+   2.474   (   0.000   -0.000   -0.000)    0.000
+   2.552   (   0.000   -0.000   -0.000)    0.000
+   2.641   (  -0.000    0.000   -0.000)    0.000
+   2.976   (   0.000    0.000   -0.000)    0.000
+   2.998   (  -0.000    0.000    0.000)    0.000
+   3.049   (  -0.000    0.000   -0.000)    0.000
+   3.460   (   0.000   -0.000    0.000)    0.000
+   3.945   (   0.000    0.000   -0.000)    0.000
+   3.978   (   0.000   -0.000   -0.000)    0.000
+   4.166   (  -0.000   -0.000    0.000)    0.000
+   4.237   (  -0.000    0.000   -0.000)    0.000
+   4.873   (   0.000    0.000    0.000)    0.000
+   4.912   (   0.000   -0.000    0.000)    0.000
+   5.134   (   0.000   -0.000    0.000)    0.000
+   5.789   (  -0.000   -0.000   -0.000)    0.000
+   6.278   (  -0.000   -0.000    0.000)    0.000
+   6.620   (   0.000    0.000    0.000)    0.000
+   6.971   (   0.000    0.000   -0.000)    0.000
+   7.108   (  -0.000   -0.000   -0.000)    0.000
+   7.140   (  -0.000   -0.000    0.000)    0.000
+   7.232   (   0.000    0.000    0.000)    0.000
+   7.440   (   0.000    0.000   -0.000)    0.000
+   8.947   (  -0.000   -0.000    0.000)    0.000
+   8.959   (   0.000   -0.000    0.000)    0.000
+   9.102   (  -0.000   -0.000    0.000)    0.000
+   9.179   (  -0.000   -0.000   -0.000)    0.000
+   9.231   (  -0.000    0.000   -0.000)    0.000
+   9.584   (   0.000    0.000   -0.000)    0.000
+   9.876   (   0.000    0.000    0.000)    0.000
+  10.364   (   0.000    0.000    0.000)    0.000
+=================== End of collection of collisions ===================
+----------- Thermal conductivity (W/m-k) with tetrahedron method -----------
+#  T(K)        xx         yy         zz         yz         xz         xy
+  300.0       0.143      0.139      0.122     -0.000      0.000     -0.000
+  600.0       0.073      0.073      0.065     -0.000      0.000     -0.000
+  900.0       0.049      0.049      0.043     -0.000      0.000     -0.000
+
+Thermal conductivity related properties were written into 
+"kappa-m2896.hdf5".
+Summary of calculation was written in "phono3py.yaml".
+-------------------------[time 2026-09-20 02:29:15]-------------------------
+                 _
+   ___ _ __   __| |
+  / _ \ '_ \ / _` |
+ |  __/ | | | (_| |
+  \___|_| |_|\__,_|
+
+
+--- END FILE ---
+
+--- FILE postprocess/qmesh_04_105A.command.json ---
+d0fac269df592ffd61b270c2ccabe068a897fc12c997e13d20485bc6a05ff966  /scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/postprocess/qmesh_04_105A.command.json
+[
+  "phono3py",
+  "--mesh",
+  "105",
+  "--grg",
+  "--br",
+  "--ts",
+  "300",
+  "600",
+  "900",
+  "--nonac",
+  "--full-fc",
+  "phono3py_disp.yaml"
+]
+
+--- END FILE ---
+
+--- FILE postprocess/qmesh_04_105A.exit_code.txt ---
+9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa  /scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/postprocess/qmesh_04_105A.exit_code.txt
+0
+
+--- END FILE ---
+
+--- FILE postprocess/qmesh_04_105A.stderr ---
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/postprocess/qmesh_04_105A.stderr
+
+--- END FILE ---
+
+--- FILE postprocess/qmesh_04_105A.stdout ---
+96c84e27a8d2fa0cac9ebd3efbd50fd2265b71db2e63e3581e50474bbf8a26ba  /scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/postprocess/qmesh_04_105A.stdout
+
+   9.218   (  -1.838   -0.000   -0.000)    1.838
+   9.238   (  -0.282   -0.000   -0.000)    0.282
+   9.244   (  -5.669   -0.000   -0.000)    5.669
+   9.608   (  -1.219   -0.000   -0.000)    1.219
+   9.773   (   4.760    0.000    0.000)    4.760
+  10.245   (   5.701    0.000    0.000)    5.701
+======================= Grid point 1165 (443/450) =======================
+q-point: (-0.41 -0.46  0.41)
+Boundary mean free path (millimeter): 1000.000
+Number of triplets: 760
+Frequency     group velocity (x, y, z)     |gv|
+   0.675   (  -4.994   -0.000   -4.724)    6.874
+   0.698   (  -6.142    0.000    1.484)    6.319
+   0.930   (  -3.696    0.000    5.484)    6.613
+   0.968   (  -2.196   -0.000   -0.833)    2.349
+   1.036   (  -2.570    0.000    0.390)    2.599
+   1.040   (  -2.764    0.000    2.812)    3.943
+   1.329   (  -1.114   -0.000   -9.108)    9.176
+   1.414   (   0.279   -0.000   -3.778)    3.788
+   1.588   (   7.033    0.000    4.654)    8.433
+   1.610   (   1.599    0.000    1.811)    2.416
+   1.653   (   0.898    0.000    2.635)    2.784
+   1.768   (   0.542   -0.000   -2.997)    3.046
+   1.771   (   0.110   -0.000   -0.827)    0.834
+   1.817   (  -3.789    0.000    2.857)    4.745
+   1.880   (   0.524    0.000    1.220)    1.328
+   2.002   (   3.020   -0.000   -4.117)    5.106
+   2.074   (   0.181    0.000    0.384)    0.424
+   2.086   (  -1.159   -0.000   -0.959)    1.505
+   2.124   (  -1.661   -0.000   -3.479)    3.855
+   2.243   (  -1.278    0.000    0.333)    1.321
+   2.245   (   0.583    0.000    0.157)    0.604
+   2.314   (  -2.995    0.000    0.087)    2.996
+   2.314   (  -0.101    0.000    0.364)    0.377
+   2.375   (  -0.147   -0.000   -3.884)    3.887
+   2.468   (   1.851    0.000    0.772)    2.006
+   2.549   (   1.455    0.000    1.113)    1.832
+   2.656   (  -0.224    0.000    2.508)    2.518
+   2.981   (  -0.609    0.000    0.262)    0.663
+   2.996   (  -0.391   -0.000   -0.786)    0.878
+   3.056   (  -0.735    0.000    0.552)    0.920
+   3.453   (   0.197   -0.000   -1.325)    1.340
+   3.905   (   7.574    0.000    0.511)    7.592
+   3.972   (   1.928    0.000    0.758)    2.072
+   4.204   (  -6.696   -0.000   -0.258)    6.701
+   4.244   (  -1.830   -0.000    0.010)    1.830
+   4.846   (   3.651   -0.000   -2.073)    4.198
+   4.904   (   0.809   -0.000   -0.816)    1.149
+   5.132   (   0.761    0.000    0.402)    0.860
+   5.804   (  -1.866    0.000    1.312)    2.281
+   6.280   (   0.671    0.000    1.106)    1.293
+   6.600   (   0.184   -0.000   -4.233)    4.237
+   6.950   (   1.417   -0.000   -2.865)    3.197
+   7.107   (  -0.690   -0.000   -0.812)    1.066
+   7.139   (  -0.689   -0.000   -1.059)    1.263
+   7.247   (   0.436    0.000    3.402)    3.430
+   7.440   (   1.006    0.000    1.009)    1.425
+   8.943   (   0.207   -0.000   -0.703)    0.733
+   8.959   (  -0.063   -0.000   -0.227)    0.236
+   9.107   (  -2.344   -0.000   -1.481)    2.773
+   9.189   (  -0.567    0.000    1.527)    1.629
+   9.238   (  -0.113    0.000    1.614)    1.618
+   9.592   (  -0.321    0.000    1.316)    1.354
+   9.855   (   1.442   -0.000   -2.918)    3.255
+  10.346   (   1.638   -0.000   -2.307)    2.829
+======================= Grid point 1185 (444/450) =======================
+q-point: ( 0.47  0.53 -0.58)
+Boundary mean free path (millimeter): 1000.000
+Number of triplets: 770
+Frequency     group velocity (x, y, z)     |gv|
+   0.694   (  -6.321   -0.621    0.000)    6.351
+   0.756   (  -2.905  -10.721    0.000)   11.108
+   0.865   (  -6.187    6.582   -0.000)    9.033
+   0.962   (  -2.506    2.041   -0.000)    3.232
+   1.031   (  -2.447   -0.915    0.000)    2.612
+   1.043   (  -2.134   -1.661    0.000)    2.704
+   1.408   (  -1.389   -4.871    0.000)    5.065
+   1.425   (   1.930    1.661   -0.000)    2.546
+   1.557   (   7.238   -0.029    0.000)    7.238
+   1.595   (   0.094    0.912   -0.000)    0.917
+   1.630   (   1.329    2.036   -0.000)    2.431
+   1.730   (   1.702    5.759   -0.000)    6.005
+   1.802   (   1.059   -1.595    0.000)    1.915
+   1.829   (  -5.656   -3.629    0.000)    6.720
+   1.884   (   0.422   -2.129    0.000)    2.170
+   2.015   (   2.023    1.120   -0.000)    2.312
+   2.047   (  -1.742    4.369   -0.000)    4.704
+   2.081   (   0.346    1.281   -0.000)    1.327
+   2.167   (   0.285   -4.183    0.000)    4.193
+   2.225   (  -2.583    4.369   -0.000)    5.076
+   2.255   (   1.689   -1.961    0.000)    2.588
+   2.304   (  -3.226    1.393   -0.000)    3.514
+   2.307   (  -0.058    0.630   -0.000)    0.633
+   2.398   (  -0.057   -0.261    0.000)    0.267
+   2.451   (   1.841    2.265   -0.000)    2.919
+   2.544   (   1.388    0.030   -0.000)    1.388
+   2.633   (  -0.389    1.878   -0.000)    1.918
+   2.969   (  -0.541    5.934   -0.000)    5.959
+   3.013   (  -0.635   -6.502    0.000)    6.533
+   3.068   (  -0.658   -2.893    0.000)    2.966
+   3.489   (   0.426   -5.892    0.000)    5.908
+   3.880   (   5.917    4.079   -0.000)    7.187
+   3.985   (   3.378   -2.783    0.000)    4.376
+   4.201   (  -6.895    0.839   -0.000)    6.946
+   4.242   (  -1.440    0.557   -0.000)    1.543
+   4.784   (   2.610   10.473   -0.000)   10.793
+   4.961   (   1.666   -6.825    0.000)    7.025
+   5.126   (   0.815    0.855   -0.000)    1.181
+   5.809   (  -1.856   -2.240    0.000)    2.909
+   6.285   (   0.633   -2.067    0.000)    2.161
+   6.590   (   0.204    5.972   -0.000)    5.976
+   6.915   (   0.667    8.370   -0.000)    8.396
+   7.143   (   1.272   -5.175    0.000)    5.329
+   7.175   (  -1.859   -6.255    0.000)    6.525
+   7.225   (   0.404    1.160   -0.000)    1.228
+   7.429   (   1.010    1.460   -0.000)    1.776
+   8.946   (   0.172   -0.079    0.000)    0.189
+   8.958   (  -0.064    0.431   -0.000)    0.435
+   9.117   (  -2.343   -0.733    0.000)    2.455
+   9.158   (  -0.522    3.723   -0.000)    3.760
+   9.255   (  -0.143   -3.782    0.000)    3.785
+   9.599   (  -0.262   -2.677    0.000)    2.689
+   9.860   (   1.446    1.757   -0.000)    2.275
+  10.338   (   1.613    3.755   -0.000)    4.087
+======================= Grid point 1194 (445/450) =======================
+q-point: (-0.42 -0.58  0.42)
+Boundary mean free path (millimeter): 1000.000
+Number of triplets: 450
+Frequency     group velocity (x, y, z)     |gv|
+   0.847   ( -10.152   -0.000   -0.000)   10.152
+   0.870   ( -10.586   -0.000   -0.000)   10.586
+   1.046   (  -9.321   -0.000   -0.000)    9.321
+   1.054   (  -5.702   -0.000   -0.000)    5.702
+   1.105   (  -3.561   -0.000   -0.000)    3.561
+   1.115   (  -6.098   -0.000   -0.000)    6.098
+   1.385   (   7.904    0.000    0.000)    7.904
+   1.406   (   1.718    0.000    0.000)    1.718
+   1.487   ( -10.113   -0.000   -0.000)   10.113
+   1.596   (   0.086    0.000    0.000)    0.086
+   1.606   (   1.279    0.000    0.000)    1.279
+   1.677   (   5.919    0.000    0.000)    5.919
+   1.763   (   0.810    0.000    0.000)    0.810
+   1.857   (   1.381    0.000    0.000)    1.381
+   1.914   (  -2.721   -0.000   -0.000)    2.721
+   1.949   (   5.145    0.000    0.000)    5.145
+   2.037   (   2.710    0.000    0.000)    2.710
+   2.136   (  -1.980   -0.000   -0.000)    1.980
+   2.148   (  -0.645   -0.000   -0.000)    0.645
+   2.188   (   4.126    0.000    0.000)    4.126
+   2.302   (  -2.339   -0.000   -0.000)    2.339
+   2.306   (   0.657    0.000    0.000)    0.657
+   2.350   (   2.448    0.000    0.000)    2.448
+   2.421   (  -3.395   -0.000   -0.000)    3.395
+   2.487   (  -6.776   -0.000   -0.000)    6.776
+   2.495   (   3.371    0.000    0.000)    3.371
+   2.645   (   0.216    0.000    0.000)    0.216
+   2.998   (   0.962    0.000    0.000)    0.962
+   3.006   (  -2.113   -0.000   -0.000)    2.113
+   3.072   (  -0.694   -0.000   -0.000)    0.694
+   3.453   (   0.222    0.000    0.000)    0.222
+   3.730   (   9.123    0.000    0.000)    9.123
+   3.902   (   4.603    0.000    0.000)    4.603
+   4.301   (  -4.313   -0.000   -0.000)    4.313
+   4.361   (  -8.045   -0.000   -0.000)    8.045
+   4.722   (   9.748    0.000    0.000)    9.748
+   4.879   (   2.106    0.000    0.000)    2.106
+   5.099   (   2.555    0.000    0.000)    2.555
+   5.867   (  -5.197   -0.000   -0.000)    5.197
+   6.254   (   1.358    0.000    0.000)    1.358
+   6.608   (   1.059    0.000    0.000)    1.059
+   6.911   (   3.903    0.000    0.000)    3.903
+   7.137   (  -1.951   -0.000   -0.000)    1.951
+   7.169   (  -1.705   -0.000   -0.000)    1.705
+   7.216   (   1.039    0.000    0.000)    1.039
+   7.398   (   2.807    0.000    0.000)    2.807
+   8.946   (  -0.407   -0.000   -0.000)    0.407
+   8.961   (  -0.083   -0.000   -0.000)    0.083
+   9.192   (  -5.224   -0.000   -0.000)    5.224
+   9.202   (  -1.498   -0.000   -0.000)    1.498
+   9.235   (  -0.275   -0.000   -0.000)    0.275
+   9.598   (  -0.912   -0.000   -0.000)    0.912
+   9.815   (   3.950    0.000    0.000)    3.950
+  10.295   (   4.598    0.000    0.000)    4.598
+======================= Grid point 1243 (446/450) =======================
+q-point: (-0.44 -0.44  0.44)
+Boundary mean free path (millimeter): 1000.000
+Number of triplets: 400
+Frequency     group velocity (x, y, z)     |gv|
+   0.651   (  -0.000   -0.000   -5.143)    5.143
+   0.667   (   0.000    0.000    1.713)    1.713
+   0.912   (   0.000    0.000    6.071)    6.071
+   0.957   (  -0.000   -0.000   -0.604)    0.604
+   1.023   (   0.000    0.000    0.640)    0.640
+   1.027   (   0.000    0.000    2.686)    2.686
+   1.324   (  -0.000   -0.000   -9.106)    9.106
+   1.415   (  -0.000   -0.000   -4.157)    4.157
+   1.618   (   0.000    0.000    3.126)    3.126
+   1.633   (   0.000    0.000    3.951)    3.951
+   1.658   (   0.000    0.000    1.860)    1.860
+   1.751   (  -0.000   -0.000   -2.714)    2.714
+   1.771   (  -0.000   -0.000   -3.323)    3.323
+   1.809   (   0.000    0.000    4.646)    4.646
+   1.883   (   0.000    0.000    1.312)    1.312
+   2.020   (  -0.000   -0.000   -2.422)    2.422
+   2.071   (  -0.000   -0.000   -1.298)    1.298
+   2.080   (  -0.000   -0.000   -0.124)    0.124
+   2.115   (  -0.000   -0.000   -4.581)    4.581
+   2.237   (   0.000    0.000    1.407)    1.407
+   2.247   (  -0.000   -0.000   -0.988)    0.988
+   2.299   (   0.000    0.000    0.377)    0.377
+   2.315   (   0.000    0.000    0.563)    0.563
+   2.375   (  -0.000   -0.000   -3.982)    3.982
+   2.478   (   0.000    0.000    0.860)    0.860
+   2.557   (   0.000    0.000    1.092)    1.092
+   2.655   (   0.000    0.000    2.551)    2.551
+   2.978   (   0.000    0.000    0.337)    0.337
+   2.993   (  -0.000   -0.000   -0.837)    0.837
+   3.052   (   0.000    0.000    0.618)    0.618
+   3.454   (  -0.000   -0.000   -1.395)    1.395
+   3.947   (   0.000    0.000    0.521)    0.521
+   3.982   (   0.000    0.000    0.729)    0.729
+   4.166   (  -0.000   -0.000   -0.014)    0.014
+   4.236   (  -0.000   -0.000   -0.247)    0.247
+   4.863   (  -0.000   -0.000   -2.092)    2.092
+   4.908   (  -0.000   -0.000   -0.807)    0.807
+   5.136   (   0.000    0.000    0.365)    0.365
+   5.795   (   0.000    0.000    1.333)    1.333
+   6.283   (   0.000    0.000    1.117)    1.117
+   6.601   (  -0.000   -0.000   -4.297)    4.297
+   6.957   (  -0.000   -0.000   -2.951)    2.951
+   7.104   (  -0.000   -0.000   -0.788)    0.788
+   7.135   (  -0.000   -0.000   -0.987)    0.987
+   7.249   (   0.000    0.000    3.432)    3.432
+   7.445   (   0.000    0.000    0.980)    0.980
+   8.944   (  -0.000   -0.000   -0.701)    0.701
+   8.958   (  -0.000   -0.000   -0.244)    0.244
+   9.096   (  -0.000   -0.000   -1.427)    1.427
+   9.186   (   0.000    0.000    1.516)    1.516
+   9.238   (   0.000    0.000    1.618)    1.618
+   9.590   (   0.000    0.000    1.305)    1.305
+   9.862   (  -0.000   -0.000   -2.953)    2.953
+  10.354   (  -0.000   -0.000   -2.331)    2.331
+======================= Grid point 1263 (447/450) =======================
+q-point: ( 0.44  0.56 -0.56)
+Boundary mean free path (millimeter): 1000.000
+Number of triplets: 450
+Frequency     group velocity (x, y, z)     |gv|
+   0.662   (   0.000   -0.597    0.000)    0.597
+   0.743   (   0.000  -13.529    0.000)   13.529
+   0.834   (  -0.000    9.408   -0.000)    9.408
+   0.949   (  -0.000    2.123   -0.000)    2.123
+   1.019   (   0.000   -1.095    0.000)    1.095
+   1.032   (   0.000   -2.144    0.000)    2.144
+   1.402   (   0.000   -5.198    0.000)    5.198
+   1.434   (  -0.000    0.568   -0.000)    0.568
+   1.595   (  -0.000    0.960   -0.000)    0.960
+   1.606   (  -0.000    0.053   -0.000)    0.053
+   1.628   (  -0.000    4.130   -0.000)    4.130
+   1.742   (  -0.000    5.835   -0.000)    5.835
+   1.786   (   0.000   -4.265    0.000)    4.265
+   1.815   (   0.000   -1.621    0.000)    1.621
+   1.886   (   0.000   -2.161    0.000)    2.161
+   2.025   (  -0.000    1.169   -0.000)    1.169
+   2.037   (  -0.000    5.250   -0.000)    5.250
+   2.083   (  -0.000    0.685   -0.000)    0.685
+   2.169   (   0.000   -4.756    0.000)    4.756
+   2.213   (  -0.000    4.525   -0.000)    4.525
+   2.263   (   0.000   -2.101    0.000)    2.101
+   2.287   (  -0.000    1.289   -0.000)    1.289
+   2.307   (  -0.000    0.683   -0.000)    0.683
+   2.398   (   0.000   -0.362    0.000)    0.362
+   2.461   (  -0.000    2.261   -0.000)    2.261
+   2.550   (  -0.000    0.112   -0.000)    0.112
+   2.631   (  -0.000    2.027   -0.000)    2.027
+   2.966   (  -0.000    6.146   -0.000)    6.146
+   3.010   (   0.000   -6.565    0.000)    6.565
+   3.064   (   0.000   -3.038    0.000)    3.038
+   3.491   (   0.000   -6.039    0.000)    6.039
+   3.910   (  -0.000    5.287   -0.000)    5.287
+   4.006   (   0.000   -3.827    0.000)    3.827
+   4.162   (  -0.000    0.764   -0.000)    0.764
+   4.235   (  -0.000    0.516   -0.000)    0.516
+   4.797   (  -0.000   10.742   -0.000)   10.742
+   4.970   (   0.000   -6.896    0.000)    6.896
+   5.130   (  -0.000    0.834   -0.000)    0.834
+   5.800   (   0.000   -2.269    0.000)    2.269
+   6.288   (   0.000   -2.039    0.000)    2.039
+   6.591   (  -0.000    6.016   -0.000)    6.016
+   6.919   (  -0.000    8.792   -0.000)    8.792
+   7.155   (   0.000   -7.802    0.000)    7.802
+   7.160   (   0.000   -4.114    0.000)    4.114
+   7.227   (  -0.000    1.171   -0.000)    1.171
+   7.433   (  -0.000    1.485   -0.000)    1.485
+   8.947   (   0.000   -0.040    0.000)    0.040
+   8.957   (  -0.000    0.445   -0.000)    0.445
+   9.106   (   0.000   -0.800    0.000)    0.800
+   9.156   (  -0.000    3.736   -0.000)    3.736
+   9.254   (   0.000   -3.794    0.000)    3.794
+   9.597   (   0.000   -2.725    0.000)    2.725
+   9.867   (  -0.000    1.788   -0.000)    1.788
+  10.346   (  -0.000    3.804   -0.000)    3.804
+======================= Grid point 1272 (448/450) =======================
+q-point: (-0.45 -0.55  0.45)
+Boundary mean free path (millimeter): 1000.000
+Number of triplets: 430
+Frequency     group velocity (x, y, z)     |gv|
+   0.759   (  -8.060   -0.000   -0.000)    8.060
+   0.771   (  -9.797   -0.000   -0.000)    9.797
+   0.963   (  -7.585   -0.000   -0.000)    7.585
+   1.005   (  -4.425   -0.000   -0.000)    4.425
+   1.062   (  -4.763   -0.000   -0.000)    4.763
+   1.067   (  -4.089   -0.000   -0.000)    4.089
+   1.415   (  -5.166   -0.000   -0.000)    5.166
+   1.422   (   1.525    0.000    0.000)    1.525
+   1.468   (   9.258    0.000    0.000)    9.258
+   1.598   (   0.184    0.000    0.000)    0.184
+   1.622   (   1.981    0.000    0.000)    1.981
+   1.731   (   5.023    0.000    0.000)    5.023
+   1.773   (   1.127    0.000    0.000)    1.127
+   1.867   (   0.839    0.000    0.000)    0.839
+   1.872   (  -5.846   -0.000   -0.000)    5.846
+   1.993   (   3.834    0.000    0.000)    3.834
+   2.058   (   1.814    0.000    0.000)    1.814
+   2.113   (  -2.546   -0.000   -0.000)    2.546
+   2.142   (  -0.400   -0.000   -0.000)    0.400
+   2.223   (   3.008    0.000    0.000)    3.008
+   2.273   (  -3.513   -0.000   -0.000)    3.513
+   2.310   (   0.184    0.000    0.000)    0.184
+   2.350   (  -2.984   -0.000   -0.000)    2.984
+   2.401   (  -0.935   -0.000   -0.000)    0.935
+   2.451   (  -0.115   -0.000   -0.000)    0.115
+   2.524   (   2.617    0.000    0.000)    2.617
+   2.645   (  -0.225   -0.000   -0.000)    0.225
+   2.989   (  -1.386   -0.000   -0.000)    1.386
+   3.002   (  -0.041   -0.000   -0.000)    0.041
+   3.063   (  -1.113   -0.000   -0.000)    1.113
+   3.456   (   0.365    0.000    0.000)    0.365
+   3.819   (   9.369    0.000    0.000)    9.369
+   3.942   (   3.576    0.000    0.000)    3.576
+   4.266   (  -2.944   -0.000   -0.000)    2.944
+   4.282   (  -8.427   -0.000   -0.000)    8.427
+   4.803   (   7.020    0.000    0.000)    7.020
+   4.897   (   1.524    0.000    0.000)    1.524
+   5.119   (   1.638    0.000    0.000)    1.638
+   5.825   (  -3.649   -0.000   -0.000)    3.649
+   6.266   (   1.156    0.000    0.000)    1.156
+   6.615   (   0.582    0.000    0.000)    0.582
+   6.943   (   2.814    0.000    0.000)    2.814
+   7.121   (  -1.384   -0.000   -0.000)    1.384
+   7.154   (  -1.342   -0.000   -0.000)    1.342
+   7.224   (   0.773    0.000    0.000)    0.773
+   7.421   (   1.992    0.000    0.000)    1.992
+   8.944   (   0.026    0.000    0.000)    0.026
+   8.960   (  -0.081   -0.000   -0.000)    0.081
+   9.146   (  -4.171   -0.000   -0.000)    4.171
+   9.189   (  -1.060   -0.000   -0.000)    1.060
+   9.233   (  -0.215   -0.000   -0.000)    0.215
+   9.590   (  -0.614   -0.000   -0.000)    0.614
+   9.848   (   2.828    0.000    0.000)    2.828
+  10.333   (   3.225    0.000    0.000)    3.225
+======================= Grid point 1351 (449/450) =======================
+q-point: (-0.47 -0.53  0.47)
+Boundary mean free path (millimeter): 1000.000
+Number of triplets: 450
+Frequency     group velocity (x, y, z)     |gv|
+   0.691   (  -6.346   -0.000   -0.000)    6.346
+   0.698   (  -4.565   -0.000   -0.000)    4.565
+   0.905   (  -4.322   -0.000   -0.000)    4.322
+   0.971   (  -2.421   -0.000   -0.000)    2.421
+   1.026   (  -2.626   -0.000   -0.000)    2.626
+   1.032   (  -2.785   -0.000   -0.000)    2.785
+   1.383   (  -1.760   -0.000   -0.000)    1.760
+   1.433   (   0.750    0.000    0.000)    0.750
+   1.556   (   8.392    0.000    0.000)    8.392
+   1.599   (   0.140    0.000    0.000)    0.140
+   1.641   (   1.762    0.000    0.000)    1.762
+   1.769   (   2.591    0.000    0.000)    2.591
+   1.783   (   0.846    0.000    0.000)    0.846
+   1.810   (  -6.338   -0.000   -0.000)    6.338
+   1.873   (   0.400    0.000    0.000)    0.400
+   2.021   (   2.072    0.000    0.000)    2.072
+   2.071   (   0.847    0.000    0.000)    0.847
+   2.091   (  -1.951   -0.000   -0.000)    1.951
+   2.140   (  -0.119   -0.000   -0.000)    0.119
+   2.243   (  -2.422   -0.000   -0.000)    2.422
+   2.245   (   1.566    0.000    0.000)    1.566
+   2.311   (  -0.018   -0.000   -0.000)    0.018
+   2.314   (  -3.340   -0.000   -0.000)    3.340
+   2.397   (  -0.143   -0.000   -0.000)    0.143
+   2.464   (   1.743    0.000    0.000)    1.743
+   2.544   (   1.477    0.000    0.000)    1.477
+   2.642   (  -0.256   -0.000   -0.000)    0.256
+   2.979   (  -0.677   -0.000   -0.000)    0.677
+   2.999   (  -0.338   -0.000   -0.000)    0.338
+   3.053   (  -0.801   -0.000   -0.000)    0.801
+   3.459   (   0.261    0.000    0.000)    0.261
+   3.903   (   7.572    0.000    0.000)    7.572
+   3.969   (   1.955    0.000    0.000)    1.955
+   4.205   (  -7.041   -0.000   -0.000)    7.041
+   4.244   (  -1.480   -0.000   -0.000)    1.480
+   4.855   (   3.669    0.000    0.000)    3.669
+   4.908   (   0.800    0.000    0.000)    0.800
+   5.130   (   0.795    0.000    0.000)    0.795
+   5.798   (  -1.886   -0.000   -0.000)    1.886
+   6.275   (   0.660    0.000    0.000)    0.660
+   6.619   (   0.245    0.000    0.000)    0.245
+   6.964   (   1.509    0.000    0.000)    1.509
+   7.111   (  -0.715   -0.000   -0.000)    0.715
+   7.143   (  -0.772   -0.000   -0.000)    0.772
+   7.230   (   0.414    0.000    0.000)    0.414
+   7.435   (   1.034    0.000    0.000)    1.034
+   8.946   (   0.206    0.000    0.000)    0.206
+   8.960   (  -0.048   -0.000   -0.000)    0.048
+   9.114   (  -2.405   -0.000   -0.000)    2.405
+   9.182   (  -0.549   -0.000   -0.000)    0.549
+   9.231   (  -0.117   -0.000   -0.000)    0.117
+   9.586   (  -0.310   -0.000   -0.000)    0.310
+   9.869   (   1.476    0.000    0.000)    1.476
+  10.356   (   1.662    0.000    0.000)    1.662
+======================= Grid point 1430 (450/450) =======================
+q-point: ( 0.50  0.50 -0.50)
+Boundary mean free path (millimeter): 1000.000
+Number of triplets: 250
+Frequency     group velocity (x, y, z)     |gv|
+   0.659   (   0.000    0.000   -0.000)    0.000
+   0.675   (  -0.000    0.000   -0.000)    0.000
+   0.884   (   0.000   -0.000    0.000)    0.000
+   0.960   (   0.000   -0.000    0.000)    0.000
+   1.014   (   0.000    0.000    0.000)    0.000
+   1.019   (  -0.000    0.000   -0.000)    0.000
+   1.375   (  -0.000    0.000    0.000)    0.000
+   1.436   (  -0.000   -0.000    0.000)    0.000
+   1.600   (   0.000   -0.000    0.000)    0.000
+   1.605   (   0.000    0.000    0.000)    0.000
+   1.651   (   0.000   -0.000    0.000)    0.000
+   1.762   (  -0.000    0.000   -0.000)    0.000
+   1.788   (   0.000   -0.000    0.000)    0.000
+   1.790   (  -0.000    0.000   -0.000)    0.000
+   1.875   (  -0.000    0.000   -0.000)    0.000
+   2.031   (   0.000   -0.000    0.000)    0.000
+   2.075   (   0.000   -0.000    0.000)    0.000
+   2.081   (  -0.000    0.000   -0.000)    0.000
+   2.139   (  -0.000    0.000   -0.000)    0.000
+   2.231   (   0.000   -0.000    0.000)    0.000
+   2.252   (  -0.000    0.000   -0.000)    0.000
+   2.297   (   0.000   -0.000    0.000)    0.000
+   2.310   (   0.000   -0.000    0.000)    0.000
+   2.397   (  -0.000    0.000    0.000)    0.000
+   2.474   (   0.000   -0.000    0.000)    0.000
+   2.552   (   0.000   -0.000    0.000)    0.000
+   2.641   (   0.000   -0.000    0.000)    0.000
+   2.976   (  -0.000    0.000   -0.000)    0.000
+   2.998   (   0.000   -0.000    0.000)    0.000
+   3.049   (  -0.000    0.000   -0.000)    0.000
+   3.460   (  -0.000    0.000   -0.000)    0.000
+   3.945   (   0.000   -0.000    0.000)    0.000
+   3.978   (  -0.000    0.000   -0.000)    0.000
+   4.166   (   0.000   -0.000    0.000)    0.000
+   4.237   (   0.000   -0.000    0.000)    0.000
+   4.873   (   0.000   -0.000    0.000)    0.000
+   4.912   (  -0.000    0.000   -0.000)    0.000
+   5.134   (   0.000   -0.000    0.000)    0.000
+   5.789   (  -0.000    0.000   -0.000)    0.000
+   6.278   (  -0.000    0.000   -0.000)    0.000
+   6.620   (   0.000   -0.000    0.000)    0.000
+   6.971   (   0.000   -0.000    0.000)    0.000
+   7.108   (  -0.000    0.000   -0.000)    0.000
+   7.140   (  -0.000    0.000   -0.000)    0.000
+   7.232   (   0.000   -0.000    0.000)    0.000
+   7.440   (   0.000   -0.000    0.000)    0.000
+   8.947   (  -0.000    0.000    0.000)    0.000
+   8.959   (   0.000   -0.000    0.000)    0.000
+   9.102   (  -0.000    0.000   -0.000)    0.000
+   9.179   (   0.000   -0.000    0.000)    0.000
+   9.231   (  -0.000    0.000   -0.000)    0.000
+   9.584   (  -0.000    0.000   -0.000)    0.000
+   9.876   (   0.000   -0.000    0.000)    0.000
+  10.364   (   0.000   -0.000    0.000)    0.000
+=================== End of collection of collisions ===================
+----------- Thermal conductivity (W/m-k) with tetrahedron method -----------
+#  T(K)        xx         yy         zz         yz         xz         xy
+  300.0       0.147      0.139      0.136     -0.000      0.000     -0.000
+  600.0       0.075      0.073      0.071     -0.000      0.000     -0.000
+  900.0       0.050      0.049      0.048     -0.000      0.000     -0.000
+
+Thermal conductivity related properties were written into 
+"kappa-m112736.hdf5".
+Summary of calculation was written in "phono3py.yaml".
+-------------------------[time 2026-09-20 02:43:37]-------------------------
+                 _
+   ___ _ __   __| |
+  / _ \ '_ \ / _` |
+ |  __/ | | | (_| |
+  \___|_| |_|\__,_|
+
+
+--- END FILE ---
+
+--- FILE production/production_audit.json ---
+f23ce341a337bbf75edbd99142a07d874d8b320dfc8d9c239f0b85dde865b9d0  /scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/production_audit.json
+ptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL"
+      ],
+      "total_force_ry_bohr": 0.011571
+    },
+    "disp05611": {
+      "atom_count": 72,
+      "benign_stderr_only": true,
+      "errors": [],
+      "force_vector_sum_ry_bohr": [
+        9.999999999940612e-09,
+        3.999999999927456e-08,
+        -4.336808689942018e-19
+      ],
+      "healthy": true,
+      "max_abs_force_ry_bohr": 0.00749834,
+      "path": "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00664-disp05611/scf.out",
+      "provenance_sha256": {
+        "exit_code": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "input": "32e38b6fa31436274f9bea0513b47999de8e501fedc23d569eeb6ffe333bb0ea",
+        "output": "a2ba6fce47b3bf77e91b364042781d9577e05a99ad229e41cb4c21102b644791",
+        "source": "6082a6b2ce0bf460d0bf7ea495da7c5c742aefef716913ab32b921b91738eef1",
+        "stderr": "e51bde746932f7d9ac4eec8c30df4eef611fd35377c8f4c2edbf6da5a1916cd9"
+      },
+      "rms_force_ry_bohr": 0.000729329672462184,
+      "scf_correction_ry_bohr": 9e-06,
+      "stderr_lines": [
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL"
+      ],
+      "total_force_ry_bohr": 0.010719
+    },
+    "disp05612": {
+      "atom_count": 72,
+      "benign_stderr_only": true,
+      "errors": [],
+      "force_vector_sum_ry_bohr": [
+        1.0000000000157452e-08,
+        1.9999999999989644e-08,
+        3.00000000006892e-08
+      ],
+      "healthy": true,
+      "max_abs_force_ry_bohr": 0.00694075,
+      "path": "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00665-disp05612/scf.out",
+      "provenance_sha256": {
+        "exit_code": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "input": "9532f62dcc73ace9199152164ba1da0d764c70dd5d0536a2c21780958b69e7e6",
+        "output": "f9cd1ff549607db6245d6b628ad85659c9b817b1aaa3d4b03dc79a911ac1454f",
+        "source": "b607399e90a6256bd4ff567b670f7421bfe4bc8f8c2ea2682dff93114321ee2f",
+        "stderr": "e51bde746932f7d9ac4eec8c30df4eef611fd35377c8f4c2edbf6da5a1916cd9"
+      },
+      "rms_force_ry_bohr": 0.000646172215932094,
+      "scf_correction_ry_bohr": 1.7e-05,
+      "stderr_lines": [
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL"
+      ],
+      "total_force_ry_bohr": 0.009497
+    },
+    "disp05613": {
+      "atom_count": 72,
+      "benign_stderr_only": true,
+      "errors": [],
+      "force_vector_sum_ry_bohr": [
+        2.0000000000423325e-08,
+        -9.999999999940612e-09,
+        -1.5178830414797062e-18
+      ],
+      "healthy": true,
+      "max_abs_force_ry_bohr": 0.00732223,
+      "path": "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00666-disp05613/scf.out",
+      "provenance_sha256": {
+        "exit_code": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "input": "fec99ca14fd595e3d17b2100f2640325e31dbe38e9d30410e63102fb4e0fd88a",
+        "output": "449ca4de0367a89ed920a011609c66b19d898a1da30e0088ff7e1714346f8705",
+        "source": "0ab031c67226a1222006cee2ce2490c1956bf1e635adc51abf3503d6e0366f33",
+        "stderr": "e51bde746932f7d9ac4eec8c30df4eef611fd35377c8f4c2edbf6da5a1916cd9"
+      },
+      "rms_force_ry_bohr": 0.0007273259972275538,
+      "scf_correction_ry_bohr": 1.6e-05,
+      "stderr_lines": [
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL"
+      ],
+      "total_force_ry_bohr": 0.010689
+    },
+    "disp05614": {
+      "atom_count": 72,
+      "benign_stderr_only": true,
+      "errors": [],
+      "force_vector_sum_ry_bohr": [
+        2.0000000000423325e-08,
+        -2.0000000000098064e-08,
+        2.9999999998954474e-08
+      ],
+      "healthy": true,
+      "max_abs_force_ry_bohr": 0.00719079,
+      "path": "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00667-disp05614/scf.out",
+      "provenance_sha256": {
+        "exit_code": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "input": "2abc83ae0d7044f77f715423afb894ecf36431f697bbb049ebbc8e2f9ded8288",
+        "output": "b63427a5e6b155dcf72d5adb0562aedf5217850302adaf293f4f9c3898432a7b",
+        "source": "3522b7742e62dc471881f6f6ebfc4de2bd5229cf691d2cb9a4f1b9862b89ed17",
+        "stderr": "e51bde746932f7d9ac4eec8c30df4eef611fd35377c8f4c2edbf6da5a1916cd9"
+      },
+      "rms_force_ry_bohr": 0.0006868921710282536,
+      "scf_correction_ry_bohr": 1e-05,
+      "stderr_lines": [
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL"
+      ],
+      "total_force_ry_bohr": 0.010095
+    },
+    "disp05675": {
+      "atom_count": 72,
+      "benign_stderr_only": true,
+      "errors": [],
+      "force_vector_sum_ry_bohr": [
+        -2.0000000001454164e-08,
+        -8.000000000010765e-08,
+        2.000000000110095e-08
+      ],
+      "healthy": true,
+      "max_abs_force_ry_bohr": 0.00892705,
+      "path": "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00668-disp05675/scf.out",
+      "provenance_sha256": {
+        "exit_code": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "input": "3a0eaf920beefa2d2821f4df8988334010feba090605fb9dc551e12778d66604",
+        "output": "c613d5aa58acf853d0c82475ef5116d4e128199cf6f778ea8a4c50b9e7ca5462",
+        "source": "94e5a129093cde97c363d54bd72ab38cd5555c7a13084915d6d63397dd0e987b",
+        "stderr": "e51bde746932f7d9ac4eec8c30df4eef611fd35377c8f4c2edbf6da5a1916cd9"
+      },
+      "rms_force_ry_bohr": 0.000966003999256061,
+      "scf_correction_ry_bohr": 6e-06,
+      "stderr_lines": [
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL"
+      ],
+      "total_force_ry_bohr": 0.014197
+    },
+    "disp05676": {
+      "atom_count": 72,
+      "benign_stderr_only": true,
+      "errors": [],
+      "force_vector_sum_ry_bohr": [
+        -4.9999999997209395e-08,
+        9.999999998212665e-09,
+        9.999999997555367e-09
+      ],
+      "healthy": true,
+      "max_abs_force_ry_bohr": 0.01353964,
+      "path": "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00669-disp05676/scf.out",
+      "provenance_sha256": {
+        "exit_code": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "input": "684891384aaabb5105b52a114643e837f8fcd3e166ccd22eb97942078d37b77b",
+        "output": "74a41714fbaf05eee9a8fae823f15815cd13485d17baa1e1bce87fb5196dc83b",
+        "source": "19bf16fb9afa3766fa6fe950693c449672e5045c1bd0a7af12607b2ff62fc312",
+        "stderr": "e51bde746932f7d9ac4eec8c30df4eef611fd35377c8f4c2edbf6da5a1916cd9"
+      },
+      "rms_force_ry_bohr": 0.0013433857918246671,
+      "scf_correction_ry_bohr": 7e-06,
+      "stderr_lines": [
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL"
+      ],
+      "total_force_ry_bohr": 0.019744
+    },
+    "disp05677": {
+      "atom_count": 72,
+      "benign_stderr_only": true,
+      "errors": [],
+      "force_vector_sum_ry_bohr": [
+        -9.999999999069862e-09,
+        2.0000000001886998e-08,
+        9.999999999357853e-09
+      ],
+      "healthy": true,
+      "max_abs_force_ry_bohr": 0.01331968,
+      "path": "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00670-disp05677/scf.out",
+      "provenance_sha256": {
+        "exit_code": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "input": "67722e7214a9e37995568bbcff77be49b11bd717166a40ab8f990ade88791dff",
+        "output": "34fa62513bea9520484ae635e2074fdf3a04d45fa3fa130b2b212c2bce7b7d00",
+        "source": "4d24bdf94c9a9982ef178135b6f5153e1d889047e6dc56dbf2feee81d94901e9",
+        "stderr": "e51bde746932f7d9ac4eec8c30df4eef611fd35377c8f4c2edbf6da5a1916cd9"
+      },
+      "rms_force_ry_bohr": 0.001208871376226296,
+      "scf_correction_ry_bohr": 2e-05,
+      "stderr_lines": [
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL"
+      ],
+      "total_force_ry_bohr": 0.017767
+    },
+    "disp05678": {
+      "atom_count": 72,
+      "benign_stderr_only": true,
+      "errors": [],
+      "force_vector_sum_ry_bohr": [
+        -9.999999999046145e-09,
+        -9.999999997609577e-09,
+        4.999999999878149e-08
+      ],
+      "healthy": true,
+      "max_abs_force_ry_bohr": 0.01955527,
+      "path": "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00671-disp05678/scf.out",
+      "provenance_sha256": {
+        "exit_code": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "input": "152b14367d7564ba0a4467c17c4854f0718eab1ecb96331c6a81c967b10712b7",
+        "output": "860014ee36083139a3f10560c3aabaee8bca6da267be0334de3882e17aab7b14",
+        "source": "93308bc598bcce30947a2c7420489cd5bf1630c7d22113f9243fd850f3bb2d5b",
+        "stderr": "e51bde746932f7d9ac4eec8c30df4eef611fd35377c8f4c2edbf6da5a1916cd9"
+      },
+      "rms_force_ry_bohr": 0.001735210077072669,
+      "scf_correction_ry_bohr": 9e-06,
+      "stderr_lines": [
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL"
+      ],
+      "total_force_ry_bohr": 0.025502
+    },
+    "disp05679": {
+      "atom_count": 72,
+      "benign_stderr_only": true,
+      "errors": [],
+      "force_vector_sum_ry_bohr": [
+        -1.0000000000428503e-08,
+        2.0000000000585955e-08,
+        -9.99999999435697e-09
+      ],
+      "healthy": true,
+      "max_abs_force_ry_bohr": 0.01819726,
+      "path": "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00672-disp05679/scf.out",
+      "provenance_sha256": {
+        "exit_code": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "input": "1c724b78b33f9da55d76eadb959d51a699eb4be64e6bbe285ea38d581261cb15",
+        "output": "ba1fb7666179924658e6e5fce8f4e0c30cfee6c3b80cb81d3c9e4de65f0255ad",
+        "source": "18a0dbc0fa64f600cac24dc902985742b4448b9fe1cc913fd9f6ff1ed9a9d73f",
+        "stderr": "e51bde746932f7d9ac4eec8c30df4eef611fd35377c8f4c2edbf6da5a1916cd9"
+      },
+      "rms_force_ry_bohr": 0.0016295609729492355,
+      "scf_correction_ry_bohr": 5e-06,
+      "stderr_lines": [
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL"
+      ],
+      "total_force_ry_bohr": 0.02395
+    },
+    "disp05680": {
+      "atom_count": 72,
+      "benign_stderr_only": true,
+      "errors": [],
+      "force_vector_sum_ry_bohr": [
+        6.183340514956392e-20,
+        -2.0000000000585955e-08,
+        -2.99999999985479e-08
+      ],
+      "healthy": true,
+      "max_abs_force_ry_bohr": 0.01122862,
+      "path": "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00673-disp05680/scf.out",
+      "provenance_sha256": {
+        "exit_code": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "input": "737b45ef77bd46d61dd1fdd24f255e293a258ded558b0283eacfd42cf2de4598",
+        "output": "ff38232b5b24733796c2a3cc333746cd17286fa7ec9fdafa418ed004aeb69797",
+        "source": "2b7a74c9fcd587622fc99e52ad89eb7bc28819058879ce530ab4364fac1a39e0",
+        "stderr": "e51bde746932f7d9ac4eec8c30df4eef611fd35377c8f4c2edbf6da5a1916cd9"
+      },
+      "rms_force_ry_bohr": 0.0010899588298428134,
+      "scf_correction_ry_bohr": 2.2e-05,
+      "stderr_lines": [
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL"
+      ],
+      "total_force_ry_bohr": 0.016019
+    },
+    "disp05723": {
+      "atom_count": 72,
+      "benign_stderr_only": true,
+      "errors": [],
+      "force_vector_sum_ry_bohr": [
+        4.000000000155138e-08,
+        1.999999999858018e-08,
+        -9.999999998517597e-09
+      ],
+      "healthy": true,
+      "max_abs_force_ry_bohr": 0.00856065,
+      "path": "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00674-disp05723/scf.out",
+      "provenance_sha256": {
+        "exit_code": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "input": "5842ef0c621dabcb2c30619ae989c0769964c947c64c8219d39155e959d99b3b",
+        "output": "8d84ff19f8eb15311f1c613e2a17cb1f8e675884ed2a335db74d5a32b1d78087",
+        "source": "d01eefcd0f28f3cd67469251c78caa30ed500274c9e7361a9d8992564a91f713",
+        "stderr": "e51bde746932f7d9ac4eec8c30df4eef611fd35377c8f4c2edbf6da5a1916cd9"
+      },
+      "rms_force_ry_bohr": 0.0010739020536241844,
+      "scf_correction_ry_bohr": 2.1e-05,
+      "stderr_lines": [
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL"
+      ],
+      "total_force_ry_bohr": 0.015783
+    },
+    "disp05724": {
+      "atom_count": 72,
+      "benign_stderr_only": true,
+      "errors": [],
+      "force_vector_sum_ry_bohr": [
+        9.99999999901904e-09,
+        2.0000000000098064e-08,
+        -9.999999999588246e-09
+      ],
+      "healthy": true,
+      "max_abs_force_ry_bohr": 0.00563048,
+      "path": "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00675-disp05724/scf.out",
+      "provenance_sha256": {
+        "exit_code": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "input": "0c2938bcaa7365371b837cc5f1fae88991e34140060e16bf399521c1fe13dbcc",
+        "output": "7d703d39b62b7b1e4d66d0a4198a614ad36554195f043250d30610addaaa6e68",
+        "source": "d8122b0a7034799eb2ce85e656084fcab1be3f251caf31746babbc52c0d1c529",
+        "stderr": "e51bde746932f7d9ac4eec8c30df4eef611fd35377c8f4c2edbf6da5a1916cd9"
+      },
+      "rms_force_ry_bohr": 0.000575146568045276,
+      "scf_correction_ry_bohr": 1.4e-05,
+      "stderr_lines": [
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL"
+      ],
+      "total_force_ry_bohr": 0.008453
+    },
+    "disp05725": {
+      "atom_count": 72,
+      "benign_stderr_only": true,
+      "errors": [],
+      "force_vector_sum_ry_bohr": [
+        -1.0000000000699553e-08,
+        -2.9999999999604995e-08,
+        2.0000000000260695e-08
+      ],
+      "healthy": true,
+      "max_abs_force_ry_bohr": 0.00885383,
+      "path": "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00676-disp05725/scf.out",
+      "provenance_sha256": {
+        "exit_code": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "input": "4003588f19cdfec4b8e60d276e8d0e9c50bb91724aa16155403105bbd6147106",
+        "output": "fd8489dc7da8e2e6cd23a820afacf1e86b0281f760299944e65a9162bb7d61b5",
+        "source": "8298cf7c0a35d17b7213f652c446fb81dcf6bddb9810594b3cbae48baa5c8bc6",
+        "stderr": "e51bde746932f7d9ac4eec8c30df4eef611fd35377c8f4c2edbf6da5a1916cd9"
+      },
+      "rms_force_ry_bohr": 0.0010847091440830613,
+      "scf_correction_ry_bohr": 1.4e-05,
+      "stderr_lines": [
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL"
+      ],
+      "total_force_ry_bohr": 0.015942
+    },
+    "disp05726": {
+      "atom_count": 72,
+      "benign_stderr_only": true,
+      "errors": [],
+      "force_vector_sum_ry_bohr": [
+        -1.0842021724855044e-19,
+        -1.9999999999881224e-08,
+        1.9999999999827014e-08
+      ],
+      "healthy": true,
+      "max_abs_force_ry_bohr": 0.00528903,
+      "path": "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00677-disp05726/scf.out",
+      "provenance_sha256": {
+        "exit_code": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "input": "5996f4df9c5f46e1d324f6d974b2ce892b3d48010621355500adfebaf5ea090b",
+        "output": "6a9cd7c83118313efe18a0e9f463ae410ccf9219d96ac3d279b7f2b2cbe7127d",
+        "source": "de722eb34e2451fa3378d0a657e15893ef3aa552cadf714ba5c159c5bb5f7ce4",
+        "stderr": "e51bde746932f7d9ac4eec8c30df4eef611fd35377c8f4c2edbf6da5a1916cd9"
+      },
+      "rms_force_ry_bohr": 0.0005489279610041944,
+      "scf_correction_ry_bohr": 2.6e-05,
+      "stderr_lines": [
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL"
+      ],
+      "total_force_ry_bohr": 0.008068
+    },
+    "disp05727": {
+      "atom_count": 72,
+      "benign_stderr_only": true,
+      "errors": [],
+      "force_vector_sum_ry_bohr": [
+        3.000000000001157e-08,
+        -6.776263578034403e-21,
+        -9.999999999996516e-09
+      ],
+      "healthy": true,
+      "max_abs_force_ry_bohr": 4.067e-05,
+      "path": "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00678-disp05727/scf.out",
+      "provenance_sha256": {
+        "exit_code": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "input": "16702ba119ea9555c87681ca30670e6c432b0e8839e4e6c5f6d38f86f80b87c8",
+        "output": "5e815ba477ec402a58c5d5573f8826bcc6f52a27c663f4054bd614abc3e44a17",
+        "source": "ad4eb21d0724c05e60e6eb84bcb10fe048be92c0abe76db0206a40ee3160b934",
+        "stderr": "e51bde746932f7d9ac4eec8c30df4eef611fd35377c8f4c2edbf6da5a1916cd9"
+      },
+      "rms_force_ry_bohr": 1.817808099618064e-05,
+      "scf_correction_ry_bohr": 1.6e-05,
+      "stderr_lines": [
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL"
+      ],
+      "total_force_ry_bohr": 0.000267
+    },
+    "disp05728": {
+      "atom_count": 72,
+      "benign_stderr_only": true,
+      "errors": [],
+      "force_vector_sum_ry_bohr": [
+        -7.453889935837843e-19,
+        -3.000000000041137e-08,
+        3.000000000102801e-08
+      ],
+      "healthy": true,
+      "max_abs_force_ry_bohr": 0.0142161,
+      "path": "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00679-disp05728/scf.out",
+      "provenance_sha256": {
+        "exit_code": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "input": "162a852dcf306f8cc85ada0dff8ce1c341c579193efc79ff4a94d9bc4afb429f",
+        "output": "07df17b2af24c447338db63eb6eaad6e2436fef2a9766bcc52a642c4c6347190",
+        "source": "6d0b14e22cbf474bfeaf29ead392cb93e60ea8d3c601a344fef4c1312561f202",
+        "stderr": "e51bde746932f7d9ac4eec8c30df4eef611fd35377c8f4c2edbf6da5a1916cd9"
+      },
+      "rms_force_ry_bohr": 0.001281940629417701,
+      "scf_correction_ry_bohr": 2.8e-05,
+      "stderr_lines": [
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL"
+      ],
+      "total_force_ry_bohr": 0.018841
+    },
+    "pristine": {
+      "atom_count": 72,
+      "benign_stderr_only": true,
+      "errors": [],
+      "force_vector_sum_ry_bohr": [
+        3.000000000001157e-08,
+        3.999999999999962e-08,
+        -2.999999999999971e-08
+      ],
+      "healthy": true,
+      "max_abs_force_ry_bohr": 4.067e-05,
+      "path": "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00000-pristine/scf.out",
+      "provenance_sha256": {
+        "exit_code": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "input": "63d718e358ac8ac1bd687e0d631815eaf1101eaeab3d350cae56587716ece3da",
+        "output": "4ca84a9cd33848b4f70ac0aa81e80431d2fe32392824245016421a8ac1dd6206",
+        "source": "0ff80623252c0f68b6ac42e8f9d44bdd4d928f1e035b933b3a9b051d70779647",
+        "stderr": "e51bde746932f7d9ac4eec8c30df4eef611fd35377c8f4c2edbf6da5a1916cd9"
+      },
+      "rms_force_ry_bohr": 1.8178158470273343e-05,
+      "scf_correction_ry_bohr": 1.6e-05,
+      "stderr_lines": [
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL"
+      ],
+      "total_force_ry_bohr": 0.000267
+    }
+  },
+  "strict_parser": "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/qe_output.py",
+  "task_count": 680
+}
+
+--- END FILE ---

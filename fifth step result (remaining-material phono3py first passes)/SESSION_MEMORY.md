@@ -9,15 +9,26 @@
   `first_pass_unconverged`; no valid kappa_L or zT combination may be claimed.
 - Rb2Cu2SnS4 has passed its upstream FIRE/pristine/preflight/pilot gates.
   Original production element 361 was recovered; element 462 failed at QE
-  module start-up. Recovery `22312416` and dependent postprocess `22312417`
-  are only known here as submitted and queued. Do not infer execution or
-  scientific success from those job IDs.
+  module start-up. Saved terminal evidence records recovery `22312416` as
+  `COMPLETED/0:0` and dependent wrapper `22312417` as `FAILED/1:0`. The wrapper
+  reached FC2/FC3 and all five q-mesh stages; it failed only at its final scan
+  because it expected `force_constants` in `fc3.hdf5`, whose FC3 dataset is
+  named `fc3`. A saved read-only HDF5 audit passes FC2/FC3 integrity, shapes,
+  finite values, maps, version, atom binding, harmonic, and off-diagonal checks.
+  Those limited checks do not validate the physical force constants or full
+  phonon stability. Every q-mesh transition fails, including 90->105 A (largest
+  diagonal changes about 10.192%, 9.692%, and 9.594% at 300/600/900 K); the
+  105-A tensor is a rejected diagnostic only. No accepted kappa_L, remote
+  summary, recomputation, or submission exists. See the linked compact evidence
+  summary and read-only audit in the results index.
 - `21934081` is historical and must remain untouched. Do not resubmit the
   whole original array merely because one element failed.
 
-## Safe next evidence check, when separately authorized
+## Safe next action, when separately authorized
 
-Use a bounded, read-only DRAC scheduler-and-artifact check. Establish the
-terminal scheduler state and strict force audit before discussing FC2/FC3 or
-kappa_L. If authentication fails, record the state as unverified and stop;
-do not retry repeatedly.
+No further scheduler polling is needed for this terminal chain. Rb progress now
+requires a reviewed decision about denser q-mesh or broader convergence work;
+the completed force array should not be rerun. SrZrS3 requires a scientific
+decision about its sampled instability. Heavy calculations remain on DRAC and
+need explicit execution authorization; a read-only status request alone does
+not authorize them.

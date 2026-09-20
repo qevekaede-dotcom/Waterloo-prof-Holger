@@ -1,8 +1,8 @@
 # Research handoff — current state
 
 Last repository/evidence audit: 2026-09-20. Current continuation is in branch
-`codex/complete-three-material-phonons`; checkpoint commit `30bc4ad` is pushed
-to the same remote branch. The two remaining-material records are indexed in
+`codex/complete-three-material-phonons`; use the pushed remote branch tip rather
+than an older embedded checkpoint hash. The two remaining-material records are indexed in
 `fifth step result (remaining-material phono3py first passes)/`. Historical
 repository reconciliation and the merge through
 [PR #1](https://github.com/qevekaede-dotcom/Waterloo-prof-Holger/pull/1)
@@ -18,7 +18,7 @@ for continuity. This file records state, not authorization to launch work.
 | --- | --- | --- | --- |
 | SrCu2SnS4 | QE + BoltzTraP2 complete | 0.3445 eV | Historical first pass only; current-contract unconverged/rejected |
 | SrZrS3 | QE + BoltzTraP2 complete | 0.6096 eV | 788 forces and FC2/FC3 complete; imaginary-mode gate rejected kappa |
-| Rb2Cu2SnS4 | QE + BoltzTraP2 complete | 0.7811 eV | Narrow force recovery pending; no FC2/FC3 or kappa result |
+| Rb2Cu2SnS4 | QE + BoltzTraP2 complete | 0.7811 eV | FC2/FC3 and q-mesh artifacts pass a limited read-only HDF5 integrity audit, but every q-mesh ladder step fails; no accepted kappa_L |
 
 Each electronic pass includes independent convergence tests, vc-relax,
 final SCF, dense NSCF, and 300–900 K transport tables. Evidence:
@@ -55,10 +55,19 @@ Rb2Cu2SnS4 passed the FIRE, independent pristine, count-only preflight, and
 seven-task force-pilot gates. Original production task 361 was recovered, but
 task 462 failed before QE module start-up and made strict postprocess
 `21963654` fail. The original failures are now separately archived. Narrow
-recovery `22312416` and dependent strict postprocess `22312417` were confirmed
-queued on 2026-09-20. This is a submission state, not force or scientific
-acceptance; no FC2/FC3, q-mesh result, or kappa_L exists yet. Do not touch the
-historical blocked job `21934081`.
+recovery `22312416` completed `0:0`; dependent strict postprocess `22312417`
+failed `1:0` at its final scan because its wrapper expected `force_constants`
+in `fc3.hdf5`, whereas the HDF5 key is `fc3`. A saved-artifact, read-only HDF5
+audit directly passes the FC2/FC3 integrity, shape, finite-value, map, version,
+and atom-binding checks, as well as the harmonic and off-diagonal gates. It
+also finds every 45->60, 60->75, 75->90, and 90->105 A q-mesh ladder step fails.
+For 90->105 A, trace/3 changes are 4.2663%, 4.0831%, and 4.04694%, while the
+largest diagonal changes are about 10.192%, 9.692%, and 9.594%, at 300, 600,
+and 900 K. The 105-A tensor is therefore a rejected diagnostic only: no
+accepted kappa_L exists. This does not establish force-constant scientific
+validity or full phonon stability. Local finalizer code was repaired, but no
+remote summary was written and no recomputation or submission occurred. Do not
+touch the historical blocked job `21934081`.
 
 ## Scientific limits and open technical issue
 
@@ -482,24 +491,24 @@ a separate clean checkout that consumes the original hashed evidence.
 
 ## Next research work, when requested
 
-1. For Rb2Cu2SnS4, design a genuinely different relaxation method as a new
-   lineage and obtain prior scientific review.  Do not resubmit the failed
-   polish, accept its RUN_DIR, or perform another automatic reset merely
-   because the diagnostic evidence now replays cleanly.
-2. For SrZrS3, retain `21850149` as count-only contract evidence and obtain a
-   separate scientific decision before any pilot or production action.  Count
-   agreement alone cannot select the cutoff.
-3. After each material independently reaches its gates, run amplitude,
-   basis/cutoff, force-k-mesh, supercell, q-mesh, and NAC-sensitivity decisions.
-   Do not infer a production choice from cost alone.
-4. Re-preflight SrCu2SnS4 using explicitly converted Angstrom-to-bohr cutoffs
-   before estimating cost; the historical "5.0 A / 600 supercells" proposal
-   was based on the same unit misunderstanding and is not a valid 5-A budget.
-   Pair-cutoff, supercell, and tensor q-mesh convergence remain unperformed.
-5. Implement and review the explicit FC/postprocess policy before construction;
-   do not invent ASR/permutation thresholds from old drift text or test fixtures.
-6. Assemble the full three-material phonon writeup/package when supported
-   by results; keep interim attachments frozen.
+1. Rb2Cu2SnS4 is terminal for the present first-pass ladder: force recovery and
+   limited artifact audit pass, but q-mesh convergence fails. Do not rerun the
+   completed force array or promote the 105-A tensor. Any denser-mesh or broader
+   convergence study needs a separately reviewed scientific plan and explicit
+   execution authorization.
+2. SrZrS3 remains rejected by the sampled imaginary-mode gate. Decide
+   scientifically whether to investigate the instability or stop this lane;
+   do not promote its finite diagnostic tensor.
+3. SrCu2SnS4 has a separate `phono3py_v2/` preparation-only package with the
+   intended 4-A cutoff converted to 7.5589045 bohr and uniform force settings.
+   It has not generated a real displacement set, run pristine QE, or submitted
+   Slurm work. Those steps require separate review and authorization.
+4. For any continued material, establish amplitude, basis/cutoff, force-k-mesh,
+   supercell, q-mesh, and NAC-sensitivity decisions independently; do not infer
+   convergence from cost, file existence, scheduler success, or one sampled
+   stability gate.
+5. Assemble the full three-material phonon writeup/package only when the
+   scientific status supports it; keep every existing attachment frozen.
 
 Use [DRAC_SETUP.md](DRAC_SETUP.md) and the campaign
 [README](thermo_candidates/SrCu2SnS4/phono3py/README.md).

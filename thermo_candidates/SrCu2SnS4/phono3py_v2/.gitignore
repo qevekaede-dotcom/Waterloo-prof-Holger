@@ -1,0 +1,4 @@
+# Run directories are deliberately local/scratch-only evidence trees.
+RUNS/*
+!RUNS/README.md
+__pycache__/

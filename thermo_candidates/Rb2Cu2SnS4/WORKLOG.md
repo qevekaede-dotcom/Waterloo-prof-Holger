@@ -575,3 +575,62 @@ and dependency wiring. It does not establish a valid task-462 force, a passing
 whole-production audit, FC2/FC3, phonon stability, q-mesh convergence, or
 kappa_L. The lane remains `first_pass_unconverged` even if the recovery chain
 later passes.
+
+---
+
+## 2026-09-20 — saved recovery/postprocess evidence synthesized locally
+
+The saved evidence capture
+[`postprocess_22312417_failure_evidence_20260920.txt`](phono3py/evidence/firstpass_20260914/production/postprocess_22312417_failure_evidence_20260920.txt)
+records recovery job `22312416` as `COMPLETED/0:0`. Its dependent wrapper
+`22312417` is `FAILED/1:0`, not a scheduler-success result. The retained
+`production_audit.json` tail ends at `task_count: 680` with healthy/error-free
+terminal records, and the process proceeded to force collection and FC2/FC3
+creation. This is evidence that the production audit gate passed operationally;
+the retained tail has no standalone top-level audit-pass flag, so it is not a
+new independent full-audit verification.
+
+The capture inventories `fc2.hdf5`, `fc3.hdf5`, and five `kappa-*.hdf5` files.
+Only `qmesh_04_105A.exit_code.txt` is retained with a literal zero; the earlier
+four q-mesh successes are supported by the saved sequential control flow and
+later qmesh-04 execution, not by four retained zero lines. It does **not** inventory
+`kappa_summary.json` or `kappa_L_first_pass.csv`. The only recorded wrapper
+exception is the final scan error `ValueError: fc3.hdf5 lacks force_constants`.
+No conductivity values, stability finding, force-constant validity, or
+q-mesh-convergence conclusion is taken from file existence or zero command
+exits. Separately, the capture's rounded 90-A and 105-A stdout tables show a
+final-step zz change of about 8–10%, above the configured 5% diagonal gate;
+this is a diagnostic only and exact HDF5 tensors are still required for an
+authoritative q-mesh report. The lane remains `first_pass_unconverged`. The compact machine-readable
+counterpart is
+[`postprocess_22312417_evidence_summary_20260920.json`](phono3py/evidence/firstpass_20260914/production/postprocess_22312417_evidence_summary_20260920.json).
+
+This was a local documentation synthesis only: no SSH, scheduler query,
+calculation, rerun, submission, or modification of frozen attachments occurred.
+
+---
+
+## 2026-09-20 — saved postprocess HDF5 audit integrated (read-only)
+
+The separately saved read-only audit
+[`postprocess_22312417_hdf5_readonly_audit_20260920.json`](phono3py/evidence/firstpass_20260914/production/postprocess_22312417_hdf5_readonly_audit_20260920.json)
+now supplements the terminal-evidence capture without changing its scheduler
+facts: recovery `22312416` completed `0:0`; wrapper `22312417` failed `1:0`
+at its final scan because its code expected `force_constants` in `fc3.hdf5`,
+whose FC3 dataset is named `fc3`.
+
+Directly audited facts are limited to the saved artifacts: FC2/FC3 integrity,
+shapes, finite values, primitive-to-supercell map, phono3py version, and
+18-primitive/72-supercell atom binding pass; so do the audit's harmonic and
+off-diagonal gates. These checks do not establish physical force-constant
+validity or full phonon stability. The audit evaluates all q-mesh transitions,
+and every 45->60, 60->75, 75->90, and 90->105 A step fails. At 90->105 A,
+trace/3 changes are 4.2663%, 4.0831%, and 4.04694%, while maximum diagonal
+changes are about 10.192%, 9.692%, and 9.594%, at 300, 600, and 900 K. The
+105-A tensor is therefore retained only as a rejected diagnostic: no accepted
+kappa_L exists and the lane remains `first_pass_unconverged`.
+
+The underlying audit was collected in one bounded read-only SSH session. During
+this later documentation integration no additional remote access occurred. The
+local finalizer code was repaired, but no remote summary was written and no
+recompute or submission occurred.

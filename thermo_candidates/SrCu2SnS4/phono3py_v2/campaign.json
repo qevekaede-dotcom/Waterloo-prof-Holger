@@ -1,0 +1,66 @@
+{
+  "document_type": "srcu2sns4_phono3py_v2_plan",
+  "status": "local_preparation_only_not_submitted",
+  "material": "SrCu2SnS4",
+  "calculator": "qe",
+  "source_unitcell": {
+    "repository_path": "thermo_candidates/SrCu2SnS4/phono3py/unitcell.in",
+    "sha256": "8bad608d6d035115f0e8a23c7ad87d855568e17ba573eb133a6a96c797b64210",
+    "historical_note": "This source is a structural record only. The historical force campaign is not reused."
+  },
+  "phono3py": {
+    "qe_length_unit": "bohr",
+    "supercell_matrix": [2, 2, 1],
+    "symmetry_tolerance": 0.001,
+    "amplitude_bohr": 0.06,
+    "amplitude_angstrom_approx": 0.03175063265418,
+    "cutoff_pair_distance_angstrom": 4.0,
+    "cutoff_pair_distance_bohr": 7.5589045,
+    "generation_command_template": [
+      "phono3py-init", "--qe", "-c", "unitcell.in", "--dim", "2", "2", "1",
+      "--amplitude", "0.06", "--cutoff-pair", "7.5589045", "--tolerance", "0.001"
+    ]
+  },
+  "qe_force_input_contract": {
+    "nat": 96,
+    "ntyp": 4,
+    "ecutwfc_ry": 90,
+    "ecutrho_ry": 720,
+    "conv_thr": "1d-09",
+    "occupations": "fixed",
+    "nosym": true,
+    "noinv": true,
+    "k_points_automatic": [3, 3, 3, 0, 0, 0],
+    "tprnfor": true,
+    "minimum_displacement_inputs": 168,
+    "pseudopotential_files": {
+      "Sr": "Sr_pbe_v1.uspp.F.UPF",
+      "Cu": "Cu.paw.z_11.ld1.psl.v1.0.0-low.upf",
+      "Sn": "Sn_pbe_v1.uspp.F.UPF",
+      "S": "s_pbe_v1.4.uspp.F.UPF"
+    }
+  },
+  "safety": {
+    "default_mode": "dry_run",
+    "qe_execution_released": false,
+    "slurm_submission_released": false,
+    "postprocessing_released": false,
+    "preflight_requires": [
+      "fresh_run_manifest",
+      "immutable_config_and_source_fingerprints",
+      "healthy_pristine_audit_bound_to_pristine_input",
+      "at_least_168_displacement_inputs",
+      "one_uniform_qe_setting_fingerprint"
+    ],
+    "immutable_records": ["run_manifest.json", "health/pristine_health.json", "preflight_report.json"]
+  },
+  "unconverged_or_not_included": [
+    "supercell convergence",
+    "displacement-amplitude convergence",
+    "pair-cutoff convergence",
+    "NAC",
+    "SOC",
+    "q-mesh convergence",
+    "lattice thermal conductivity"
+  ]
+}

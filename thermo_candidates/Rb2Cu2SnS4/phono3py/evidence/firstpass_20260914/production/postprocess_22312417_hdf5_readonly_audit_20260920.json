@@ -1,0 +1,983 @@
+{
+  "collected_utc": "2026-09-20T08:30:09.963989+00:00",
+  "dataset": {
+    "has_nac_params": false,
+    "primitive_atoms": 18,
+    "sha256": "bb69732c8161dfe57d508777fa85209e6103a07c11df120cb0ac3cc01c02beda",
+    "supercell_atoms": 72
+  },
+  "force_constants": {
+    "fc2": {
+      "all_finite": true,
+      "dataset": "force_constants",
+      "dtype": "float64",
+      "file": "fc2.hdf5",
+      "keys": [
+        "force_constants",
+        "p2s_map",
+        "physical_unit",
+        "version"
+      ],
+      "p2s_map": [
+        0,
+        4,
+        8,
+        12,
+        16,
+        20,
+        24,
+        28,
+        32,
+        36,
+        40,
+        44,
+        48,
+        52,
+        56,
+        60,
+        64,
+        68
+      ],
+      "sha256": "08def0aaf5d249351937a65064fd087ab1b6cbe85351c395e999a4d41f8d3867",
+      "shape": [
+        72,
+        72,
+        3,
+        3
+      ]
+    },
+    "fc3": {
+      "all_finite": true,
+      "dataset": "fc3",
+      "dtype": "float64",
+      "file": "fc3.hdf5",
+      "keys": [
+        "fc3",
+        "fc3_cutoff",
+        "fc3_nonzero_indices",
+        "p2s_map",
+        "version"
+      ],
+      "p2s_map": [
+        0,
+        4,
+        8,
+        12,
+        16,
+        20,
+        24,
+        28,
+        32,
+        36,
+        40,
+        44,
+        48,
+        52,
+        56,
+        60,
+        64,
+        68
+      ],
+      "sha256": "b35e40fd169b084d6a4de7c6eb178dbd0ec359428e0ad64b27180df48ef063d2",
+      "shape": [
+        72,
+        72,
+        72,
+        3,
+        3,
+        3
+      ]
+    }
+  },
+  "harmonic_stability_pass": true,
+  "offdiagonal_check_pass": true,
+  "phono3py_version": "4.4.0",
+  "postprocess_inventory": [
+    {
+      "name": "FORCES_FC3",
+      "sha256": "b310b7a1404faff866667877d21b6150f2fd11fdb45031fccdcec28d12211cf4",
+      "size": 21360090
+    },
+    {
+      "name": "collect_forces_fc3.command.json",
+      "sha256": "7a5d35236762e4f58f84b58a31f356358bcd633de32d8e5d32e523f3376dccbc",
+      "size": 81653
+    },
+    {
+      "name": "collect_forces_fc3.exit_code.txt",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "size": 2
+    },
+    {
+      "name": "collect_forces_fc3.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "name": "collect_forces_fc3.stdout",
+      "sha256": "ebca7062db7f559565378f156d00af3fd1233f6ea14dc51649adb15b34041fb5",
+      "size": 132179
+    },
+    {
+      "name": "fc2.hdf5",
+      "sha256": "08def0aaf5d249351937a65064fd087ab1b6cbe85351c395e999a4d41f8d3867",
+      "size": 95291
+    },
+    {
+      "name": "fc3.hdf5",
+      "sha256": "b35e40fd169b084d6a4de7c6eb178dbd0ec359428e0ad64b27180df48ef063d2",
+      "size": 524554
+    },
+    {
+      "name": "kappa-m112736.hdf5",
+      "sha256": "a0f3b75441287bd9723882bdce282caee6aaca28482e6a51fc89c89f7ca83523",
+      "size": 6330876
+    },
+    {
+      "name": "kappa-m11440.hdf5",
+      "sha256": "12284f2315a8d087b0c6432865e8fb846a3852999c64244524b5edd652ac3b48",
+      "size": 1280615
+    },
+    {
+      "name": "kappa-m12420.hdf5",
+      "sha256": "3e12111c4966f1583be8f5d88266e7a68e04c41330a91519f681497d4114e92b",
+      "size": 2250214
+    },
+    {
+      "name": "kappa-m1448.hdf5",
+      "sha256": "00dbec4a89b97420a9c4b6720925f470130edf10388d2b3afc76d734bf4a549a",
+      "size": 667234
+    },
+    {
+      "name": "kappa-m2896.hdf5",
+      "sha256": "54648d5e352ec4cefadb29c31978ceecd96f7440ebfceebb9f383f7af0fccf62",
+      "size": 3834826
+    },
+    {
+      "name": "phono3py.yaml",
+      "sha256": "c1fe5cea252245a8fc72c7f8e031270ac2bcab41e381dfbbdcee79e525702abf",
+      "size": 16377
+    },
+    {
+      "name": "phono3py_disp.yaml",
+      "sha256": "bb69732c8161dfe57d508777fa85209e6103a07c11df120cb0ac3cc01c02beda",
+      "size": 593178
+    },
+    {
+      "name": "qmesh_00_45A.command.json",
+      "sha256": "de9b6bd319384f54fc806700734d0034489075c3c47a6111a0b1cfd1d271f533",
+      "size": 173
+    },
+    {
+      "name": "qmesh_00_45A.exit_code.txt",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "size": 2
+    },
+    {
+      "name": "qmesh_00_45A.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "name": "qmesh_00_45A.stdout",
+      "sha256": "51a9a6d9f469fde1eceff2a74f9016180854a8b21a6b4a271b5620d769ab6b09",
+      "size": 134957
+    },
+    {
+      "name": "qmesh_01_60A.command.json",
+      "sha256": "53e704f8a341ecfff3c3bee17d57a6b2eb6f2d81cb7e6633bfcb584c8afc7ed6",
+      "size": 147
+    },
+    {
+      "name": "qmesh_01_60A.exit_code.txt",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "size": 2
+    },
+    {
+      "name": "qmesh_01_60A.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "name": "qmesh_01_60A.stdout",
+      "sha256": "de36c48b70007d8faff0943a7cbf35b3239d085f6c6f1e76b0c11caa63d659fc",
+      "size": 260384
+    },
+    {
+      "name": "qmesh_02_75A.command.json",
+      "sha256": "f9386e73d6ac83873d478c90a6f85a618807e2da91b6d42c1afc04b838fbd333",
+      "size": 147
+    },
+    {
+      "name": "qmesh_02_75A.exit_code.txt",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "size": 2
+    },
+    {
+      "name": "qmesh_02_75A.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "name": "qmesh_02_75A.stdout",
+      "sha256": "57b9c9feab18efd6d4778370c8a4f8a72c43ac4d280abf2522ab47b8852a18a6",
+      "size": 458290
+    },
+    {
+      "name": "qmesh_03_90A.command.json",
+      "sha256": "2482ff04875a19a0f3740859cb89d37aa60276471b146ba4204e3d8ce5c18abd",
+      "size": 147
+    },
+    {
+      "name": "qmesh_03_90A.exit_code.txt",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "size": 2
+    },
+    {
+      "name": "qmesh_03_90A.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "name": "qmesh_03_90A.stdout",
+      "sha256": "43e7076b670d7bc012758ae6e125f6996c4ae13b00d27d37ad87ef82004df3c4",
+      "size": 793727
+    },
+    {
+      "name": "qmesh_04_105A.command.json",
+      "sha256": "d0fac269df592ffd61b270c2ccabe068a897fc12c997e13d20485bc6a05ff966",
+      "size": 148
+    },
+    {
+      "name": "qmesh_04_105A.exit_code.txt",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "size": 2
+    },
+    {
+      "name": "qmesh_04_105A.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "name": "qmesh_04_105A.stdout",
+      "sha256": "96c84e27a8d2fa0cac9ebd3efbd50fd2265b71db2e63e3581e50474bbf8a26ba",
+      "size": 1292849
+    }
+  ],
+  "production": {
+    "audit_pass": true,
+    "audit_sha256": "f23ce341a337bbf75edbd99142a07d874d8b320dfc8d9c239f0b85dde865b9d0",
+    "disp03843": {
+      "atom_count": 72,
+      "benign_stderr_only": true,
+      "errors": [],
+      "force_vector_sum_ry_bohr": [
+        -1.9999999998797022e-08,
+        -5.421010862427522e-20,
+        -9.75781955236954e-19
+      ],
+      "healthy": true,
+      "max_abs_force_ry_bohr": 0.00644762,
+      "path": "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/production/task-00462-disp03843/scf.out",
+      "provenance_sha256": {
+        "exit_code": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "input": "cccbe682b5f7b6fba229721a4839c390094d3dd0acaca4d18f28298712a33bbb",
+        "output": "4658ff04ae34af65ca1f9ad7576349152c7b114dfbe3aafc4f25181dd55c4c2b",
+        "source": "f29a8b51fd083f4a5b8e997211f7a386fcc0ea0f844b6f541b902cbef84894af",
+        "stderr": "e51bde746932f7d9ac4eec8c30df4eef611fd35377c8f4c2edbf6da5a1916cd9"
+      },
+      "rms_force_ry_bohr": 0.0006371714515166055,
+      "scf_correction_ry_bohr": 2.3e-05,
+      "stderr_lines": [
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL"
+      ],
+      "total_force_ry_bohr": 0.009364
+    },
+    "manifest_expected_atoms": 72,
+    "manifest_sha256": "9efff593656ab829485b1e5c805a7885536d70f9406adbbbc83b24d41ece9661",
+    "task_count": 680,
+    "task_map_sha256": "6e115d64d38a4e7c4e13ad2bafe8e9ae4803cb3eed82c566ee7a559c4afa1797"
+  },
+  "qmesh_converged": false,
+  "qmesh_ladder": [
+    {
+      "conventional_kappa_W_mK": [
+        [
+          0.1320489838334474,
+          0.14596505042788027,
+          0.08117056143608904,
+          -1.1098610261941684e-17,
+          2.258718211840969e-17,
+          -1.397715132715331e-17
+        ],
+        [
+          0.06751525311618381,
+          0.07612614013997447,
+          0.04389188801610756,
+          -6.007602582517547e-18,
+          1.2215675655752895e-17,
+          -7.320291973731756e-18
+        ],
+        [
+          0.04521871764200894,
+          0.05118669371955415,
+          0.029719811138138763,
+          -4.068594752779782e-18,
+          8.271658745591183e-18,
+          -4.926161189158456e-18
+        ]
+      ],
+      "file": "kappa-m1448.hdf5",
+      "frequency_shape": [
+        46,
+        54
+      ],
+      "grid_count": 192,
+      "kappa_shape": [
+        3,
+        6
+      ],
+      "keys": [
+        "P_matrix",
+        "Q_matrix",
+        "boundary_mfp",
+        "frequency",
+        "gamma",
+        "grid_matrix",
+        "grid_point",
+        "group_velocity",
+        "gv_by_gv",
+        "heat_capacity",
+        "kappa",
+        "kappa_unit_conversion",
+        "mesh",
+        "mode_kappa",
+        "qpoint",
+        "temperature",
+        "version",
+        "weight"
+      ],
+      "length_angstrom": 45.0,
+      "maximum_offdiagonal_fraction": 1.9674872119121305e-16,
+      "mesh": [
+        1,
+        4,
+        48
+      ],
+      "minimum_frequency_THz": -1.394336434927581e-07,
+      "qpoint_shape": [
+        46,
+        3
+      ],
+      "raw_kappa_W_mK": [
+        [
+          0.1320489838334474,
+          0.14596505042788027,
+          0.08117056143608904,
+          -2.0849411060696975e-17,
+          2.2587182118409694e-17,
+          -1.3977151327153308e-17
+        ],
+        [
+          0.06751525311618381,
+          0.07612614013997447,
+          0.04389188801610756,
+          -1.0858474566344762e-17,
+          1.2215675655752897e-17,
+          -7.320291973731755e-18
+        ],
+        [
+          0.04521871764200894,
+          0.05118669371955415,
+          0.029719811138138763,
+          -7.299105542797275e-18,
+          8.271658745591183e-18,
+          -4.926161189158454e-18
+        ]
+      ],
+      "sha256": "00dbec4a89b97420a9c4b6720925f470130edf10388d2b3afc76d734bf4a549a",
+      "temperature_K": [
+        300.0,
+        600.0,
+        900.0
+      ],
+      "weight_count": 46,
+      "weight_sum": 192
+    },
+    {
+      "conventional_kappa_W_mK": [
+        [
+          0.13967743820082407,
+          0.138418391158385,
+          0.09151365963669428,
+          -1.243990028901563e-17,
+          2.521480270619871e-17,
+          -1.3083188326489204e-17
+        ],
+        [
+          0.07129576942995738,
+          0.07235453113527796,
+          0.04905822149510086,
+          -6.6904248890387245e-18,
+          1.3530233062530633e-17,
+          -6.875343667192515e-18
+        ],
+        [
+          0.04773475039664972,
+          0.04867239188975634,
+          0.03316385022891971,
+          -4.525574061664416e-18,
+          9.148278862260799e-18,
+          -4.6297926053839226e-18
+        ]
+      ],
+      "file": "kappa-m11440.hdf5",
+      "frequency_shape": [
+        90,
+        54
+      ],
+      "grid_count": 440,
+      "kappa_shape": [
+        3,
+        6
+      ],
+      "keys": [
+        "P_matrix",
+        "Q_matrix",
+        "boundary_mfp",
+        "frequency",
+        "gamma",
+        "grid_matrix",
+        "grid_point",
+        "group_velocity",
+        "gv_by_gv",
+        "heat_capacity",
+        "kappa",
+        "kappa_unit_conversion",
+        "mesh",
+        "mode_kappa",
+        "qpoint",
+        "temperature",
+        "version",
+        "weight"
+      ],
+      "length_angstrom": 60.0,
+      "maximum_offdiagonal_fraction": 2.1181312309185403e-16,
+      "mesh": [
+        1,
+        1,
+        440
+      ],
+      "minimum_frequency_THz": -1.394336434927581e-07,
+      "qpoint_shape": [
+        90,
+        3
+      ],
+      "raw_kappa_W_mK": [
+        [
+          0.13967743820082407,
+          0.138418391158385,
+          0.09151365963669428,
+          -1.9498505128773642e-17,
+          2.5214802706198715e-17,
+          -1.3083188326489201e-17
+        ],
+        [
+          0.07129576942995738,
+          0.07235453113527796,
+          0.04905822149510086,
+          -1.0196242716790526e-17,
+          1.3530233062530634e-17,
+          -6.8753436671925125e-18
+        ],
+        [
+          0.04773475039664972,
+          0.04867239188975634,
+          0.03316385022891971,
+          -6.85942533153358e-18,
+          9.148278862260799e-18,
+          -4.629792605383921e-18
+        ]
+      ],
+      "sha256": "12284f2315a8d087b0c6432865e8fb846a3852999c64244524b5edd652ac3b48",
+      "temperature_K": [
+        300.0,
+        600.0,
+        900.0
+      ],
+      "weight_count": 90,
+      "weight_sum": 440
+    },
+    {
+      "conventional_kappa_W_mK": [
+        [
+          0.14232428945456294,
+          0.13727922653678928,
+          0.1135468509302332,
+          -1.543666579711412e-17,
+          3.1015519377639056e-17,
+          -1.2587342321959612e-17
+        ],
+        [
+          0.07259480338799039,
+          0.07180151528433036,
+          0.060077827577092124,
+          -8.175074276213696e-18,
+          1.6425549027298983e-17,
+          -6.633858430620617e-18
+        ],
+        [
+          0.04859754297405807,
+          0.04830597361396567,
+          0.040511428092439315,
+          -5.513542215265364e-18,
+          1.1077992483608247e-17,
+          -4.469672765020531e-18
+        ]
+      ],
+      "file": "kappa-m12420.hdf5",
+      "frequency_shape": [
+        159,
+        54
+      ],
+      "grid_count": 840,
+      "kappa_shape": [
+        3,
+        6
+      ],
+      "keys": [
+        "P_matrix",
+        "Q_matrix",
+        "boundary_mfp",
+        "frequency",
+        "gamma",
+        "grid_matrix",
+        "grid_point",
+        "group_velocity",
+        "gv_by_gv",
+        "heat_capacity",
+        "kappa",
+        "kappa_unit_conversion",
+        "mesh",
+        "mode_kappa",
+        "qpoint",
+        "temperature",
+        "version",
+        "weight"
+      ],
+      "length_angstrom": 75.0,
+      "maximum_offdiagonal_fraction": 2.4185125954171253e-16,
+      "mesh": [
+        1,
+        2,
+        420
+      ],
+      "minimum_frequency_THz": -1.394336434927581e-07,
+      "qpoint_shape": [
+        159,
+        3
+      ],
+      "raw_kappa_W_mK": [
+        [
+          0.14232428945456294,
+          0.13727922653678928,
+          0.1135468509302332,
+          -1.9008106372100133e-17,
+          3.1015519377639056e-17,
+          -1.2587342321959607e-17
+        ],
+        [
+          0.07259480338799039,
+          0.07180151528433036,
+          0.060077827577092124,
+          -9.939349992232981e-18,
+          1.6425549027298983e-17,
+          -6.633858430620615e-18
+        ],
+        [
+          0.04859754297405807,
+          0.04830597361396567,
+          0.040511428092439315,
+          -6.686528712726012e-18,
+          1.1077992483608247e-17,
+          -4.4696727650205295e-18
+        ]
+      ],
+      "sha256": "3e12111c4966f1583be8f5d88266e7a68e04c41330a91519f681497d4114e92b",
+      "temperature_K": [
+        300.0,
+        600.0,
+        900.0
+      ],
+      "weight_count": 159,
+      "weight_sum": 840
+    },
+    {
+      "conventional_kappa_W_mK": [
+        [
+          0.14292621493767332,
+          0.13891210006904556,
+          0.1224715416150916,
+          -1.6840272195292938e-17,
+          3.3286212956618865e-17,
+          -1.3047265310209703e-17
+        ],
+        [
+          0.07289526168442295,
+          0.07265893072758962,
+          0.06450249745215582,
+          -8.876408821255625e-18,
+          1.7556477451506364e-17,
+          -6.870177525261747e-18
+        ],
+        [
+          0.048797817858441,
+          0.04888326026594636,
+          0.043456373200999036,
+          -5.981089342993647e-18,
+          1.1831428740869e-17,
+          -4.628115188145574e-18
+        ]
+      ],
+      "file": "kappa-m2896.hdf5",
+      "frequency_shape": [
+        276,
+        54
+      ],
+      "grid_count": 1536,
+      "kappa_shape": [
+        3,
+        6
+      ],
+      "keys": [
+        "P_matrix",
+        "Q_matrix",
+        "boundary_mfp",
+        "frequency",
+        "gamma",
+        "grid_matrix",
+        "grid_point",
+        "group_velocity",
+        "gv_by_gv",
+        "heat_capacity",
+        "kappa",
+        "kappa_unit_conversion",
+        "mesh",
+        "mode_kappa",
+        "qpoint",
+        "temperature",
+        "version",
+        "weight"
+      ],
+      "length_angstrom": 90.0,
+      "maximum_offdiagonal_fraction": 2.5148736844323783e-16,
+      "mesh": [
+        2,
+        8,
+        96
+      ],
+      "minimum_frequency_THz": -1.394336434927581e-07,
+      "qpoint_shape": [
+        276,
+        3
+      ],
+      "raw_kappa_W_mK": [
+        [
+          0.14292621493767332,
+          0.13891210006904556,
+          0.1224715416150916,
+          -1.931438091964921e-17,
+          3.3286212956618865e-17,
+          -1.3047265310209698e-17
+        ],
+        [
+          0.07289526168442295,
+          0.07265893072758962,
+          0.06450249745215582,
+          -1.0103855126251873e-17,
+          1.7556477451506364e-17,
+          -6.8701775252617444e-18
+        ],
+        [
+          0.048797817858441,
+          0.04888326026594636,
+          0.043456373200999036,
+          -6.797771371836363e-18,
+          1.1831428740869e-17,
+          -4.628115188145573e-18
+        ]
+      ],
+      "sha256": "54648d5e352ec4cefadb29c31978ceecd96f7440ebfceebb9f383f7af0fccf62",
+      "temperature_K": [
+        300.0,
+        600.0,
+        900.0
+      ],
+      "weight_count": 276,
+      "weight_sum": 1536
+    },
+    {
+      "conventional_kappa_W_mK": [
+        [
+          0.14668143120011198,
+          0.13927592601720257,
+          0.13637034256369127,
+          -1.896471513168769e-17,
+          3.752741468269432e-17,
+          -1.2523744370588163e-17
+        ],
+        [
+          0.07476551367226868,
+          0.07280798968914039,
+          0.07142505257449051,
+          -9.935360795261291e-18,
+          1.9670235212159394e-17,
+          -6.609054239750726e-18
+        ],
+        [
+          0.050043769645036956,
+          0.04897815262351118,
+          0.04806817720674789,
+          -6.686679009281712e-18,
+          1.3239808858186755e-17,
+          -4.454108764089068e-18
+        ]
+      ],
+      "file": "kappa-m112736.hdf5",
+      "frequency_shape": [
+        450,
+        54
+      ],
+      "grid_count": 2736,
+      "kappa_shape": [
+        3,
+        6
+      ],
+      "keys": [
+        "P_matrix",
+        "Q_matrix",
+        "boundary_mfp",
+        "frequency",
+        "gamma",
+        "grid_matrix",
+        "grid_point",
+        "group_velocity",
+        "gv_by_gv",
+        "heat_capacity",
+        "kappa",
+        "kappa_unit_conversion",
+        "mesh",
+        "mode_kappa",
+        "qpoint",
+        "temperature",
+        "version",
+        "weight"
+      ],
+      "length_angstrom": 105.0,
+      "maximum_offdiagonal_fraction": 2.700346706967262e-16,
+      "mesh": [
+        1,
+        1,
+        2736
+      ],
+      "minimum_frequency_THz": -1.394336434927581e-07,
+      "qpoint_shape": [
+        450,
+        3
+      ],
+      "raw_kappa_W_mK": [
+        [
+          0.14668143120011198,
+          0.13927592601720257,
+          0.13637034256369127,
+          -1.940197092149626e-17,
+          3.752741468269432e-17,
+          -1.2523744370588157e-17
+        ],
+        [
+          0.07476551367226868,
+          0.07280798968914039,
+          0.07142505257449051,
+          -1.0143476400955236e-17,
+          1.9670235212159394e-17,
+          -6.609054239750723e-18
+        ],
+        [
+          0.050043769645036956,
+          0.04897815262351118,
+          0.04806817720674789,
+          -6.8236194984913314e-18,
+          1.3239808858186755e-17,
+          -4.454108764089066e-18
+        ]
+      ],
+      "sha256": "a0f3b75441287bd9723882bdce282caee6aaca28482e6a51fc89c89f7ca83523",
+      "temperature_K": [
+        300.0,
+        600.0,
+        900.0
+      ],
+      "weight_count": 450,
+      "weight_sum": 2736
+    }
+  ],
+  "qmesh_steps": [
+    {
+      "from": 45.0,
+      "passed": false,
+      "rows": [
+        {
+          "diagonal_relative_changes": [
+            0.05461479295180585,
+            0.05452063996943888,
+            0.1130224519669188
+          ],
+          "passed": false,
+          "temperature_K": 300.0,
+          "trace_over_3_relative_change": 0.028205156006160262
+        },
+        {
+          "diagonal_relative_changes": [
+            0.05302581547265074,
+            0.052126783845021556,
+            0.1053102481407573
+          ],
+          "passed": false,
+          "temperature_K": 600.0,
+          "trace_over_3_relative_change": 0.026855277248455146
+        },
+        {
+          "diagonal_relative_changes": [
+            0.052708618642266336,
+            0.051657659140580965,
+            0.10384919323322898
+          ],
+          "passed": false,
+          "temperature_K": 900.0,
+          "trace_over_3_relative_change": 0.026593683885043566
+        }
+      ],
+      "to": 60.0
+    },
+    {
+      "from": 60.0,
+      "passed": false,
+      "rows": [
+        {
+          "diagonal_relative_changes": [
+            0.01859732631641823,
+            0.008298157342039177,
+            0.19404493487077698
+          ],
+          "passed": false,
+          "temperature_K": 300.0,
+          "trace_over_3_relative_change": 0.05987754280890025
+        },
+        {
+          "diagonal_relative_changes": [
+            0.017894310576064026,
+            0.00770200808099494,
+            0.18342217963608715
+          ],
+          "passed": false,
+          "temperature_K": 600.0,
+          "trace_over_3_relative_change": 0.05754088917786816
+        },
+        {
+          "diagonal_relative_changes": [
+            0.017753831255808962,
+            0.007585361568713599,
+            0.18137049740023578
+          ],
+          "passed": false,
+          "temperature_K": 900.0,
+          "trace_over_3_relative_change": 0.05708223500272965
+        }
+      ],
+      "to": 75.0
+    },
+    {
+      "from": 75.0,
+      "passed": false,
+      "rows": [
+        {
+          "diagonal_relative_changes": [
+            0.004211442130282911,
+            0.01175472497676345,
+            0.07287154686847394
+          ],
+          "passed": false,
+          "temperature_K": 300.0,
+          "trace_over_3_relative_change": 0.02760132981537376
+        },
+        {
+          "diagonal_relative_changes": [
+            0.004121780887944431,
+            0.011800551352370648,
+            0.0685968768627239
+          ],
+          "passed": false,
+          "temperature_K": 600.0,
+          "trace_over_3_relative_change": 0.026576366686371335
+        },
+        {
+          "diagonal_relative_changes": [
+            0.004104177054882074,
+            0.011809495701391347,
+            0.06776785294388117
+          ],
+          "passed": false,
+          "temperature_K": 900.0,
+          "trace_over_3_relative_change": 0.026375045106498744
+        }
+      ],
+      "to": 90.0
+    },
+    {
+      "from": 90.0,
+      "passed": false,
+      "rows": [
+        {
+          "diagonal_relative_changes": [
+            0.02560117004391346,
+            0.002612267306785465,
+            0.10191952800960573
+          ],
+          "passed": false,
+          "temperature_K": 300.0,
+          "trace_over_3_relative_change": 0.04266318114710051
+        },
+        {
+          "diagonal_relative_changes": [
+            0.02501490187098683,
+            0.0020472885213172684,
+            0.09692054640232899
+          ],
+          "passed": false,
+          "temperature_K": 600.0,
+          "trace_over_3_relative_change": 0.04083070791730905
+        },
+        {
+          "diagonal_relative_changes": [
+            0.024897240864018788,
+            0.0019374425633045555,
+            0.09594297669979972
+          ],
+          "passed": false,
+          "temperature_K": 900.0,
+          "trace_over_3_relative_change": 0.040469400531674714
+        }
+      ],
+      "to": 105.0
+    }
+  ],
+  "root": "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4",
+  "script_hashes": {
+    "audit_force_firstpass.py": "b0ce834b616e7cf5b0954dc2ba7776bdde2bd6a0ef555c209d7a7f83926f6358",
+    "qe_output.py": "5476887222e8589ddeabdbfe9fb66fa9dbd7061b1f2ba559cb2fef3f40f3c5d5",
+    "run_postprocess_firstpass.py": "3d240978dc09d395f69d4c6b8808ecb00ace9c98e890ae46a903d12dae019d01",
+    "run_postprocess_firstpass.sbatch": "b19ce0dc19ac08320142d941dd4040da10456b15802aba2d11f7b35bab0dd0e2"
+  }
+}

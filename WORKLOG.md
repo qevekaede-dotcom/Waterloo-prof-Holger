@@ -213,3 +213,36 @@ Final local validation after both review-fix cycles passed all 434 tests with
 one optional-spglib skip, Python compilation, shell syntax, JSON parsing,
 Markdown link checks, frozen-attachment checks, and `git diff --check`. The
 fresh independent Sol review returned `SHIP` with no remaining findings.
+
+## 2026-09-20 — Rb terminal first-pass audit and SrCu2SnS4 v2 preparation
+
+The narrow Rb recovery job `22312416` completed `0:0`; dependent postprocess
+`22312417` reached FC2/FC3 plus all five q-mesh stages and then failed `1:0`
+because the old scanner looked for `force_constants` in `fc3.hdf5` instead of
+the documented `fc3` dataset. One bounded read-only Nibi evidence session
+verified the recovered force audit and saved HDF5 artifacts without remote
+writes or recomputation. FC2/FC3 shapes, finite values, maps, version, and atom
+binding pass limited integrity checks; harmonic and off-diagonal gates pass.
+Every q-mesh transition fails, however, so the 105-A tensor is retained only as
+a rejected diagnostic and no accepted kappa_L exists.
+
+The local Rb finalizer now validates existing artifacts without rerunning
+calculations, uses distinct FC2/FC3 schemas, binds command/hash evidence, and
+returns a nonzero gate bitmask unless q-mesh, harmonic, and off-diagonal gates
+all pass. Failed gates can write only an explicitly named rejected-diagnostic
+CSV with a status column. This repair was not run remotely.
+
+A separate `thermo_candidates/SrCu2SnS4/phono3py_v2/` preparation-only package
+now encodes the intended 4.0-A cutoff as 7.5589045 bohr, requires uniform
+90/720-Ry inputs, validates displacement YAML semantics, binds pseudopotentials
+and pristine evidence to externally retained manifest/health SHA-256 anchors,
+and rejects symlink or evidence-path escapes. It contains no Slurm template and
+does not release QE, force, or postprocess execution. No real v2 displacement
+dataset or calculation was produced.
+
+Final local checks passed 434 shared campaign tests (one optional skip), 11 Rb
+postprocess tests, 17 SrCu v2 tests, Python compilation, JSON parsing, Markdown
+relative-link checks, and `git diff --check`. A fresh independent Sol review
+first found and then reproduced manifest/health rebinding attacks; after the
+fail-closed fixes it returned `SHIP` with no actionable findings. No
+`READY_TO_ATTACH/` file was changed.

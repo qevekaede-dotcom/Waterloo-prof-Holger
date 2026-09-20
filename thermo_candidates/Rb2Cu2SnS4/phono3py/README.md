@@ -20,11 +20,28 @@ before QE because its module load failed, so replacement postprocess
 `21963654` correctly failed the strict whole-production audit. On 2026-09-20
 the original 462 failure and failed postprocess were separately archived with
 SHA-256 manifests, then only element 462 was resubmitted as `22312416`.
-Replacement postprocess `22312417` depends on its success. At this record point
-both were merely confirmed queued; neither the replacement force, FC2/FC3,
-q-mesh ladder, nor kappa_L has completed or passed. Original postprocess
-`21934081` remains untouched and fail-closed behind the unsatisfied original
-dependency.
+Replacement postprocess `22312417` ran after the recovery: `22312416`
+completed `0:0`, while `22312417` failed `1:0` only at the final scan because
+its wrapper looked for `force_constants` in `fc3.hdf5` (whose FC3 dataset key
+is `fc3`). A saved-artifact, read-only HDF5 audit passes FC2/FC3 integrity,
+shape, finite-value, primitive/supercell map, version, and atom-binding checks,
+and it passes its harmonic and off-diagonal gates. This limited audit does not
+establish scientific force-constant validity or complete phonon stability.
+In the terminal capture, only the 105-A q-mesh zero exit is retained directly;
+execution of the earlier sequential stages is control-flow-implied, while the
+read-only audit directly reads their resulting saved HDF5 artifacts.
+
+The same audit finds every q-mesh ladder transition (45->60, 60->75, 75->90,
+and 90->105 A) fails. In the final 90->105-A check, trace/3 changes are
+4.2663%, 4.0831%, and 4.04694%, but the largest diagonal changes are about
+10.192%, 9.692%, and 9.594% at 300, 600, and 900 K. The 105-A tensor is a
+rejected diagnostic only; there is no accepted kappa_L. The local finalizer
+was repaired to return nonzero unless q-mesh, harmonic, and off-diagonal gates
+all pass. A failed gate can create only an explicitly named
+`kappa_L_first_pass_rejected_diagnostic.csv`, never the accepted first-pass
+CSV. The repair has not been run remotely: no remote summary was written and
+no recomputation or submission occurred. Original postprocess `21934081` remains untouched and
+fail-closed behind the unsatisfied original dependency.
 Curated evidence is under
 [`evidence/firstpass_20260914/`](evidence/firstpass_20260914/).
 
