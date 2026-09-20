@@ -1,0 +1,44 @@
+{
+  "atom_count": 18,
+  "atom_order_matches_FIRE_terminal": true,
+  "cell_vectors_angstrom": [
+    [
+      -2.746656733017623,
+      5.901983644805105,
+      6.94849622137234
+    ],
+    [
+      2.746656733017623,
+      -5.901983644805105,
+      6.94849622137234
+    ],
+    [
+      2.746656733017623,
+      5.901983644805105,
+      -6.94849622137234
+    ]
+  ],
+  "cell_volume_angstrom3": 450.5605932735104,
+  "clean_process_exit_and_stderr": true,
+  "coordinates_match_FIRE_terminal": true,
+  "document_type": "rb_pristine_firstpass_audit",
+  "pass": true,
+  "spacegroup_number": 72,
+  "spacegroup_symbol": "Ibam",
+  "strict_qe_output": {
+    "atom_count": 18,
+    "errors": [],
+    "force_vector_sum_ry_bohr": [
+      1.0000000000001598e-08,
+      -1.6940658945086007e-21,
+      8.470329472543003e-22
+    ],
+    "healthy": true,
+    "max_abs_force_ry_bohr": 8.78e-06,
+    "path": "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/pristine/pristine.out",
+    "rms_force_ry_bohr": 4.417819765617593e-06,
+    "scf_correction_ry_bohr": 8e-06,
+    "total_force_ry_bohr": 3.2e-05
+  },
+  "symmetry_tolerance_angstrom": 1e-06
+}

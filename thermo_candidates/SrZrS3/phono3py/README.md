@@ -1,9 +1,20 @@
 # SrZrS3 phono3py campaign
 
-This directory defines the pending SrZrS3 finite-displacement campaign. It
-does **not** contain a lattice-thermal-conductivity result yet. The machine
-readable source of truth is [`campaign.json`](campaign.json); every `null`
-production choice is an intentional stop gate.
+This directory defines the SrZrS3 finite-displacement campaign. The
+time-bounded 2x1x1 first pass has now completed force collection and FC2/FC3
+construction, but it does **not** provide an accepted lattice-thermal-
+conductivity result. The first explicit no-NAC 12x5x3 RTA calculation found a
+minimum sampled frequency of `-1.0716026422440281 THz`; the q-mesh ladder was
+therefore stopped at the harmonic-frequency integrity gate. The run is
+permanently labelled `first_pass_unconverged`, and its finite kappa tensor is
+retained only as a rejected diagnostic. See
+[`evidence/first_pass_unconverged/`](evidence/first_pass_unconverged/).
+
+The machine-readable campaign design remains [`campaign.json`](campaign.json).
+Its preferred `5e-5 Ry/bohr` pristine-force threshold was not weakened: the
+observed `9.342e-5 Ry/bohr` is preserved as a failed gate with a separate,
+explicit first-pass exception record. Null production choices remain stop
+gates for any converged/default claim.
 
 Heavy QE calculations, displacement generation, force-constant construction,
 and phono3py transport postprocessing belong on a DRAC compute node. This

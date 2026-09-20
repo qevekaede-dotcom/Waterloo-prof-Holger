@@ -1,0 +1,247 @@
+{
+  "comparison_max_gate_ry_bohr": 5e-05,
+  "comparison_relative_rms_gate": 0.02,
+  "comparison_rms_gate_ry_bohr": 1e-05,
+  "comparisons": {
+    "80_640_to_100_800_induced_force": {
+      "atom_count": 72,
+      "max_abs_difference_ry_bohr": 1.7400000000000003e-06,
+      "pass": true,
+      "pristine_subtracted": true,
+      "reference_rms_ry_bohr": 0.00016033160567329753,
+      "relative_rms_difference": 0.0032903176148072217,
+      "rms_difference_ry_bohr": 5.275419063571763e-07
+    },
+    "duplicate_raw_force": {
+      "atom_count": 72,
+      "max_abs_difference_ry_bohr": 1.0000000000008375e-08,
+      "pass": true,
+      "pristine_subtracted": false,
+      "reference_rms_ry_bohr": 0.0001621258488826687,
+      "relative_rms_difference": 2.012726568319814e-05,
+      "rms_difference_ry_bohr": 3.263150034575505e-09
+    },
+    "k222_to_k333_induced_force": {
+      "atom_count": 72,
+      "max_abs_difference_ry_bohr": 1.200000000000002e-06,
+      "pass": true,
+      "pristine_subtracted": true,
+      "reference_rms_ry_bohr": 0.00016032789084231236,
+      "relative_rms_difference": 0.0024766030320956104,
+      "rms_difference_ry_bohr": 3.9706854058956483e-07
+    }
+  },
+  "document_type": "rb_firstpass_pilot_force_audit",
+  "duplicate_rms_gate_ry_bohr": 5e-06,
+  "failed_labels": [],
+  "global_errors": [],
+  "pass": true,
+  "pristine_residual_gate_ry_bohr": 5e-05,
+  "provenance_sha256": {
+    "audit_script": "b0ce834b616e7cf5b0954dc2ba7776bdde2bd6a0ef555c209d7a7f83926f6358",
+    "dataset": "bb69732c8161dfe57d508777fa85209e6103a07c11df120cb0ac3cc01c02beda",
+    "force_manifest": "948802f36555f354e8cc048cf40be585b7fbbd178282319e26d72e67f17f35bb",
+    "strict_parser": "5476887222e8589ddeabdbfe9fb66fa9dbd7061b1f2ba559cb2fef3f40f3c5d5",
+    "task_map": "723c768500de5211bb56ef3f5dd989620942ccb636d14fbd26e87f2a1c94c860"
+  },
+  "reports": {
+    "disp00001_k222_hi": {
+      "atom_count": 72,
+      "benign_stderr_only": true,
+      "errors": [],
+      "force_vector_sum_ry_bohr": [
+        -9.999999999676338e-09,
+        2.9999999999970914e-08,
+        3.999999999998945e-08
+      ],
+      "healthy": true,
+      "max_abs_force_ry_bohr": 0.00208015,
+      "path": "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/pilot/task-00001-disp00001_k222_hi/scf.out",
+      "provenance_sha256": {
+        "exit_code": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "input": "ba06a4503821a158de5144e15e87947d7937caf6f9c729f4b097ab7f43e36d4c",
+        "output": "9aca4f93021b9b1c3923030c9cc6ee818525bfcb40f81421d33758e2d2ada12f",
+        "source": "94fda2a72cd710fc22954c9ee4b409f40928ab9b62aafa4dc7b90eacf5884311",
+        "stderr": "e51bde746932f7d9ac4eec8c30df4eef611fd35377c8f4c2edbf6da5a1916cd9"
+      },
+      "rms_force_ry_bohr": 0.0001621258488826687,
+      "scf_correction_ry_bohr": 1.6e-05,
+      "stderr_lines": [
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL"
+      ],
+      "total_force_ry_bohr": 0.002383
+    },
+    "disp00001_k222_hi_dup": {
+      "atom_count": 72,
+      "benign_stderr_only": true,
+      "errors": [],
+      "force_vector_sum_ry_bohr": [
+        -2.9999999999625324e-08,
+        4.0000000000019946e-08,
+        -3.049318610115481e-20
+      ],
+      "healthy": true,
+      "max_abs_force_ry_bohr": 0.00208015,
+      "path": "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/pilot/task-00002-disp00001_k222_hi_dup/scf.out",
+      "provenance_sha256": {
+        "exit_code": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "input": "a3240761eb80e580ed9ee1445c40c067ea4ec4be4dfa9474c0b9818e64e40447",
+        "output": "01ec690fd847a263c7593f66bc4fc68aed7d88497d98714e052bf6f72f523d08",
+        "source": "94fda2a72cd710fc22954c9ee4b409f40928ab9b62aafa4dc7b90eacf5884311",
+        "stderr": "e51bde746932f7d9ac4eec8c30df4eef611fd35377c8f4c2edbf6da5a1916cd9"
+      },
+      "rms_force_ry_bohr": 0.00016212587741417105,
+      "scf_correction_ry_bohr": 1.6e-05,
+      "stderr_lines": [
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL"
+      ],
+      "total_force_ry_bohr": 0.002383
+    },
+    "disp00001_k222_lo": {
+      "atom_count": 72,
+      "benign_stderr_only": true,
+      "errors": [],
+      "force_vector_sum_ry_bohr": [
+        2.999999999961177e-08,
+        -3.999999999997929e-08,
+        -2.999999999995397e-08
+      ],
+      "healthy": true,
+      "max_abs_force_ry_bohr": 0.00208024,
+      "path": "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/pilot/task-00006-disp00001_k222_lo/scf.out",
+      "provenance_sha256": {
+        "exit_code": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "input": "7a5fc3545720c0d4195db36d47720f28630c55185d19af529a12c03585c63fd7",
+        "output": "1a84d0c547a66894ad28e98be97f9aa082f70fb77932f721c426aeaf50716057",
+        "source": "94fda2a72cd710fc22954c9ee4b409f40928ab9b62aafa4dc7b90eacf5884311",
+        "stderr": "e51bde746932f7d9ac4eec8c30df4eef611fd35377c8f4c2edbf6da5a1916cd9"
+      },
+      "rms_force_ry_bohr": 0.00016208819317764202,
+      "scf_correction_ry_bohr": 2.4e-05,
+      "stderr_lines": [
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL"
+      ],
+      "total_force_ry_bohr": 0.002382
+    },
+    "disp00001_k333_hi": {
+      "atom_count": 72,
+      "benign_stderr_only": true,
+      "errors": [],
+      "force_vector_sum_ry_bohr": [
+        9.9999999995442e-09,
+        2.371692252312041e-20,
+        9.99999999998974e-09
+      ],
+      "healthy": true,
+      "max_abs_force_ry_bohr": 0.0020818,
+      "path": "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/pilot/task-00004-disp00001_k333_hi/scf.out",
+      "provenance_sha256": {
+        "exit_code": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "input": "3a42f61e0b7e49cc1ef5b678b715c6a9447398cc46c125eb242389e823faa744",
+        "output": "0730086a3cf873dcc191c01f06f8375a5c4fd113ce436e7040c7175d1f00d227",
+        "source": "94fda2a72cd710fc22954c9ee4b409f40928ab9b62aafa4dc7b90eacf5884311",
+        "stderr": "e51bde746932f7d9ac4eec8c30df4eef611fd35377c8f4c2edbf6da5a1916cd9"
+      },
+      "rms_force_ry_bohr": 0.00016051477491703584,
+      "scf_correction_ry_bohr": 9e-06,
+      "stderr_lines": [
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL"
+      ],
+      "total_force_ry_bohr": 0.002359
+    },
+    "pristine_k222_hi": {
+      "atom_count": 72,
+      "benign_stderr_only": true,
+      "errors": [],
+      "force_vector_sum_ry_bohr": [
+        3.000000000001157e-08,
+        -2.0000000000023525e-08,
+        -2.0000000000001503e-08
+      ],
+      "healthy": true,
+      "max_abs_force_ry_bohr": 4.067e-05,
+      "path": "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/pilot/task-00000-pristine_k222_hi/scf.out",
+      "provenance_sha256": {
+        "exit_code": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "input": "283bd3264ec8c77a1e0733e9afd07ecc246c01c6aeb3a9b8452823636f845636",
+        "output": "f00650e26cda660c52674eb2f05972639aa4b26d26b601202aa69ea4f864ee3e",
+        "source": "0ff80623252c0f68b6ac42e8f9d44bdd4d928f1e035b933b3a9b051d70779647",
+        "stderr": "e51bde746932f7d9ac4eec8c30df4eef611fd35377c8f4c2edbf6da5a1916cd9"
+      },
+      "rms_force_ry_bohr": 1.8177613967103522e-05,
+      "scf_correction_ry_bohr": 1.6e-05,
+      "stderr_lines": [
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL"
+      ],
+      "total_force_ry_bohr": 0.000267
+    },
+    "pristine_k222_lo": {
+      "atom_count": 72,
+      "benign_stderr_only": true,
+      "errors": [],
+      "force_vector_sum_ry_bohr": [
+        -6.776263578034403e-21,
+        -1.0000000000015151e-08,
+        -1.000000000000414e-08
+      ],
+      "healthy": true,
+      "max_abs_force_ry_bohr": 3.836e-05,
+      "path": "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/pilot/task-00005-pristine_k222_lo/scf.out",
+      "provenance_sha256": {
+        "exit_code": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "input": "62ed01d07314d0d3f9eb48d14e2f59e7dcd4d3f59b1b654108bfc63fde9a5b14",
+        "output": "0aac22c2be158b9a12635bacf5393dbd7b05ab0ff96e935ba88b0833656940f9",
+        "source": "0ff80623252c0f68b6ac42e8f9d44bdd4d928f1e035b933b3a9b051d70779647",
+        "stderr": "e51bde746932f7d9ac4eec8c30df4eef611fd35377c8f4c2edbf6da5a1916cd9"
+      },
+      "rms_force_ry_bohr": 1.7080367466122552e-05,
+      "scf_correction_ry_bohr": 1.3e-05,
+      "stderr_lines": [
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL"
+      ],
+      "total_force_ry_bohr": 0.000251
+    },
+    "pristine_k333_hi": {
+      "atom_count": 72,
+      "benign_stderr_only": true,
+      "errors": [],
+      "force_vector_sum_ry_bohr": [
+        -1.0000000000003292e-08,
+        1.0000000000001598e-08,
+        2.000000000000235e-08
+      ],
+      "healthy": true,
+      "max_abs_force_ry_bohr": 1.001e-05,
+      "path": "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/pilot/task-00003-pristine_k333_hi/scf.out",
+      "provenance_sha256": {
+        "exit_code": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "input": "713d43b662654013de4e240f65b182da5139843a2ec5d836922721f42525876f",
+        "output": "0cd9addfdb8dbd0a3a2efd9f5892ea6d15d09f9b358cae648f27cd69dfeba131",
+        "source": "0ff80623252c0f68b6ac42e8f9d44bdd4d928f1e035b933b3a9b051d70779647",
+        "stderr": "e51bde746932f7d9ac4eec8c30df4eef611fd35377c8f4c2edbf6da5a1916cd9"
+      },
+      "rms_force_ry_bohr": 4.7129484755653055e-06,
+      "scf_correction_ry_bohr": 8e-06,
+      "stderr_lines": [
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL",
+        "Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL"
+      ],
+      "total_force_ry_bohr": 6.9e-05
+    }
+  },
+  "strict_parser": "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/qe_output.py",
+  "task_count": 7
+}

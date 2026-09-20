@@ -1,22 +1,33 @@
 # Rb2Cu2SnS4 phono3py campaign
 
-This directory defines the pending Rb2Cu2SnS4 finite-displacement campaign.
-It does **not** contain a lattice-thermal-conductivity result yet. The machine
-readable source of truth is [`campaign.json`](campaign.json); every `null`
-production choice is an intentional stop gate.
+This directory records the Rb2Cu2SnS4 finite-displacement campaign and its
+separate cost-bounded first-pass lane. The machine-readable historical design
+source is [`campaign.json`](campaign.json); its still-null production choices
+remain valid for the strict convergence campaign and have not been silently
+rewritten to describe the bounded screen.
 
-Current recovery status: the sole reviewed BFGS polish failed and remains
-terminal. A bounded eight-step FIRE pilot execution/collection/replay chain is
-implemented locally and pending independent review. It requires a wholly new
-lineage and code-issued release receipt from the exact reviewed code; the old
-plan-only Nibi lineage from `aab9290` cannot be reused after workflow/schema
-drift. The new lineage freezes the already-reviewed UPF bytes and atomically
-consumes the sole global FIRE hypothesis. Its primary is held until the exact
-`afterany` collector attachment and successful release receipt exist; the
-wrapper verifies both before QE or attempt creation. No FIRE job has been
-submitted or run. There is still no accepted
-structure, pristine gate, preflight, force job, FC2/FC3, or kappa_L result.
-Full FIRE execution remains hard-locked.
+Current first-pass status (2026-09-15 local record date): full FIRE job
+`21888372` passed normal-convergence, force, cell, atom-order, coordinate, and
+Ibam gates; independent pristine job `21924016` passed at the exact terminal
+geometry. Count-only preflight `21926309` selected the sole sub-1000 candidate,
+M72 with a 3.70-A FC3 cutoff (679 displaced supercells), and force pilot
+`21926602` passed duplicate, cutoff, k-point, and pristine-residual gates.
+Production array `21934047` is running one pristine plus 679 displacement
+forces at 100/800 Ry and 2x2x2 with a 32-task cap. Element 361 suffered an
+all-rank SIGBUS on node `c189`; its incomplete output is archived and cannot
+pass the strict QE parser. Single-element recovery `21963653` waits for the
+original array, and replacement postprocess `21963654` waits for that recovery
+before auditing all final outputs, constructing FC2/FC3, and running the
+explicit non-NAC RTA q-grid ladder. Original postprocess `21934081` remains
+fail-closed behind the now-unsatisfiable original `afterok` dependency.
+Curated evidence is under
+[`evidence/firstpass_20260914/`](evidence/firstpass_20260914/).
+
+This lane is unconditionally labelled **first_pass_unconverged**: it does not
+establish supercell, FC3-cutoff, displacement-amplitude, or 4x4x4 force-mesh
+convergence and it omits SOC, NAC, isotope, and boundary scattering. The
+broader strict campaign below therefore remains scientifically open even if
+the bounded production and q-grid ladder complete.
 
 Heavy QE calculations, displacement generation, force-constant construction,
 and phono3py transport postprocessing belong on a DRAC compute node. This
@@ -141,15 +152,25 @@ displacement work.
 
 ## Critical QE/phono3py distance-unit rule
 
-The phono3py QE interface uses atomic units for length: `bohr`, also written
-`au`. This applies to `--amplitude`, `--cutoff-pair`, the symmetry tolerance,
-and the one-value length-like generalized-grid input. The conversion fixed in
-the config is
+The phono3py QE displacement-generation interface uses atomic units for
+structure-like lengths: `bohr`, also written `au`. This applies to
+`--amplitude`, `--cutoff-pair`, and the symmetry tolerance. The conversion
+fixed in the config is
 
 ```text
 1 bohr = 0.529177210903 angstrom
 CLI bohr = design angstrom / 0.529177210903
 ```
+
+It does **not** apply to the one-number `--mesh` generalized-grid density.
+phono3py 4.4.0 loads the QE YAML primitive lattice into its internal Angstrom
+representation, and the installed phonopy `length2mesh` implementation defines
+that mesh length to have the same direct-space unit as the supplied lattice.
+The first-pass q-grid ladder therefore passes 45, 60, 75, 90, and 105
+Angstrom directly; for this material these reconstruct to generalized-grid
+counts 192, 440, 840, 1536, and 2736. Treating these five mesh-density values
+as bohr would incorrectly make every grid about 1.89 times denser in linear
+scale.
 
 For example, the primary 0.03-angstrom displacement candidate is passed as
 `--amplitude 0.0566917837388`, and the 4.25-angstrom cutoff candidate is

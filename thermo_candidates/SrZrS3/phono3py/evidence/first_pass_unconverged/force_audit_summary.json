@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "material": "SrZrS3",
+  "status": "first_pass_unconverged",
+  "accepted_kappa_l_result": false,
+  "remote_run_dir": "/scratch/yuhansun/phono3py-runs/20260914-sr-firstpass-production/SrZrS3",
+  "remote_postprocess_attempt": "/scratch/yuhansun/phono3py-runs/20260914-sr-firstpass-production/SrZrS3/postprocess/20260914T183000Z-firstpass-postprocess",
+  "force_array": {
+    "job_id": "21888373",
+    "accounting_rows": 788,
+    "state": "COMPLETED",
+    "exit_code": "0:0"
+  },
+  "mapping": {
+    "task_count": 788,
+    "pristine_task_id": 0,
+    "all_yaml_displacement_ids": 4025,
+    "included_yaml_displacement_ids": 787,
+    "excluded_zero_force_blocks": 3238,
+    "task_map_sha256": "7c5651e5adeb7ba6743e037abcee95605a681ae99421547ad06f06ba2e4c95fa",
+    "included_id_list_sha256": "95f8de9fb1df32992b09d2f723890fbca2bcbb20f5623d9287b7b93237720f0b"
+  },
+  "structure": {
+    "unitcell_atoms": 20,
+    "supercell_atoms": 40,
+    "supercell_matrix": [[2, 0, 0], [0, 1, 0], [0, 0, 1]],
+    "atom_order_counts": {"Sr": 8, "Zr": 8, "S": 24},
+    "maximum_generated_input_cell_difference_angstrom": 3.552713678800501e-15,
+    "maximum_generated_input_position_difference_fractional": 0.0
+  },
+  "force_settings": {
+    "ecutwfc_Ry": 80.0,
+    "ecutrho_Ry": 640.0,
+    "conv_thr_Ry": 1e-10,
+    "kmesh_and_shift": [3, 3, 3, 0, 0, 0],
+    "nosym": true,
+    "noinv": true
+  },
+  "pristine_force": {
+    "configured_gate_Ry_per_bohr": 5e-5,
+    "configured_gate_passed": false,
+    "observed_max_abs_force_Ry_per_bohr": 9.342e-5,
+    "observed_rms_force_Ry_per_bohr": 3.230305873030189e-5,
+    "exception_ceiling_Ry_per_bohr": 1e-4,
+    "exception_used": true,
+    "handling": "strict_per_atom_pristine_subtraction"
+  },
+  "forces_fc3_audit": {
+    "model": "per-output translational drift removal, per-atom pristine subtraction, 10-decimal serialization",
+    "maximum_allowed_component_difference_Ry_per_bohr": 2e-10,
+    "passed": true
+  },
+  "force_constants": {
+    "fc2_dataset": "force_constants",
+    "fc2_shape": [40, 40, 3, 3],
+    "fc2_all_finite": true,
+    "fc2_acoustic_sum_rule_max_abs_eV_angstrom_minus_2": 2.944866572818228e-14,
+    "fc2_permutation_max_abs_eV_angstrom_minus_2": 0.0,
+    "fc3_dataset": "fc3",
+    "fc3_shape": [40, 40, 40, 3, 3, 3],
+    "fc3_all_finite": true,
+    "fc3_acoustic_sum_rule_max_abs_eV_angstrom_minus_3": 5.790923296444817e-13,
+    "fc3_permutation_max_abs_eV_angstrom_minus_3": 0.0,
+    "residual_scope": "integrity diagnostics, not force-constant convergence gates"
+  },
+  "transport": {
+    "job_id": "21925850",
+    "scheduler_state": "FAILED",
+    "scheduler_exit_code": "2:0",
+    "solver": "phono3py single-mode RTA",
+    "nac": false,
+    "mesh": [12, 5, 3],
+    "temperatures_K": [300, 600, 900],
+    "irreducible_qpoints": 42,
+    "weight_sum": 180,
+    "minimum_frequency_THz": -1.0716026422440281,
+    "minimum_frequency_qpoint": [0.0, 0.4, 0.0],
+    "minimum_frequency_band_zero_based": 0,
+    "sampled_modes_below_minus_0p1_THz": 12,
+    "frequency_integrity_passed": false,
+    "mesh_ladder_continued": false
+  }
+}

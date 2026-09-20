@@ -308,3 +308,48 @@ submission directory; remaining tasks were cancelled. Corrected array
 `21888373` uses the explicit run directory and is running as `0-787%32` from
 `/scratch/yuhansun/phono3py-runs/20260914-sr-firstpass-production/SrZrS3`.
 This remains an unconverged first-pass pair cutoff and supercell choice.
+
+---
+
+## 2026-09-15 — first-pass FC2/FC3 built; kappa rejected on imaginary modes
+
+Fresh Nibi accounting confirmed all 788 rows of production force array
+`21888373` as `COMPLETED|0:0`. A material-scoped audit verified the exact
+pristine-plus-787 task mapping against all 4,025 YAML displacement IDs, all
+input/output/stderr hashes, exit-code and identity receipts, strict last
+complete QE force blocks, `JOB DONE`, the 8-Sr/8-Zr/24-S atom order, and
+cell/position identity after the required bohr-to-angstrom conversion.
+
+The pristine maximum component was `9.342e-5 Ry/bohr`, so the configured
+`5e-5 Ry/bohr` preferred gate remains failed. Under an explicit time-bounded
+exception below `1e-4 Ry/bohr`, postprocessing used strict per-atom pristine
+subtraction and permanently required `first_pass_unconverged`. The archived
+six-task pilot independently showed incremental RMS signals of
+`8.9725771e-4` and `9.0362425e-4 Ry/bohr`, roughly five orders of magnitude
+above propagated duplicate noise.
+
+Failed postprocess jobs `21924767`, `21924822`, `21924947`, and `21925015`
+exposed respectively a wrapper-version query, YAML presentation-order, total-
+versus-included-ID, and bohr/angstrom checker assumption before FC fitting.
+Job `21925300` preserved the pristine scientific gate failure. With the
+authorized exception, job `21925488` exposed phono3py's per-output drift
+removal plus 10-decimal serialization; the independently reproduced model
+then passed within `2e-10 Ry/bohr`. Job `21925660` built FCs and the first
+mesh but stopped on the documented FC2 HDF5 dataset name `force_constants`.
+These attempts remain immutable and are not represented as successful jobs.
+
+Final job `21925850` passed the force, mapping, serialization, and HDF5
+shape/finite audits. Full FC2 `(40,40,3,3)` and FC3
+`(40,40,40,3,3,3)` were constructed. Its explicit `--nonac` 12x5x3 RTA
+command returned zero, but the independent frequency gate found a minimum of
+`-1.0716026422440281 THz` at `[0.0,0.4,0.0]`, with 12 sampled modes below
+`-0.1 THz`. The job therefore exited fail-closed as `FAILED|2:0`; no denser
+q mesh was submitted.
+
+The finite 12x5x3 tensor is archived only as a rejected diagnostic. Its
+trace/3 values are `1.2710574279`, `0.6274234731`, and `0.4172933640
+W m^-1 K^-1` at 300, 600, and 900 K. They are not a valid kappa_L result and
+must not be combined with electronic transport into zT. The compact evidence,
+remote SHA-256 manifest, commands, assumptions, and limitations are under
+`phono3py/evidence/first_pass_unconverged/`; large force logs and HDF5 files
+remain only in the immutable Nibi attempt.

@@ -1,0 +1,22 @@
+{
+  "fire_full_input_sha256": "ef034dd76e6ec108fca7668c4315ca48139885114f1d743aada35c6433b12f11",
+  "kind": "Rb2Cu2SnS4_first_pass_full_FIRE_continuation",
+  "limitations": [
+    "Started from the terminal coordinates of an eight-step FIRE trend pilot.",
+    "Only normal FIRE convergence plus an independent pristine SCF may accept this structure."
+  ],
+  "max_seconds": 39600,
+  "nstep": 100,
+  "pseudopotentials": {
+    "Cu.paw.z_11.ld1.psl.v1.0.0-low.upf": "b31028b2bae60cd9903260715a49b4c6d2b6dc654558c87023fa5206e427a16d",
+    "Rb_ONCV_PBE-1.0.oncvpsp.upf": "b5f77d0adb6f4ae9fbae600bd3a16681e6fc46c301f5502e94f741491e065d90",
+    "Sn_pbe_v1.uspp.F.UPF": "2985a215143f6458f0a627315a843123d534bff482dc09b40415af4605359431",
+    "s_pbe_v1.4.uspp.F.UPF": "84ad731864187f416f714e961c3ad2f04dcbf811618e724d277885c18cb470df"
+  },
+  "source_final_coordinate_header_line": 23101,
+  "source_pilot_input": "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-pilot-a85bd00/Rb2Cu2SnS4/slurm_attempts/fire-pilot/20260913T211620Z-fire-pilot-d6ad8dad/fire.in",
+  "source_pilot_input_sha256": "623290110221e92d66b151fb5241e2d41f214f59d44bba5c803e0aafe7391f54",
+  "source_pilot_output": "/scratch/yuhansun/phono3py-runs/20260914-rb-fire-pilot-a85bd00/Rb2Cu2SnS4/slurm_attempts/fire-pilot/20260913T211620Z-fire-pilot-d6ad8dad/fire.out",
+  "source_pilot_output_sha256": "5a387238a45f7fce77c31643012fa5b88d066640c499fba2e77da1f8f761417f",
+  "structure_accepted": false
+}

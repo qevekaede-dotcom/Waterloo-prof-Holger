@@ -446,3 +446,100 @@ preserved. Corrected job `21888372` is running on 32 MPI ranks from
 QE 7.3.1 startup and one OpenMP thread per rank were observed with empty
 stderr. Normal FIRE convergence and a later independent pristine SCF are still
 required before accepting the structure.
+
+---
+
+## 2026-09-15 — full FIRE and pristine gates passed; cost-bounded force production running
+
+All dates below are local record dates; Nibi scheduler timestamps are
+2026-09-14 EDT. The corrected full-FIRE job `21888372` is authoritatively
+`COMPLETED/0:0` in 02:24:36 on 32 ranks. The strict audit independently
+confirmed both normal-convergence markers (`FIRE: convergence achieved in 26
+steps` and `End of FIRE minimization`) before the unique final-coordinate
+block and `JOB DONE`. The terminal 18-atom geometry retained its cell and atom
+order, had maximum force component `9.21e-6 Ry/bohr` and total force
+`3.4e-5 Ry/bohr`, shifted by at most `0.00185893 A` from the frozen seed, and
+remained Ibam No. 72 at `1e-6 A`. Input/output/audit SHA-256 values are
+`ef034dd76e6ec108fca7668c4315ca48139885114f1d743aada35c6433b12f11`,
+`63e501635c67a11d5f43bb0f275f06e7d08cf4f26994ca12a81436fc7bf3e5d5`,
+and `ba4dc11d63d6d759a6ad15244f7ee8fc61f250a62418ac49f8c85a5e4d314383`.
+
+Independent pristine fixed-geometry job `21924016` then completed `0:0` in
+00:33:07 on 32 ranks at 100/800 Ry, 4x7x7, `conv_thr=1e-10 Ry`, fixed
+occupations, fresh atomic starts, and the exact FIRE terminal cell/coordinates.
+Its strict audit passed with maximum force component `8.78e-6 Ry/bohr`, RMS
+force `4.4178e-6 Ry/bohr`, total force `3.2e-5 Ry/bohr`, unchanged atom order,
+and Ibam No. 72 at `1e-6 A`. Input/output/audit SHA-256 values are
+`13741fdee760df7c191132b2465d63692f0c6cc441ef7c17d26f8880c443c0de`,
+`1da3bb00c956a909587687cad54e0402d3359f6afdb764cb752eb6819a2900f3`,
+and `b3c307f5d8be9102f06f6a67dcbe0a9516ce03b7e11c861631cf57e29cd08c05`.
+
+Compute-node count-only preflight job `21926309` completed `0:0` with
+phono3py 4.4.0. Using explicit QE-interface atomic units, 0.03 A displacement
+was passed as 0.05669178 bohr and the pair cutoffs were converted from A to
+bohr. Candidate counts were M72/3.70 A = 679, M72/4.25 A = 1343,
+M72/5.00 A = 1811, and M108/4.25 A = 1343 displaced supercells. Only
+M72/3.70 A met the declared 1000-supercell cap. Its 72-atom cell lengths are
+10.987, 11.804, and 13.897 A, leaving about 1.793 A between the 3.70-A cutoff
+and half the shortest cell length. The selected dataset SHA-256 is
+`bb69732c8161dfe57d508777fa85209e6103a07c11df120cb0ac3cc01c02beda`.
+
+Seven-task force pilot `21926602` completed entirely `0:0`. The strict audit
+passed: duplicate raw-force RMS was `3.26315e-9 Ry/bohr`; the pristine-
+subtracted 2x2x2-to-3x3x3 induced-force difference was RMS
+`3.97069e-7 Ry/bohr`, maximum `1.20e-6 Ry/bohr`, and relative RMS 0.2477%;
+the 80/640-to-100/800-Ry difference was RMS `5.27542e-7 Ry/bohr`, maximum
+`1.74e-6 Ry/bohr`, and relative RMS 0.3290%. All were below the predeclared
+`1e-5 Ry/bohr` RMS, `5e-5 Ry/bohr` maximum, and 2% relative gates. Pristine
+maximum components were `4.067e-5`, `1.001e-5`, and `3.836e-5 Ry/bohr` for
+100/800-Ry 2x2x2, 100/800-Ry 3x3x3, and 80/640-Ry 2x2x2 respectively. QE
+wrote only its known IEEE underflow/denormal notice to pilot stderr; the audit
+records and permits that exact line but still rejects every unknown stderr
+line. Pilot audit SHA-256 is
+`45cd8562df3ace41ab6ce049a5577c4e4aaadb1894b0f29e1090ab4881dbd272`.
+
+The resulting cost-bounded production choice is M72/3.70 A, 0.03-A
+displacements, 100/800 Ry, 2x2x2, `conv_thr=1e-10 Ry`, fixed occupations,
+`nosym=.true.`, and `noinv=.true.`. Array `21934047` contains one pristine
+plus 679 displaced tasks and runs at most 32 concurrently on Nibi compute
+nodes. Its task-map and manifest SHA-256 values are
+`6e115d64d38a4e7c4e13ad2bafe8e9ae4803cb3eed82c566ee7a559c4afa1797`
+and `9efff593656ab829485b1e5c805a7885536d70f9406adbbbc83b24d41ece9661`.
+Dependent job `21934081` uses `afterok:21934047`; it must capture accounting,
+strictly audit every output, build FC2/FC3, and only then run explicit non-NAC
+RTA conductivity on the material-specific generalized-grid ladder.
+
+This lane remains explicitly **first_pass_unconverged** even if all running
+jobs succeed. PBE, RTA, no SOC, no NAC, no isotope/boundary scattering, one
+72-atom supercell, one 3.70-A FC3 cutoff, one displacement amplitude, no
+4x4x4 force confirmation, and no cutoff/supercell/amplitude convergence do
+not support a converged intrinsic conductivity claim. The earlier broad pilot
+design in this file was not completed; the present calculation is a bounded
+screening result only. Two local audit-development mistakes were also
+preserved in the narrative rather than hidden: an initial dynamic-import bug
+and an unbounded final-coordinate regex briefly left four exact stale parser
+processes, which were terminated before the bounded parser was rerun. Neither
+attempt submitted a job or altered scientific output.
+
+### Production infrastructure failure and scoped recovery
+
+Production element `21934047_361` (`task-00361-disp03013`) failed after
+00:26:04 on node `c189` with exit `135:0`.  All 32 MPI ranks reported signal
+7 (`Bus error: nonexistent physical address`).  Although the truncated QE
+output contains a force block, it lacks `JOB DONE` and is rejected under the
+strict parser.  The failed attempt is preserved remotely under
+`production/task-00361-disp03013/failure-21934047_361/`; its SHA-256 manifest
+has digest
+`da6db84b5fa574c9029e5567c65c9ab39c594e13e6aaf22629fe4396a3a03f27`.
+The original truncated output and stderr digests are
+`b63ea37da9407d787b0969cfe25f24df18b6e5d991d7d2e27f45d00eb1726e36`
+and
+`14ca398e6e68cf05b0fc84c1bb1e86808c018b363f9a0cb64d7242065b9ded22`.
+
+Only that failed element was resubmitted: recovery job `21963653` uses
+`array=361` and `afterany:21934047`.  Replacement postprocess job `21963654`
+uses `afterok:21963653`.  The original postprocess `21934081` remains
+untouched and cannot satisfy its `afterok:21934047` dependency after the
+recorded failure.  This is a node-failure recovery, not acceptance of the
+truncated force or a whole-array rerun.  Production and recovery remain
+incomplete at this record point.

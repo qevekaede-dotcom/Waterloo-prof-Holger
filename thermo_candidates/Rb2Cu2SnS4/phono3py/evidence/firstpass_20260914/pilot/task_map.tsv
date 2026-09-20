@@ -1,0 +1,8 @@
+task_index	label	input_path	input_sha256	expected_atoms
+0	pristine_k222_hi	/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/pilot/task-00000-pristine_k222_hi/scf.in	283bd3264ec8c77a1e0733e9afd07ecc246c01c6aeb3a9b8452823636f845636	72
+1	disp00001_k222_hi	/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/pilot/task-00001-disp00001_k222_hi/scf.in	ba06a4503821a158de5144e15e87947d7937caf6f9c729f4b097ab7f43e36d4c	72
+2	disp00001_k222_hi_dup	/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/pilot/task-00002-disp00001_k222_hi_dup/scf.in	a3240761eb80e580ed9ee1445c40c067ea4ec4be4dfa9474c0b9818e64e40447	72
+3	pristine_k333_hi	/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/pilot/task-00003-pristine_k333_hi/scf.in	713d43b662654013de4e240f65b182da5139843a2ec5d836922721f42525876f	72
+4	disp00001_k333_hi	/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/pilot/task-00004-disp00001_k333_hi/scf.in	3a42f61e0b7e49cc1ef5b678b715c6a9447398cc46c125eb242389e823faa744	72
+5	pristine_k222_lo	/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/pilot/task-00005-pristine_k222_lo/scf.in	62ed01d07314d0d3f9eb48d14e2f59e7dcd4d3f59b1b654108bfc63fde9a5b14	72
+6	disp00001_k222_lo	/scratch/yuhansun/phono3py-runs/20260914-rb-fire-full-firstpass/Rb2Cu2SnS4/pilot/task-00006-disp00001_k222_lo/scf.in	7a5fc3545720c0d4195db36d47720f28630c55185d19af529a12c03585c63fd7	72
