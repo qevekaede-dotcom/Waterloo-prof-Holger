@@ -10,6 +10,9 @@
 # Usage, from the phono3py/ directory on the cluster:
 #   bash scripts/slurm/submit_all.sh
 set -eu
+echo "[retired] archival/rejected SLURM submitter: no sbatch submission. Use v2 in a new empty RUN_DIR."
+exit 1
+
 cd "$(dirname "$0")/../.."
 source scripts/slurm/cluster.env
 if [ "$ACCOUNT" = "def-CHANGEME" ]; then

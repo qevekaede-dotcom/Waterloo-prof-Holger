@@ -43,7 +43,7 @@ ax.set_xlim(280, 920)
 ax.set_title("SrCu2SnS4 lattice thermal conductivity — first pass [calculated]",
              fontsize=10.5)
 ax.text(0.98, 0.96,
-        "phono3py RTA, 2x2x1 supercell, cutoff-pair 4.0 $\\AA$,\n"
+        "phono3py RTA, 2x2x1 supercell, historical cutoff-pair 4.0 bohr (2.1167 $\\AA$),\n"
         "q-mesh 13x13x6, residual forces subtracted, PBE, no SOC, no NAC",
         transform=ax.transAxes, ha="right", va="top", fontsize=8, color="0.35")
 ax.grid(alpha=0.25, lw=0.5)

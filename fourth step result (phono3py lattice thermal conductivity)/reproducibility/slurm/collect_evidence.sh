@@ -9,6 +9,9 @@
 # Usage (from anywhere): bash scripts/slurm/collect_evidence.sh [jobid ...]
 #   Passing SLURM job ids additionally records their sacct accounting.
 set -u
+echo "[retired] archival/rejected evidence helper: no snapshots or archive writes. Use v2 in a new empty RUN_DIR."
+exit 1
+
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 DEST="slurm_logs/evidence_$(date -u +%Y%m%dT%H%M%SZ)"

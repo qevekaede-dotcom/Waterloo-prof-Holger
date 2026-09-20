@@ -67,6 +67,10 @@ def parse_fragment(path: Path):
 
 
 def main():
+    sys.exit(
+        "[retired] archival/rejected input generator: no input writes. "
+        "Use v2 in a new empty RUN_DIR."
+    )
     ap = argparse.ArgumentParser()
     ap.add_argument("--kmesh", nargs=3, type=int, default=[3, 3, 3])
     ap.add_argument("--ecutwfc", type=int, default=90)

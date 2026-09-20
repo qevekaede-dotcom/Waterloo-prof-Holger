@@ -1433,3 +1433,37 @@ new force dataset, FC2/FC3, phonon stability result, q-mesh convergence,
 kappa_L, PF/tau, electronic-only zT or full zT was produced. No polish,
 preflight, production or postprocessing stage was automatically released, no
 hourly automation was created, and frozen attachments remained unchanged.
+
+## 2026-09-20 — SrCu2SnS4 historical first pass reclassified under the current contract
+
+The authoritative `phono3py_disp.yaml` was re-audited rather than inferring
+units from old prose. It records QE length unit `au` and
+`cutoff_pair_distance: 4.0`: 4.0 bohr = 2.11670884 A, not 4 A. All 24 included
+pair groups have zero pair distance; the shortest nonzero pair is
+4.33833022 bohr and was excluded. The existing FC3/kappa record is therefore
+onsite-only and cannot be upgraded by relabelling. A true 4-A dataset requires
+`7.55890450 bohr`, new displacements and a new uniform force campaign.
+
+The archived pristine output contains a complete 96-atom force block with
+maximum component `5.4513e-4 Ry/bohr`, and reconstruction confirms that this
+block was used by `--cfz`. The same run later emitted `seqopn(90)` and its
+stderr contains MPI abort, so it is parseable evidence but not a healthy QE
+completion. A strict re-audit found 154 of the 168 displacement outputs
+terminally healthy and 14 unhealthy; the input set also mixes 90/720 and
+60/480 Ry and symmetry-on versus `nosym/noinv` settings. Finally, the corrected
+11x11x5 to 13x13x6 step changed the average by -2.9559% but `kappa_zz` by
+-12.2745%, so it fails the current all-components/two-trailing-step q-mesh
+contract.
+
+**Correction boundary:** documentation and local fail-closed validation were
+corrected without changing raw data or frozen sent attachments. The
+historical 0.3639 W m^-1 K^-1 value remains a provenance record only. A
+scientifically corrected value requires a new Nibi force set at a true 4-A
+cutoff, a healthy setting-matched pristine, uniform displaced-force settings,
+and a new tensor q-mesh ladder at all reported temperatures.
+
+All canonical and packaged legacy execution entrypoints now stop before any
+write, submission, QE run, or evidence snapshot and point to a new empty v2
+RUN_DIR instead. The final suite passed 434 tests with one optional-spglib
+skip; compilation, shell, JSON, link, frozen-record, and whitespace checks
+passed, and the independent Sol review returned `SHIP`.

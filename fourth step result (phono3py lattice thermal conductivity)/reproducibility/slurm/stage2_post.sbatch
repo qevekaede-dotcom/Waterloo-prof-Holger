@@ -13,6 +13,9 @@
 #SBATCH --time=12:00:00
 #SBATCH --output=slurm_logs/stage2_%j.out
 
+echo "[retired] archival/rejected stage 2: no evidence snapshot or postprocess. Use v2 in a new empty RUN_DIR."
+exit 1
+
 set -u
 cd "$SLURM_SUBMIT_DIR"
 source scripts/slurm/cluster.env

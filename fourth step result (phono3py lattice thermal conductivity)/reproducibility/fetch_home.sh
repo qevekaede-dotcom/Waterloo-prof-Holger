@@ -11,6 +11,9 @@
 #
 # Usage: bash thermo_candidates/SrCu2SnS4/phono3py/scripts/fetch_home.sh
 set -eu
+echo "[retired] archival/rejected fetch helper: no rsync, git write, or push. Use v2 in a new empty RUN_DIR."
+exit 1
+
 REPO="$(cd "$(dirname "$0")/../../../.." && pwd)"
 MAT=thermo_candidates/SrCu2SnS4
 REMOTE=drac:scratch/Waterloo-prof-Holger

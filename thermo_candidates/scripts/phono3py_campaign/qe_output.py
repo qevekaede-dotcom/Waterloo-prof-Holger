@@ -31,6 +31,20 @@ TOTAL_FORCE = re.compile(
     rf"Total force\s*=\s*({FLOAT}).*?Total SCF correction\s*=\s*({FLOAT})",
     re.DOTALL,
 )
+IEEE_UNDERFLOW_NOTE = (
+    "Note: The following floating-point exceptions are signalling: "
+    "IEEE_UNDERFLOW_FLAG IEEE_DENORMAL"
+)
+FAILURE_SIGNATURES = (
+    (re.compile(r"\bmpi[ _-]*abort\b", re.I), "MPI_ABORT"),
+    (re.compile(r"\b(?:segmentation fault|segfault)\b", re.I), "segmentation fault"),
+    (re.compile(r"\bkilled\b", re.I), "killed"),
+    (re.compile(r"\bfatal\b", re.I), "fatal"),
+    (re.compile(r"\berror\b", re.I), "error"),
+    (re.compile(r"\btime limit\b", re.I), "time limit"),
+    (re.compile(r"\bcancelled\b", re.I), "cancelled"),
+    (re.compile(r"\bexited with exit code [1-9]\d*\b", re.I), "failed exit"),
+)
 
 
 class QEOutputError(ValueError):
@@ -191,6 +205,46 @@ def inspect_output(path: str | Path, expected_atoms: int) -> dict[str, object]:
     }
 
 
+def inspect_force_run(
+    output: str | Path, stderr: str | Path | None, expected_atoms: int
+) -> dict[str, object]:
+    """Inspect a QE force run, including the process stderr contract.
+
+    QE sometimes prints its benign IEEE underflow/denormal notification to
+    stderr.  That exact line (repeated any number of times) is allowed, as is
+    an empty stderr.  Any other stderr is deliberately an evidence failure:
+    accepting an unknown process diagnostic would turn a completed force block
+    into an unsupported completion claim.
+    """
+    report = inspect_output(output, expected_atoms)
+    errors = list(report["errors"])
+    stderr_path = Path(stderr) if stderr is not None else None
+    if stderr_path is None:
+        errors.append("missing stderr path")
+    else:
+        try:
+            stderr_text = stderr_path.read_text(errors="replace")
+        except OSError as exc:
+            errors.append(f"cannot read stderr: {exc}")
+            stderr_text = ""
+        nonempty_lines = [line.strip() for line in stderr_text.splitlines() if line.strip()]
+        if nonempty_lines and any(line != IEEE_UNDERFLOW_NOTE for line in nonempty_lines):
+            errors.append("unexpected stderr content")
+        output_text = Path(output).read_text(errors="replace")
+        run_starts = list(RUN_START.finditer(output_text))
+        last_run = output_text[run_starts[-1].start() :] if run_starts else output_text
+        combined = last_run + "\n" + stderr_text
+        for pattern, label in FAILURE_SIGNATURES:
+            if pattern.search(combined):
+                errors.append(f"failure signature: {label}")
+    report.update({
+        "stderr_path": str(stderr_path) if stderr_path is not None else None,
+        "healthy": not errors,
+        "errors": errors,
+    })
+    return report
+
+
 def subtract_forces(
     displaced: Sequence[Sequence[float]], pristine: Sequence[Sequence[float]]
 ) -> tuple[tuple[float, float, float], ...]:
@@ -250,6 +304,7 @@ def main(argv: Iterable[str] | None = None) -> int:
 
     inspect_parser = subparsers.add_parser("inspect")
     inspect_parser.add_argument("output", type=Path)
+    inspect_parser.add_argument("--stderr", type=Path)
     inspect_parser.add_argument("--expected-atoms", type=int, required=True)
 
     compare_parser = subparsers.add_parser("compare")
@@ -265,7 +320,11 @@ def main(argv: Iterable[str] | None = None) -> int:
     args = parser.parse_args(list(argv) if argv is not None else None)
     try:
         if args.command == "inspect":
-            report = inspect_output(args.output, args.expected_atoms)
+            report = (
+                inspect_force_run(args.output, args.stderr, args.expected_atoms)
+                if args.stderr is not None
+                else inspect_output(args.output, args.expected_atoms)
+            )
             _write_json(report)
             return 0 if report["healthy"] else 2
 

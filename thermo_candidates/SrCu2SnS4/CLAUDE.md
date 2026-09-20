@@ -1,6 +1,8 @@
 # SrCu2SnS4 instructions for Claude
 
-Status: the first scalar-relativistic PBE QE + BoltzTraP2 pass is complete.
+Status: the scalar-relativistic PBE QE + BoltzTraP2 electronic pass is
+complete. The preserved phono3py calculation is a historical,
+current-contract-unconverged first pass, not a validated 4-A result.
 
 Key verified facts:
 

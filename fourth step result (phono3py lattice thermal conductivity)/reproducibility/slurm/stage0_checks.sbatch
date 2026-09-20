@@ -13,6 +13,9 @@
 #SBATCH --time=12:00:00
 #SBATCH --output=slurm_logs/stage0_%j.out
 
+echo "[retired] archival/rejected stage 0: no input generation or QE run. Use v2 in a new empty RUN_DIR."
+exit 1
+
 set -u
 cd "$SLURM_SUBMIT_DIR"
 source scripts/slurm/cluster.env

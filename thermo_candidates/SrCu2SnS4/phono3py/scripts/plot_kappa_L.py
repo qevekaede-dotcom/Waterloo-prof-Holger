@@ -13,8 +13,8 @@ back to the original output before presenting it).
 
 kappa_xx = kappa_yy is the in-plane value and kappa_zz the c-axis value for
 the trigonal P3_121 cell; the average is the scalar (2*xx + zz)/3. First-pass
-approximations (documented in the WORKLOG): RTA, 2x2x1 supercell, 4.0 A pair
-cutoff, no NAC, scalar-relativistic PBE without SOC.
+approximations (documented in the WORKLOG): RTA, 2x2x1 supercell, historical
+4.0 bohr (2.1167 A) pair cutoff, no NAC, scalar-relativistic PBE without SOC.
 
 Output -> ../results/: kappa_L_first_pass.png
 """
@@ -82,7 +82,7 @@ def main():
     ax.set_ylabel(r"$\kappa_\mathrm{L}$  (W m$^{-1}$ K$^{-1}$)")
     ax.set_title("SrCu$_2$SnS$_4$ lattice thermal conductivity — "
                  "phono3py RTA, first pass\n"
-                 r"(2$\times$2$\times$1 supercell, 4.0 $\AA$ pair cutoff, "
+                 r"(2$\times$2$\times$1 supercell, historical 4.0 bohr pair cutoff, "
                  r"13$\times$13$\times$6 q-mesh; PBE, no SOC)",
                  fontsize=10)
     ax.grid(color="0.92", lw=0.8, zorder=0)

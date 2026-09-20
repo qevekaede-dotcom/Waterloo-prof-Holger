@@ -14,6 +14,9 @@
 #SBATCH --time=12:00:00
 #SBATCH --output=slurm_logs/stage1_%A_%a.out
 
+echo "[retired] archival/rejected stage 1: no array task or QE run. Use v2 in a new empty RUN_DIR."
+exit 1
+
 set -u
 cd "$SLURM_SUBMIT_DIR"
 source scripts/slurm/cluster.env

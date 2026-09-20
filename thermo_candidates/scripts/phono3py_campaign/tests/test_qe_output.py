@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from qe_output import QEOutputError, inspect_output, parse_last_force_block
+from qe_output import QEOutputError, inspect_force_run, inspect_output, parse_last_force_block
 
 
 def qe_run(
@@ -92,6 +92,33 @@ class QEOutputTests(unittest.TestCase):
         self.path.write_text(qe_run([(1e-4, 0.0, 0.0)]))
         with self.assertRaises(QEOutputError):
             parse_last_force_block(self.path, expected_atoms=2)
+
+    def test_force_run_allows_only_qe_ieee_note_on_stderr(self) -> None:
+        stderr = Path(self.temp_dir.name) / "scf.err"
+        self.path.write_text(qe_run([(1e-4, 0.0, 0.0)]))
+        stderr.write_text(
+            "Note: The following floating-point exceptions are signalling: "
+            "IEEE_UNDERFLOW_FLAG IEEE_DENORMAL\n"
+        )
+        self.assertTrue(inspect_force_run(self.path, stderr, 1)["healthy"])
+
+    def test_force_run_rejects_mpi_abort_on_stderr(self) -> None:
+        stderr = Path(self.temp_dir.name) / "scf.err"
+        self.path.write_text(qe_run([(1e-4, 0.0, 0.0)]))
+        stderr.write_text("MPI_ABORT was invoked on rank 0\n")
+        report = inspect_force_run(self.path, stderr, 1)
+        self.assertFalse(report["healthy"])
+        self.assertIn("failure signature: MPI_ABORT", report["errors"])
+
+    def test_force_run_ignores_failure_signature_before_last_pwscf_run(self) -> None:
+        stderr = Path(self.temp_dir.name) / "scf.err"
+        self.path.write_text(
+            qe_run([(9e-4, 0.0, 0.0)])
+            + "MPI_ABORT was invoked after the old run\n"
+            + qe_run([(1e-4, 0.0, 0.0)])
+        )
+        stderr.write_text("")
+        self.assertTrue(inspect_force_run(self.path, stderr, 1)["healthy"])
 
 
 if __name__ == "__main__":

@@ -14,6 +14,12 @@
 # Requires: thermo-bt2 env (sourced below). QE_NP/QE_NK overridable.
 
 set -u
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+QE_OUTPUT_PARSER="$ROOT/../../scripts/phono3py_campaign/qe_output.py"
+[ -f "$QE_OUTPUT_PARSER" ] || { echo "shared QE parser missing: $QE_OUTPUT_PARSER"; exit 1; }
+echo "[retired] SrCu2SnS4 legacy campaign is disabled before any write or QE run. Use v2 with a new empty RUN_DIR."
+exit 1
+
 # macOS laptop: thermo-bt2 env script. Other machines (e.g. WSL on the
 # Windows workstation): activate your env before running, or point
 # QE_ENV_SCRIPT at an equivalent activation script. pw.x, phono3py-init and
@@ -22,7 +28,6 @@ QE_ENV_SCRIPT="${QE_ENV_SCRIPT:-$HOME/scientific-tools/env/thermo-bt2.sh}"
 [ -f "$QE_ENV_SCRIPT" ] && source "$QE_ENV_SCRIPT"
 command -v pw.x >/dev/null || { echo "pw.x not on PATH — activate your QE env or set QE_ENV_SCRIPT"; exit 1; }
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 QE_NP="${QE_NP:-12}"
 QE_NK="${QE_NK:-2}"
@@ -34,18 +39,22 @@ DECISIONS="$ROOT/checks/DECISIONS.txt"
 
 [ -f "$LOG" ] || echo "run_id,wall_seconds,kmesh,ecut,nk,status" > "$LOG"
 
-healthy () { # $1=scf.out
-    grep -q "JOB DONE" "$1" 2>/dev/null \
-      && grep -q "convergence has been achieved" "$1" \
-      && grep -q "Forces acting on atoms" "$1"
+healthy () { # $1=scf.out $2=scf.err
+    python "$QE_OUTPUT_PARSER" inspect "$1" --stderr "$2" \
+        --expected-atoms 96 >/dev/null
 }
 
 run_pw () {  # $1=dir  $2=nk   -> 0 on healthy completion
-    local d="$1" nk="$2"
+    local d="$1" nk="$2" rc
     ( cd "$d" && rm -rf tmp \
       && mpirun -np "$QE_NP" "$PW" -nk "$nk" -in scf.in > scf.out 2> scf.err )
+    rc=$?
     rm -rf "$d/tmp"
-    healthy "$d/scf.out"
+    if [ "$rc" -ne 0 ]; then
+        echo "[run_pw] mpirun failed for $d (return code $rc)" >&2
+        return "$rc"
+    fi
+    healthy "$d/scf.out" "$d/scf.err"
 }
 
 verdict () { # $1=report file -> echoes PASS or FAIL
@@ -59,7 +68,7 @@ if [ ! -f "$DECISIONS" ]; then
     mkdir -p "$ROOT/checks/k222" "$ROOT/checks/lowcut"
     # Reference benchmark: disp-00001 at 90/720 Ry, 3x3x3. Run it here if a
     # healthy output does not exist yet (fresh machine, or crashed attempt).
-    if ! healthy "$BENCH/scf.out"; then
+    if ! healthy "$BENCH/scf.out" "$BENCH/scf.err"; then
         echo "[stage0 $(date '+%F %T')] running reference benchmark disp-00001 (90/720, 3x3x3)"
         python "$ROOT/scripts/prepare_inputs.py" --kmesh 3 3 3 \
             --ecutwfc 90 --ecutrho 720 --only 00001 --force
@@ -69,7 +78,7 @@ if [ ! -f "$DECISIONS" ]; then
     fi
 
     # (a) k-mesh check: 2x2x2 at 90/720
-    if ! healthy "$ROOT/checks/k222/scf.out"; then
+    if ! healthy "$ROOT/checks/k222/scf.out" "$ROOT/checks/k222/scf.err"; then
         sed 's/^  3 3 3 0 0 0/  2 2 2 0 0 0/' "$BENCH/scf.in" > "$ROOT/checks/k222/scf.in"
         SECONDS=0
         run_pw "$ROOT/checks/k222" "$QE_NK" || { echo "[stage0] k222 run failed"; exit 1; }
@@ -87,7 +96,7 @@ if [ ! -f "$DECISIONS" ]; then
 
     # (b) cutoff check: 60/480 at the decided k-mesh (reference = 90/720 at
     #     the same k-mesh, which already exists from step (a))
-    if ! healthy "$ROOT/checks/lowcut/scf.out"; then
+    if ! healthy "$ROOT/checks/lowcut/scf.out" "$ROOT/checks/lowcut/scf.err"; then
         sed -e 's/ecutwfc = 90/ecutwfc = 60/' -e 's/ecutrho = 720/ecutrho = 480/' \
             "$(dirname "$KREF")/scf.in" > "$ROOT/checks/lowcut/scf.in"
         SECONDS=0
@@ -120,7 +129,7 @@ echo "[stage0] campaign settings: k = $KMESH, cutoffs = $ECUTWFC/$ECUTRHO Ry"
 # Campaign inputs at the decided settings. disp-00001 already has a healthy
 # output at settings at least as strict (it IS the reference), so it is
 # regenerated only if it has no healthy output.
-if healthy "$BENCH/scf.out"; then
+if healthy "$BENCH/scf.out" "$BENCH/scf.err"; then
     python "$ROOT/scripts/prepare_inputs.py" --kmesh $KMESH \
         --ecutwfc "$ECUTWFC" --ecutrho "$ECUTRHO"
 else
@@ -131,7 +140,7 @@ else
 fi
 
 # ---------- Stage 0.5: pristine-supercell residual forces (non-gating) ----------
-if ! healthy "$ROOT/checks/pristine/scf.out"; then
+if ! healthy "$ROOT/checks/pristine/scf.out" "$ROOT/checks/pristine/scf.err"; then
     echo "[stage0.5 $(date '+%F %T')] pristine supercell residual-force check"
     python "$ROOT/scripts/prepare_inputs.py" --pristine --kmesh $KMESH \
         --ecutwfc "$ECUTWFC" --ecutrho "$ECUTRHO"
@@ -142,10 +151,10 @@ if ! healthy "$ROOT/checks/pristine/scf.out"; then
         echo "[stage0.5] WARNING: pristine run failed; campaign continues"
     fi
 fi
-if healthy "$ROOT/checks/pristine/scf.out"; then
-    maxres=$(awk '/Forces acting on atoms/,/Total force/ {
-        if ($0 ~ /force =/) for (i=NF-2; i<=NF; i++) {v=($i<0?-$i:$i); if (v>m) m=v}
-    } END {printf "%.3e", m}' "$ROOT/checks/pristine/scf.out")
+if healthy "$ROOT/checks/pristine/scf.out" "$ROOT/checks/pristine/scf.err"; then
+    maxres=$(python "$QE_OUTPUT_PARSER" inspect "$ROOT/checks/pristine/scf.out" \
+        --stderr "$ROOT/checks/pristine/scf.err" --expected-atoms 96 \
+        | python -c 'import json, sys; print(f"{json.load(sys.stdin)[\"max_abs_force_ry_bohr\"]:.3e}")')
     echo "[stage0.5] max residual force on undisplaced supercell: $maxres Ry/bohr" \
         | tee "$ROOT/checks/pristine_report.txt"
     awk -v m="$maxres" 'BEGIN { if (m+0 > 1e-4) print "[stage0.5] WARNING: residual forces exceed 1e-4 Ry/bohr — relaxation may be too loose for phonons; flag in the writeup" }'
@@ -166,7 +175,7 @@ total=$(ls -d "$ROOT"/fc_calcs/disp-*/ | wc -l | tr -d ' ')
 done_n=0
 for d in "$ROOT"/fc_calcs/disp-*/; do
     id=$(basename "$d" | sed 's/disp-//')
-    if healthy "$d/scf.out"; then
+    if healthy "$d/scf.out" "$d/scf.err"; then
         done_n=$((done_n+1)); continue
     fi
     echo "[stage1 $(date '+%F %T')] running disp-$id ($done_n/$total done)"

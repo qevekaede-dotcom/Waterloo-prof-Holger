@@ -1,26 +1,23 @@
-# Reproducibility: the exact campaign machinery
+# Reproducibility: archival rejected campaign record
 
-Verbatim copies of the scripts that produced the fourth-step result, taken
-from `thermo_candidates/SrCu2SnS4/phono3py/scripts/` at packaging time
-(that location stays authoritative).
+This directory is an archival record of the rejected historical SrCu2SnS4
+campaign, not a runnable workflow. Its scripts are deliberately fail-closed
+before any write, job submission, QE execution, force-constant construction,
+or evidence snapshot. Do not use them to rerun, repair, or extend the result.
+Any new calculation must start from a new empty RUN_DIR and use the v2
+workflow with its own immutable run fingerprint and evidence gates.
 
-- `prepare_inputs.py` — wraps the 168 phono3py supercell fragments with
-  the QE header at the decided settings.
-- `run_campaign.sh` — resumable driver (stage 0 force-convergence checks
-  -> stage 1 force SCFs -> stage 2 postprocess); on SLURM only stage 0
-  runs through it (STOP_AFTER hook).
-- `compare_forces.py` — the 5e-5 Ry/bohr force-convergence criterion.
-- `postprocess.py` — FORCES_FC3, fc2/fc3, q-mesh ladder, kappa_L tables.
-- `slurm/` — the Nibi port: `cluster.env` (account, partition, module,
-  OMP_NUM_THREADS=1), three chained sbatch stages, `submit_all.sh`,
-  `collect_evidence.sh` (forensic snapshots before any rerun).
-- `fetch_home.sh` — one-command rsync home + git commit + push.
-- `plot_kappa.py` — regenerates `SrCu2SnS4_kappa_L_vs_T.png` from the
-  authoritative CSV.
+- `prepare_inputs.py` — retired historical input generator; exits before writes.
+- `run_campaign.sh` — retired historical driver; exits before execution.
+- `compare_forces.py` — read-only historical force comparison helper.
+- `postprocess.py` — retired historical postprocessor; exits before execution.
+- `slurm/` — archived Nibi port. All submit, stage, and evidence-snapshot
+  entrypoints now exit before any action; `cluster.env` is historical context.
+- `fetch_home.sh` — retired archival fetch/commit helper; exits before action.
+- `plot_kappa.py` — a visualization helper for the authoritative historical
+  CSV; it does not validate or revive the rejected calculation.
 
-How to rerun on a fresh Alliance cluster: `DRAC_SETUP.md` at the repo
-root, sections 1-7 (including the stage-2 virtual-environment recipe and
-its traps). The full narrative with every failure: `../WORKLOG.md`.
+The full historical narrative is in `../WORKLOG.md`; it is not a rerun guide.
 
 Material-specific inputs (not copied here; authoritative in the material
 workspace): `unitcell.in`, `phono3py_disp.yaml`, the 168

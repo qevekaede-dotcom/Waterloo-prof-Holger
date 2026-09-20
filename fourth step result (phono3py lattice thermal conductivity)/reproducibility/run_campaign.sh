@@ -14,6 +14,9 @@
 # Requires: thermo-bt2 env (sourced below). QE_NP/QE_NK overridable.
 
 set -u
+echo "[retired] archival/rejected SrCu2SnS4 campaign: no writes or QE runs. Use v2 in a new empty RUN_DIR."
+exit 1
+
 # macOS laptop: thermo-bt2 env script. Other machines (e.g. WSL on the
 # Windows workstation): activate your env before running, or point
 # QE_ENV_SCRIPT at an equivalent activation script. pw.x, phono3py-init and
