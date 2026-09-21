@@ -37,3 +37,18 @@ are about 10.192%, 9.692%, and 9.594% at 300/600/900 K. The 105-A tensor is a
 rejected diagnostic only, so no accepted kappa_L exists. The local finalizer
 was repaired but did not write a remote summary or launch recomputation or a
 submission. This remains a local documentation update only.
+
+## 2026-09-21 — Short status draft for Roy
+
+- Added `EMAIL_DRAFT_TO_ROY.md` as an unsent, attachment-free update.
+- The draft distinguishes completed force/FC2/FC3 work from scientific
+  acceptance: SrZrS3 is rejected by the imaginary-mode gate and Rb2Cu2SnS4 by
+  q-mesh nonconvergence.
+- It explicitly corrects the historical SrCu2SnS4 cutoff description from
+  4 angstrom to 4 bohr (about 2.12 angstrom) and does not repeat the old
+  conductivity as a validated result.
+- It asks Roy to prioritize a corrected SrCu2SnS4 rerun, an SrZrS3 stability
+  investigation, a broader Rb2Cu2SnS4 convergence study, or a concise report
+  that stops further calculation at the current evidence boundary.
+- No email was sent, no attachment folder was changed, and no calculation was
+  launched.
