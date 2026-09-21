@@ -1,0 +1,10 @@
+{
+  "source_path": "thermo_candidates/Rb2Cu2SnS4/phono3py/evidence/firstpass_20260914/production/postprocess_22312417_hdf5_readonly_audit_20260920.json",
+  "source_sha256": "6cfc6d495f4cede0b53f41164928a24f7c9d259b41b3a260dfe9a12dd4494caf",
+  "scope": "reanalysis_of_saved_audit_only; no new calculation or HDF5 verification",
+  "scientific_acceptance": false,
+  "recomputed_and_crosschecked_values": 48,
+  "zz_checks": 12,
+  "zz_passing_checks": 0,
+  "trace_only_passing_checks": 6
+}

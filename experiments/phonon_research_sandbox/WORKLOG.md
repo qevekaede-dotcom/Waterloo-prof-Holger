@@ -67,3 +67,29 @@ Original historical CSV files were not changed. Final navigation inspection also
 found the sandbox README had become dashboard-only during integration; restored
 the full deliverables index and kept the useful rebuild explanation in analysis/README.md.
 These packaging corrections do not change research values or scientific standards.
+
+## 2026-09-22 — Second bounded local-development round
+
+User asked to continue useful work with remaining allowance. Re-read current
+instructions/handoffs, inspected all worktrees and fetched origin. Sandbox
+`dfefd48` matches its remote; original worktrees were clean. Started three
+independent cards: execution-receipt prototype (Sol high), exact q/supercell
+commensurability helper (Sol high), and Rb saved-data reuse inventory (Terra
+medium). Deterministic route recommendations are saved under round2/. Coordinator
+owns integration, all-temperature component diagnostics and bilingual report Q&A.
+All new work is local and lightweight. No scheduler query, job operation, real QE,
+FC fitting, kappa solve, email or scientific-threshold change is in this round.
+
+## 2026-09-22 — Component diagnostics and reporting preparation
+
+Recomputed 48 Rb diagonal/trace changes directly from the saved audit tensors,
+cross-checked all values and 12 joint verdicts against the saved audit, and made
+an all-temperature figure. All 12 zz checks fail, while six trace-only checks
+pass. The documentation distinguishes cancellation (45→60) from dilution
+(75→90); neither establishes tensor or physical convergence. Added 12 bilingual
+practice questions with evidence links; the existing English PPT is unchanged.
+The first plotting attempt used the bundled document Python, which lacks
+matplotlib. Used the existing thermo-bt2 environment (matplotlib 3.11.0, numpy
+2.4.6); no package installation or heavy scientific calculation was needed.
+PNG visual inspection passed. Added the new tools and figure to the offline
+dashboard; final link/browser checks follow once worker files are complete.
