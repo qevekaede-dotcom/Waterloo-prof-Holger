@@ -24,12 +24,15 @@ material property; see the material evidence for their separate limits.
 - Rb2Cu2SnS4: [campaign overview](../thermo_candidates/Rb2Cu2SnS4/phono3py/README.md), [curated first-pass evidence](../thermo_candidates/Rb2Cu2SnS4/phono3py/evidence/firstpass_20260914/README.md), [saved terminal evidence](../thermo_candidates/Rb2Cu2SnS4/phono3py/evidence/firstpass_20260914/production/postprocess_22312417_failure_evidence_20260920.txt), [read-only HDF5 audit](../thermo_candidates/Rb2Cu2SnS4/phono3py/evidence/firstpass_20260914/production/postprocess_22312417_hdf5_readonly_audit_20260920.json), and the [original production task map](../thermo_candidates/Rb2Cu2SnS4/phono3py/evidence/firstpass_20260914/production/task_map.tsv).
 - [Results index](results/README.md) distinguishes the rejected Sr diagnostic from an accepted result. [Reproducibility index](reproducibility/README.md) points to source inputs and scripts without copying them.
 
-## Communication draft
+## Communication status
 
-[`EMAIL_DRAFT_TO_ROY.md`](EMAIL_DRAFT_TO_ROY.md) is a short, unsent status
-update. It reports the rejected SrZrS3 and Rb2Cu2SnS4 first passes, corrects the
-historical SrCu2SnS4 cutoff-unit description, and asks Roy to choose the next
-scientific priority. No attachment package is proposed at this stage.
+The user confirmed sending the update after scientific review. The reviewed
+source text is in [`EMAIL_TO_ROY_REVIEWED.md`](EMAIL_TO_ROY_REVIEWED.md); the
+exact sent message has not been independently retrieved. It reports the
+remaining-material limitations, corrects the historical SrCu2SnS4 account,
+and asks Roy to choose the next scientific priority. Await Roy's direction;
+no reply is recorded. [`EMAIL_DRAFT_TO_ROY.md`](EMAIL_DRAFT_TO_ROY.md) preserves
+the superseded earlier draft.
 
 ## Rb recovery boundary
 

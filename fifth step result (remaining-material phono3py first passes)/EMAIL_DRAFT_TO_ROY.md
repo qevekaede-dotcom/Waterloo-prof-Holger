@@ -9,7 +9,9 @@ Brief update on the phono3py calculations and next step
 
 # Status
 
-Draft only — not sent. No attachments are proposed with this short update.
+Superseded draft, preserved unchanged below. After the scientific review, the
+user confirmed sending an update; see `EMAIL_TO_ROY_REVIEWED.md` for the revised
+source text and its provenance. This earlier body is not the sent-text record.
 
 # Body
 

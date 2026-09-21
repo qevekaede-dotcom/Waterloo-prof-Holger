@@ -115,11 +115,13 @@ touch the historical blocked job `21934081`.
   attachments (CSV + figure). `HOW_WE_GOT_PHONO3PY_WORKING.md` is the
   staged, unsent full writeup; `EMAIL_DRAFT_full_package_unsent.md` is
   superseded reference text.
-- A new short, attachment-free status email is drafted but **not sent** at
-  `fifth step result (remaining-material phono3py first passes)/EMAIL_DRAFT_TO_ROY.md`.
-  It reports the two rejected remaining-material first passes, corrects the
-  historical SrCu2SnS4 cutoff-unit description, and asks Roy to choose the next
-  scientific priority before more allocation is used.
+- On 2026-09-21 the user confirmed sending the scientifically reviewed status
+  update to Roy. Revised source text:
+  `fifth step result (remaining-material phono3py first passes)/EMAIL_TO_ROY_REVIEWED.md`.
+  The exact sent message has not been independently retrieved. It reports the
+  remaining-material limitations and the SrCu2SnS4 unit/settings/run-health
+  issues, and asks Roy to choose the next scientific priority. Await Roy's
+  direction; no reply is recorded. The earlier draft is preserved separately.
 - CHEM 494A is **Fall 2026**. On 2026-09-10, the user clarified that Winter
   was an earlier email error, corrected with Professor Kleinke before he
   gave conditional approval if Roy continued mentoring. Roy agreed in person;

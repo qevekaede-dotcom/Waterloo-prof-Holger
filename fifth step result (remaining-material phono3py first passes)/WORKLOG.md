@@ -52,3 +52,18 @@ submission. This remains a local documentation update only.
   that stops further calculation at the current evidence boundary.
 - No email was sent, no attachment folder was changed, and no calculation was
   launched.
+
+## 2026-09-21 — Reviewed update reported sent
+
+- Following the scientific review and revised email in the conversation, the
+  user confirmed: "已发" (sent). Recorded the communication as user-reported
+  sent and the next coordination step as awaiting Roy's direction.
+- Archived the revised conversational source in `EMAIL_TO_ROY_REVIEWED.md`.
+  No Sent-mailbox copy was retrieved; exact sent wording and attachments are
+  not independently verified. Preserved the earlier draft body separately.
+- Review qualifications retained: basic artifact integrity does not establish
+  convergence; SrZrS3 imaginary-mode origin is unresolved; SrCu2SnS4 has unit,
+  mixed-setting, and run-health issues; revised scripts have not produced a
+  corrected calculation. No scientific result or acceptance status changed.
+- Updated README and HANDOFF. No email was sent by tools, no cluster action
+  was taken, and no frozen attachment was changed.

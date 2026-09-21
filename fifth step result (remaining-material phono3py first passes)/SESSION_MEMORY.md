@@ -26,6 +26,10 @@
 
 ## Safe next action, when separately authorized
 
+The user has confirmed sending the reviewed Roy status update. See
+`EMAIL_TO_ROY_REVIEWED.md` for the conversational source and provenance.
+Await Roy's scientific-priority guidance; no reply has been recorded.
+
 No further scheduler polling is needed for this terminal chain. Rb progress now
 requires a reviewed decision about denser q-mesh or broader convergence work;
 the completed force array should not be rerun. SrZrS3 requires a scientific
