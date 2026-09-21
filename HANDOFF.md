@@ -5,6 +5,8 @@ Repository evidence checked 2026-09-21. Current experiment branch:
 `origin/codex/complete-three-material-phonons` at `cf21cce`.
 No current Nibi state was checked and no remote job action was taken.
 
+Local tool development continued on 2026-09-22; see [round 2](experiments/phonon_research_sandbox/round2/README.md). No new material calculation changed the scientific state below.
+
 Read `CLAUDE.md`, `AGENTS.md`, and scoped rules before changes.
 Use [the current evidence entry](experiments/phonon_research_sandbox/CURRENT_STATE.md)
 and [sandbox deliverables](experiments/phonon_research_sandbox/README.md).

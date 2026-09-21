@@ -1,0 +1,12 @@
+{
+  "document_type": "execution_receipt_plan",
+  "example_only": true,
+  "integrated_with_phono3py_v2": false,
+  "mode": "dry_run",
+  "paths": "<absolute synthetic temporary paths are required at runtime>",
+  "production_qe_provenance_verified": false,
+  "scientific_evidence": false,
+  "scientific_acceptance": false,
+  "shell": false,
+  "stdin_binding": "recorder-owned bytes from the prelaunch-hashed input are passed to child stdin"
+}

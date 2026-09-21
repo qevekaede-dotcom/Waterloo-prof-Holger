@@ -1,0 +1,4 @@
+change,classification,can_reuse,must_match,missing_or_unverified
+只改 q 网格（FC2/FC3 完全相同）,conditional_reuse_after_one_bounded_remote_identity_check,保存审计所指的 fc2.hdf5、fc3.hdf5；已有五个 q-mesh HDF5 仅可作 rejected diagnostic。,FC2/FC3 SHA-256; phono3py 4.4.0; 18 primitive / 72 supercell; p2s_map; 无 NAC 参数,本 checkout 没有 FC 本体；当前远端存在性和待计算 q 网格命令/版本未核实。
+同一 M72 下把 FC3 cutoff 从 3.70 A 改大,subset_reuse_unproven,只有未来更大-cutoff 数据集可把每个旧 displacement/configuration 的内容（原子、位移向量、pair、符号组合）映射到新数据集，并逐项核对结构/输入/输出/力哈希时，较大集合才可向小 cutoff 派生；数字 ID 本身可重编号，不能单独证明对应。,内容级 displacement/configuration mapping（非仅数字 ID）; 72 atoms; atom order/p2s_map; pristine subtraction; 结构、赝势、100/800 Ry、2x2x2、conv_thr、nosym/noinv,本地没有 4.25/5.00 A YAML、ID 清单、pair-shell 映射或力本体；不能证明包含关系。
+几何、超胞、DFT 设置、赝势、位移幅度或 displacement 定义改变,incompatible_by_construction_new_forces_required,可复用方法、输入模板和这份证据；不可复用现有生产力作新 FC 数据。,不适用：响应函数的定义已改变,M108/M216、0.02/0.04 A、不同 cutoff 新 pair 均需要各自 pristine 和新 force dataset。

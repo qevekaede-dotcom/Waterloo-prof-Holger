@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="350" viewBox="0 0 1000 350" role="img" aria-labelledby="title desc">
+  <title id="title">Five-cell phase repeat for q equals zero, two fifths, zero</title>
+  <desc id="desc">A geometric phase schematic. Six unit circles show phase values for translations zero through five along the matching direct-lattice coordinate. The phase at five equals the phase at zero. This is not atomic motion or an eigenvector.</desc>
+  <rect width="1000" height="350" fill="#f8fafc"/>
+  <text x="500" y="36" text-anchor="middle" font-family="system-ui, sans-serif" font-size="24" font-weight="700" fill="#172554">q = (0, 2/5, 0): phase repeats after 5 matching translations</text>
+  <text x="500" y="64" text-anchor="middle" font-family="system-ui, sans-serif" font-size="15" fill="#475569">phase(n) = exp[2πi (2/5)n]</text>
+
+  <g stroke="#94a3b8" stroke-width="2" fill="#ffffff">
+    <circle cx="90" cy="150" r="36"/>
+    <circle cx="250" cy="150" r="36"/>
+    <circle cx="410" cy="150" r="36"/>
+    <circle cx="570" cy="150" r="36"/>
+    <circle cx="730" cy="150" r="36"/>
+    <circle cx="890" cy="150" r="36"/>
+  </g>
+  <g stroke="#cbd5e1" stroke-width="1">
+    <path d="M54 150h72M90 114v72 M214 150h72M250 114v72 M374 150h72M410 114v72 M534 150h72M570 114v72 M694 150h72M730 114v72 M854 150h72M890 114v72"/>
+  </g>
+  <g stroke="#2563eb" stroke-width="4" stroke-linecap="round" fill="#2563eb">
+    <path d="M90 150L118 150"/><circle cx="118" cy="150" r="4"/>
+    <path d="M250 150L227 133"/><circle cx="227" cy="133" r="4"/>
+    <path d="M410 150L419 177"/><circle cx="419" cy="177" r="4"/>
+    <path d="M570 150L579 123"/><circle cx="579" cy="123" r="4"/>
+    <path d="M730 150L707 167"/><circle cx="707" cy="167" r="4"/>
+    <path d="M890 150L918 150"/><circle cx="918" cy="150" r="4"/>
+  </g>
+  <g font-family="system-ui, sans-serif" text-anchor="middle" fill="#0f172a">
+    <text x="90" y="215" font-size="17" font-weight="700">n = 0</text>
+    <text x="90" y="239" font-size="14">phase 0</text>
+    <text x="250" y="215" font-size="17" font-weight="700">n = 1</text>
+    <text x="250" y="239" font-size="14">phase 4π/5</text>
+    <text x="410" y="215" font-size="17" font-weight="700">n = 2</text>
+    <text x="410" y="239" font-size="14">phase 8π/5</text>
+    <text x="570" y="215" font-size="17" font-weight="700">n = 3</text>
+    <text x="570" y="239" font-size="14">phase 12π/5</text>
+    <text x="730" y="215" font-size="17" font-weight="700">n = 4</text>
+    <text x="730" y="239" font-size="14">phase 16π/5</text>
+    <text x="890" y="215" font-size="17" font-weight="700">n = 5</text>
+    <text x="890" y="239" font-size="14">phase 4π ≡ 0</text>
+  </g>
+  <path d="M90 273H890" stroke="#64748b" stroke-width="2"/>
+  <path d="M90 266v14M890 266v14" stroke="#64748b" stroke-width="2"/>
+  <text x="490" y="301" text-anchor="middle" font-family="system-ui, sans-serif" font-size="16" font-weight="700" fill="#334155">five reference-cell translations</text>
+  <rect x="180" y="317" width="640" height="25" rx="12" fill="#fee2e2"/>
+  <text x="500" y="335" text-anchor="middle" font-family="system-ui, sans-serif" font-size="14" font-weight="700" fill="#991b1b">Geometric phase schematic only — not atoms, an eigenvector, or a displacement pattern</text>
+</svg>

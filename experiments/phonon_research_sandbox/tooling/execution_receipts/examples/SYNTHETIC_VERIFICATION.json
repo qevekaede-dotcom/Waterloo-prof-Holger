@@ -1,0 +1,12 @@
+{
+  "document_type": "execution_receipt_verification",
+  "example_only": true,
+  "evidence_scope": "standalone local protocol evidence only",
+  "execution_succeeded": true,
+  "integrity_ok": true,
+  "integrated_with_phono3py_v2": false,
+  "production_qe_provenance_verified": false,
+  "scientific_evidence": false,
+  "scientific_acceptance": false,
+  "status": "verified_success"
+}

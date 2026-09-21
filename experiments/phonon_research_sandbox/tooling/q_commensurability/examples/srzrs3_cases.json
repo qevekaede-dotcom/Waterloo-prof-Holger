@@ -1,0 +1,626 @@
+{
+  "archived_basis_status": "unknown; all example verification flags remain false",
+  "cases": {
+    "diagonal_1x5x1_frozen_mode_candidate": {
+      "convention": {
+        "criterion": "transpose(S) * q is integer componentwise",
+        "direct_basis": "columns of A",
+        "phase": "exp(2*pi*i*q_dot_T)",
+        "q_basis": "reduced coordinates in the reciprocal basis dual to A_reference",
+        "serialized_matrix_layout": "three displayed rows; columns are supercell generators",
+        "supercell_relation": "A_super = A_reference * S"
+      },
+      "geometry": {
+        "atom_multiplier_abs_determinant": 5,
+        "conditional_atom_count": {
+          "applicable_to_reported_physical_basis": false,
+          "conditions": [
+            "reference_atoms is the atom count of A_reference",
+            "S is applied to that same verified direct basis"
+          ],
+          "reference_basis_verified": false,
+          "value": 100
+        },
+        "determinant": 5,
+        "integer_nonsingular_supercell_geometry": true,
+        "supercell_generator_T_columns": [
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            5,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ]
+        ]
+      },
+      "input": {
+        "purpose": "frozen-mode",
+        "q": [
+          {
+            "exact_fraction": "0",
+            "input": "0",
+            "kind": "integer"
+          },
+          {
+            "exact_fraction": "2/5",
+            "input": "2/5",
+            "kind": "explicit_fraction"
+          },
+          {
+            "exact_fraction": "0",
+            "input": "0",
+            "kind": "integer"
+          }
+        ],
+        "q_exact": [
+          "0",
+          "2/5",
+          "0"
+        ],
+        "reference_atoms": 20,
+        "supercell_matrix_S": [
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            5,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ]
+        ]
+      },
+      "mathematical_result": {
+        "commensurate": true,
+        "q_dot_T_exact": [
+          "0",
+          "2",
+          "0"
+        ],
+        "q_dot_T_integer_values": [
+          0,
+          2,
+          0
+        ],
+        "q_dot_T_is_integer": [
+          true,
+          true,
+          true
+        ]
+      },
+      "physical_verification": {
+        "atom_mapping_verified": false,
+        "basis_and_mappings_verified": false,
+        "eigenvector_mapping_verified": false,
+        "frozen_mode_preconditions_reported_complete": false,
+        "note": "Verification flags are caller assertions, not findings of this tool. Even all-true flags plus commensurability do not validate a mode, structure, displacement amplitude, force settings, or physical stability.",
+        "reference_direct_and_reciprocal_basis_verified": false,
+        "scientific_acceptance": false
+      },
+      "purpose_interpretation": {
+        "criterion_role": "required: every supercell translation must preserve the mode phase",
+        "matrix_rejected_for_ifc_size_testing_by_this_checker": false,
+        "q_commensurability_is_required": true
+      },
+      "schema_version": 1,
+      "scope": {
+        "calculation": "exact lattice commensurability only",
+        "displacement_generation": false,
+        "eigenvector_construction": false,
+        "force_constants": false,
+        "scientific_acceptance": false
+      }
+    },
+    "existing_2x1x1_ifc_test": {
+      "convention": {
+        "criterion": "transpose(S) * q is integer componentwise",
+        "direct_basis": "columns of A",
+        "phase": "exp(2*pi*i*q_dot_T)",
+        "q_basis": "reduced coordinates in the reciprocal basis dual to A_reference",
+        "serialized_matrix_layout": "three displayed rows; columns are supercell generators",
+        "supercell_relation": "A_super = A_reference * S"
+      },
+      "geometry": {
+        "atom_multiplier_abs_determinant": 2,
+        "conditional_atom_count": {
+          "applicable_to_reported_physical_basis": false,
+          "conditions": [
+            "reference_atoms is the atom count of A_reference",
+            "S is applied to that same verified direct basis"
+          ],
+          "reference_basis_verified": false,
+          "value": 40
+        },
+        "determinant": 2,
+        "integer_nonsingular_supercell_geometry": true,
+        "supercell_generator_T_columns": [
+          [
+            2,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ]
+        ]
+      },
+      "input": {
+        "purpose": "ifc-interpolation",
+        "q": [
+          {
+            "exact_fraction": "0",
+            "input": "0",
+            "kind": "integer"
+          },
+          {
+            "exact_fraction": "2/5",
+            "input": "2/5",
+            "kind": "explicit_fraction"
+          },
+          {
+            "exact_fraction": "0",
+            "input": "0",
+            "kind": "integer"
+          }
+        ],
+        "q_exact": [
+          "0",
+          "2/5",
+          "0"
+        ],
+        "reference_atoms": 20,
+        "supercell_matrix_S": [
+          [
+            2,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ]
+        ]
+      },
+      "mathematical_result": {
+        "commensurate": false,
+        "q_dot_T_exact": [
+          "0",
+          "2/5",
+          "0"
+        ],
+        "q_dot_T_integer_values": [
+          0,
+          null,
+          0
+        ],
+        "q_dot_T_is_integer": [
+          true,
+          false,
+          true
+        ]
+      },
+      "physical_verification": {
+        "atom_mapping_verified": false,
+        "basis_and_mappings_verified": false,
+        "eigenvector_mapping_verified": false,
+        "frozen_mode_preconditions_reported_complete": false,
+        "note": "Verification flags are caller assertions, not findings of this tool. Even all-true flags plus commensurability do not validate a mode, structure, displacement amplitude, force settings, or physical stability.",
+        "reference_direct_and_reciprocal_basis_verified": false,
+        "scientific_acceptance": false
+      },
+      "purpose_interpretation": {
+        "criterion_role": "informational only: an IFC interpolation supercell tests real-space interaction range and need not contain this q wave as a frozen mode",
+        "matrix_rejected_for_ifc_size_testing_by_this_checker": false,
+        "q_commensurability_is_required": false
+      },
+      "schema_version": 1,
+      "scope": {
+        "calculation": "exact lattice commensurability only",
+        "displacement_generation": false,
+        "eigenvector_construction": false,
+        "force_constants": false,
+        "scientific_acceptance": false
+      }
+    },
+    "non_diagonal_commensurate_geometry": {
+      "convention": {
+        "criterion": "transpose(S) * q is integer componentwise",
+        "direct_basis": "columns of A",
+        "phase": "exp(2*pi*i*q_dot_T)",
+        "q_basis": "reduced coordinates in the reciprocal basis dual to A_reference",
+        "serialized_matrix_layout": "three displayed rows; columns are supercell generators",
+        "supercell_relation": "A_super = A_reference * S"
+      },
+      "geometry": {
+        "atom_multiplier_abs_determinant": 5,
+        "conditional_atom_count": {
+          "applicable_to_reported_physical_basis": false,
+          "conditions": [
+            "reference_atoms is the atom count of A_reference",
+            "S is applied to that same verified direct basis"
+          ],
+          "reference_basis_verified": false,
+          "value": 100
+        },
+        "determinant": 5,
+        "integer_nonsingular_supercell_geometry": true,
+        "supercell_generator_T_columns": [
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            1,
+            5,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ]
+        ]
+      },
+      "input": {
+        "purpose": "frozen-mode",
+        "q": [
+          {
+            "exact_fraction": "0",
+            "input": "0",
+            "kind": "integer"
+          },
+          {
+            "exact_fraction": "2/5",
+            "input": "2/5",
+            "kind": "explicit_fraction"
+          },
+          {
+            "exact_fraction": "0",
+            "input": "0",
+            "kind": "integer"
+          }
+        ],
+        "q_exact": [
+          "0",
+          "2/5",
+          "0"
+        ],
+        "reference_atoms": 20,
+        "supercell_matrix_S": [
+          [
+            1,
+            1,
+            0
+          ],
+          [
+            0,
+            5,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ]
+        ]
+      },
+      "mathematical_result": {
+        "commensurate": true,
+        "q_dot_T_exact": [
+          "0",
+          "2",
+          "0"
+        ],
+        "q_dot_T_integer_values": [
+          0,
+          2,
+          0
+        ],
+        "q_dot_T_is_integer": [
+          true,
+          true,
+          true
+        ]
+      },
+      "physical_verification": {
+        "atom_mapping_verified": false,
+        "basis_and_mappings_verified": false,
+        "eigenvector_mapping_verified": false,
+        "frozen_mode_preconditions_reported_complete": false,
+        "note": "Verification flags are caller assertions, not findings of this tool. Even all-true flags plus commensurability do not validate a mode, structure, displacement amplitude, force settings, or physical stability.",
+        "reference_direct_and_reciprocal_basis_verified": false,
+        "scientific_acceptance": false
+      },
+      "purpose_interpretation": {
+        "criterion_role": "required: every supercell translation must preserve the mode phase",
+        "matrix_rejected_for_ifc_size_testing_by_this_checker": false,
+        "q_commensurability_is_required": true
+      },
+      "schema_version": 1,
+      "scope": {
+        "calculation": "exact lattice commensurability only",
+        "displacement_generation": false,
+        "eigenvector_construction": false,
+        "force_constants": false,
+        "scientific_acceptance": false
+      }
+    },
+    "proposed_3x2x1_ifc_test": {
+      "convention": {
+        "criterion": "transpose(S) * q is integer componentwise",
+        "direct_basis": "columns of A",
+        "phase": "exp(2*pi*i*q_dot_T)",
+        "q_basis": "reduced coordinates in the reciprocal basis dual to A_reference",
+        "serialized_matrix_layout": "three displayed rows; columns are supercell generators",
+        "supercell_relation": "A_super = A_reference * S"
+      },
+      "geometry": {
+        "atom_multiplier_abs_determinant": 6,
+        "conditional_atom_count": {
+          "applicable_to_reported_physical_basis": false,
+          "conditions": [
+            "reference_atoms is the atom count of A_reference",
+            "S is applied to that same verified direct basis"
+          ],
+          "reference_basis_verified": false,
+          "value": 120
+        },
+        "determinant": 6,
+        "integer_nonsingular_supercell_geometry": true,
+        "supercell_generator_T_columns": [
+          [
+            3,
+            0,
+            0
+          ],
+          [
+            0,
+            2,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ]
+        ]
+      },
+      "input": {
+        "purpose": "ifc-interpolation",
+        "q": [
+          {
+            "exact_fraction": "0",
+            "input": "0",
+            "kind": "integer"
+          },
+          {
+            "exact_fraction": "2/5",
+            "input": "2/5",
+            "kind": "explicit_fraction"
+          },
+          {
+            "exact_fraction": "0",
+            "input": "0",
+            "kind": "integer"
+          }
+        ],
+        "q_exact": [
+          "0",
+          "2/5",
+          "0"
+        ],
+        "reference_atoms": 20,
+        "supercell_matrix_S": [
+          [
+            3,
+            0,
+            0
+          ],
+          [
+            0,
+            2,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ]
+        ]
+      },
+      "mathematical_result": {
+        "commensurate": false,
+        "q_dot_T_exact": [
+          "0",
+          "4/5",
+          "0"
+        ],
+        "q_dot_T_integer_values": [
+          0,
+          null,
+          0
+        ],
+        "q_dot_T_is_integer": [
+          true,
+          false,
+          true
+        ]
+      },
+      "physical_verification": {
+        "atom_mapping_verified": false,
+        "basis_and_mappings_verified": false,
+        "eigenvector_mapping_verified": false,
+        "frozen_mode_preconditions_reported_complete": false,
+        "note": "Verification flags are caller assertions, not findings of this tool. Even all-true flags plus commensurability do not validate a mode, structure, displacement amplitude, force settings, or physical stability.",
+        "reference_direct_and_reciprocal_basis_verified": false,
+        "scientific_acceptance": false
+      },
+      "purpose_interpretation": {
+        "criterion_role": "informational only: an IFC interpolation supercell tests real-space interaction range and need not contain this q wave as a frozen mode",
+        "matrix_rejected_for_ifc_size_testing_by_this_checker": false,
+        "q_commensurability_is_required": false
+      },
+      "schema_version": 1,
+      "scope": {
+        "calculation": "exact lattice commensurability only",
+        "displacement_generation": false,
+        "eigenvector_construction": false,
+        "force_constants": false,
+        "scientific_acceptance": false
+      }
+    },
+    "proposed_5x2x1_ifc_test": {
+      "convention": {
+        "criterion": "transpose(S) * q is integer componentwise",
+        "direct_basis": "columns of A",
+        "phase": "exp(2*pi*i*q_dot_T)",
+        "q_basis": "reduced coordinates in the reciprocal basis dual to A_reference",
+        "serialized_matrix_layout": "three displayed rows; columns are supercell generators",
+        "supercell_relation": "A_super = A_reference * S"
+      },
+      "geometry": {
+        "atom_multiplier_abs_determinant": 10,
+        "conditional_atom_count": {
+          "applicable_to_reported_physical_basis": false,
+          "conditions": [
+            "reference_atoms is the atom count of A_reference",
+            "S is applied to that same verified direct basis"
+          ],
+          "reference_basis_verified": false,
+          "value": 200
+        },
+        "determinant": 10,
+        "integer_nonsingular_supercell_geometry": true,
+        "supercell_generator_T_columns": [
+          [
+            5,
+            0,
+            0
+          ],
+          [
+            0,
+            2,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ]
+        ]
+      },
+      "input": {
+        "purpose": "ifc-interpolation",
+        "q": [
+          {
+            "exact_fraction": "0",
+            "input": "0",
+            "kind": "integer"
+          },
+          {
+            "exact_fraction": "2/5",
+            "input": "2/5",
+            "kind": "explicit_fraction"
+          },
+          {
+            "exact_fraction": "0",
+            "input": "0",
+            "kind": "integer"
+          }
+        ],
+        "q_exact": [
+          "0",
+          "2/5",
+          "0"
+        ],
+        "reference_atoms": 20,
+        "supercell_matrix_S": [
+          [
+            5,
+            0,
+            0
+          ],
+          [
+            0,
+            2,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ]
+        ]
+      },
+      "mathematical_result": {
+        "commensurate": false,
+        "q_dot_T_exact": [
+          "0",
+          "4/5",
+          "0"
+        ],
+        "q_dot_T_integer_values": [
+          0,
+          null,
+          0
+        ],
+        "q_dot_T_is_integer": [
+          true,
+          false,
+          true
+        ]
+      },
+      "physical_verification": {
+        "atom_mapping_verified": false,
+        "basis_and_mappings_verified": false,
+        "eigenvector_mapping_verified": false,
+        "frozen_mode_preconditions_reported_complete": false,
+        "note": "Verification flags are caller assertions, not findings of this tool. Even all-true flags plus commensurability do not validate a mode, structure, displacement amplitude, force settings, or physical stability.",
+        "reference_direct_and_reciprocal_basis_verified": false,
+        "scientific_acceptance": false
+      },
+      "purpose_interpretation": {
+        "criterion_role": "informational only: an IFC interpolation supercell tests real-space interaction range and need not contain this q wave as a frozen mode",
+        "matrix_rejected_for_ifc_size_testing_by_this_checker": false,
+        "q_commensurability_is_required": false
+      },
+      "schema_version": 1,
+      "scope": {
+        "calculation": "exact lattice commensurability only",
+        "displacement_generation": false,
+        "eigenvector_construction": false,
+        "force_constants": false,
+        "scientific_acceptance": false
+      }
+    }
+  },
+  "scope_note": "These are exact geometry checks, not evidence that the archived q basis, atom mapping, or eigenvector mapping has been verified, and not scientific acceptance."
+}

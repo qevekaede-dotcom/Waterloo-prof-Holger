@@ -59,7 +59,8 @@ def draw(rows: list[dict]) -> None:
     from matplotlib.colors import BoundaryNorm, ListedColormap
     import numpy as np
 
-    matplotlib.rcParams.update({"font.family": "DejaVu Sans", "svg.fonttype": "none"})
+    matplotlib.rcParams.update({"font.family": "DejaVu Sans", "svg.fonttype": "none",
+                               "svg.hashsalt": "rb-saved-component-diagnostics-v1"})
     temperatures = sorted({r["temperature_K"] for r in rows})
     transitions = sorted({(r["from_density_length_A"], r["to_density_length_A"]) for r in rows})
     cmap = ListedColormap(["#d9eee7", "#f5d9c7", "#df997c", "#b65248"])
@@ -97,6 +98,8 @@ def draw(rows: list[dict]) -> None:
     fig.text(.04, .105, "Cell values: |new − old| / |new|. Strict limits: each diagonal <5%; trace/3 <3%.", size=10, color="#52696b")
     fig.text(.04, .05, "All 12 zz checks fail. A green cell alone is not acceptance: all temperatures and two consecutive joint passes are required.", size=10, color="#17363b")
     fig.savefig(HERE / "rb_component_changes.svg", facecolor=fig.get_facecolor(), metadata={"Date": None})
+    svg = HERE / "rb_component_changes.svg"
+    svg.write_text("\n".join(line.rstrip() for line in svg.read_text().splitlines()) + "\n")
     fig.savefig(HERE / "rb_component_changes.png", dpi=180, facecolor=fig.get_facecolor())
     plt.close(fig)
 

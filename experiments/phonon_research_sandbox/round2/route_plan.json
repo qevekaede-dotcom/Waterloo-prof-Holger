@@ -1,0 +1,103 @@
+[
+  {
+    "card": {
+      "schema_version": 1,
+      "task_type": "implementation",
+      "complexity": "medium_high",
+      "risk": "medium",
+      "boundary_clarity": "clear",
+      "architecture_settled": true,
+      "safety_boundaries_settled": true,
+      "broad_consequence": false,
+      "reversible": true,
+      "cross_component": false,
+      "deep_reasoning": true,
+      "sol_failures": 0,
+      "requested_model": null,
+      "requested_effort": null,
+      "review_task_id": "round2-independent-review",
+      "task_id": "receipt-prototype"
+    },
+    "recommendation": {
+      "budget": "economy",
+      "effort": "high",
+      "fresh_review_model": "gpt-5.6-sol",
+      "fresh_review_task_id": "round2-independent-review",
+      "model": "gpt-5.6-sol",
+      "reason_codes": [
+        "deep_reasoning",
+        "medium_high_complexity",
+        "economy_budget"
+      ],
+      "schema_version": 1,
+      "task_id": "receipt-prototype"
+    }
+  },
+  {
+    "card": {
+      "schema_version": 1,
+      "task_type": "implementation",
+      "complexity": "medium_high",
+      "risk": "medium",
+      "boundary_clarity": "clear",
+      "architecture_settled": true,
+      "safety_boundaries_settled": true,
+      "broad_consequence": false,
+      "reversible": true,
+      "cross_component": false,
+      "deep_reasoning": true,
+      "sol_failures": 0,
+      "requested_model": null,
+      "requested_effort": null,
+      "review_task_id": "round2-independent-review",
+      "task_id": "q-commensurability"
+    },
+    "recommendation": {
+      "budget": "economy",
+      "effort": "high",
+      "fresh_review_model": "gpt-5.6-sol",
+      "fresh_review_task_id": "round2-independent-review",
+      "model": "gpt-5.6-sol",
+      "reason_codes": [
+        "deep_reasoning",
+        "medium_high_complexity",
+        "economy_budget"
+      ],
+      "schema_version": 1,
+      "task_id": "q-commensurability"
+    }
+  },
+  {
+    "card": {
+      "schema_version": 1,
+      "task_type": "implementation",
+      "complexity": "medium",
+      "risk": "medium",
+      "boundary_clarity": "clear",
+      "architecture_settled": true,
+      "safety_boundaries_settled": true,
+      "broad_consequence": false,
+      "reversible": true,
+      "cross_component": false,
+      "deep_reasoning": false,
+      "sol_failures": 0,
+      "requested_model": null,
+      "requested_effort": null,
+      "review_task_id": "round2-independent-review",
+      "task_id": "rb-reuse-inventory"
+    },
+    "recommendation": {
+      "budget": "economy",
+      "effort": "medium",
+      "fresh_review_model": "gpt-5.6-sol",
+      "fresh_review_task_id": "round2-independent-review",
+      "model": "gpt-5.6-terra",
+      "reason_codes": [
+        "settled_context_implementation",
+        "economy_budget"
+      ],
+      "schema_version": 1,
+      "task_id": "rb-reuse-inventory"
+    }
+  }
+]

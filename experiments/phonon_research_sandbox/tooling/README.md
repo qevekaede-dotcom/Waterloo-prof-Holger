@@ -42,6 +42,16 @@ provenance，也不是科学验收。
 
 本轮没有实现真实 runner 或 receipt gate，也没有据此释放任何执行或提交路径。
 
+**2026-09-22 后续：** 新增 [独立运行凭据原型](execution_receipts/README.md)，
+可用 SYNTHETIC 程序验证所记录进程的 stdin 字节与输出、退出码和摘要链。
+它仅在执行后保存外部 final anchor，没有实现上面完整协议中的外部启动前锚点，
+也没有接入 QE/MPI、v2 manifest/health 或调度器。因此原来的 v2 provenance
+缺口仍未关闭，不能将原型测试通过解释成真实 v2 运行已被证明。
+
+本轮其他小工具：[q/超胞精确几何检查](q_commensurability/README.md)、
+[Rb 数据复用证据清单](../analysis/rb_reuse/README.md)。这些工具分别回答
+有限问题，没有新增计算发布门槛或改变科学标准。
+
 ## 历史 residual-force `awk` 的迁移
 
 两个历史 `run_campaign.sh` 都是已冻结、已拒绝的来源记录，保持不变。旧

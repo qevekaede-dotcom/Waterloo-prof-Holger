@@ -1,76 +1,80 @@
-# Sandbox handoff — completed local preparation round
+# Sandbox handoff — second local-development round
 
-Date: 2026-09-21. Branch: `codex/phonon-research-sandbox`.
+Date: 2026-09-22. Branch: `codex/phonon-research-sandbox`.
 Worktree: `/Users/kaede/.codex/worktrees/phonon-research-sandbox`.
-Start here: [README](README.md), then [current scientific state](CURRENT_STATE.md).
+Read [README](README.md), [current scientific state](CURRENT_STATE.md), then
+[round 2](round2/README.md). No current Nibi state was checked.
 
 ## Saved checkpoints
 
-- Base: `cf21cce05c7107120a52ac2658f8dbe05bc0a864`, fetched from
-  `origin/codex/complete-three-material-phonons` (not main).
-- `246037c`: isolated workspace/current-status reconciliation, prior HANDOFF archived.
-- `25555c1`: targeted QE terminal-health and v2 input/validator integrity fixes.
-- `a2bf49d`: reviewed scientific plans, dashboard, derived data, learning guide,
-  English PPT/bilingual script and explicit execution-provenance limitation.
-- This closing checkpoint adds the final handoff/navigation, CSV LF normalization
-  and validation closure. Obtain its exact commit with `git log -1 --oneline`;
-  the final task response also records it. Do not amend or force-push old checkpoints.
+- Base `cf21cce`: latest fetched complete-three-material-phonons branch at fork.
+- `246037c`: isolated sandbox and evidence/status reconciliation.
+- `25555c1`: terminal-QE/parser and v2 input-integrity fixes.
+- `a2bf49d`: reviewed plans, dashboard, learning guide, English PPT and script.
+- `dfefd48`: first-round final navigation and handoff.
+- `323ccc6`: second-round all-temperature Rb diagnostics and bilingual report Q&A.
+- Closing second-round commit: use `git log -1 --oneline` and compare the remote;
+  final task reply records the exact hash. Do not amend/force-push old checkpoints.
 
-## Completed and validated
+## Completed local work
 
-Three material plans include evidence, minimal controls, success/failure criteria,
-dependencies, resource-estimation basis and stop conditions. SrZr frozen-mode
-cells must be q-commensurate; SrCu/Rb physical studies distinguish one-transition
-pilots from a conditional third level needed for two transitions.
+1. Three scientific proposals with controls, criteria, dependencies, resource
+   estimation basis and stop conditions. They are proposals, not compute approval.
+2. Chinese offline dashboard; existing 105-row Rb table plus a 48-cell component
+   change figure. Twelve zz checks fail while six trace-only checks pass. No fit.
+3. Eleven-slide entirely English PPT with editable charts/tables; separate EN/ZH
+   script and twelve new report Q&A answers. PPT unchanged in round 2.
+4. Standalone execution-receipt recorder/verifier: hashed input delivered over
+   recorder-owned stdin, explicit argv/cwd/environment, stream/exit evidence and
+   separate final anchor. Eleven synthetic tests. No QE/MPI/v2 integration.
+5. Exact-rational q/supercell checker: columns convention, S^T q integer test,
+   conditional atom counts, separate frozen-mode/IFC interpretations. Nine tests;
+   phase SVG is mathematics only, not an atomic mode.
+6. Rb reuse inventory: local manifest/YAML/preflight hashes matched, remote FC
+   bytes unverified; explicit unit/metadata limits and two regression tests.
+7. New duplicate-source candidate: 65 repeated-source-hash groups; an 11-task
+   group has same-atom cancelling displacements in the saved YAML. Existing
+   force outputs may provide a useful repeat-noise check, but have not been
+   compared. No deduplication or guaranteed resource savings claimed.
 
-The Chinese offline dashboard displays stage checks and evidence links, with
-105 Rb tensor/trace rows and a diagnostic chart. All 12 saved transition rows
-are reproduced using the denser current-value denominator. No new HDF5 audit.
+Validation: [first round](VALIDATION.md), [second round](round2/VALIDATION.md).
+Review: [first-round Sol](review/INDEPENDENT_SOL_REVIEW.md),
+[second-round independent Sol](review/ROUND2_SOL_REVIEW.md).
+Check the second-round review disposition before adapting any new tool.
+Its final disposition is SHIP for local preparation scope, with zero actionable
+findings. This does not release or validate a real material calculation.
 
-The 11-slide PPT and embedded notes are entirely English; the separate speaker
-script is bilingual. Three charts/two tables are editable. Final package checks
-and all-slide runtime rendering passed; native PowerPoint application testing
-was not performed. Data and source hashes are recorded beside the builder.
+## Scientific questions still unanswered
 
-Worker shared suite: 435 passed. Coordinator focused parser/historical tests:
-13 passed. Final scoped v2 report changes: 18 passed. Browser JavaScript, desktop
-and 390-px layout, links, and preservation checks pass; see [VALIDATION](VALIDATION.md).
-A new independent Sol reviewed science, code, data and the deck. Its three
-findings were corrected; the final conditional error-message change is recorded.
-Delivery is accepted for **local plan/preparation scope only**.
+- No accepted κL or final zT for any material. Electronic first passes lack
+  established dense-k transport convergence and explicit SOC; PF/τ is not PF.
+- SrCu v2 has no corrected real force dataset. Its existing reports still state
+  execution_provenance_verified=false. The standalone final-anchor prototype
+  does not provide a pre-launch external commitment or prove consumption of all
+  named dependencies, and is not a trusted QE runner.
+- SrZr negative-mode origin, archived q basis and eigenvector/atom mapping remain
+  unresolved. Conditional 100-atom geometry is not a validated distortion cell.
+- Rb force-model/q-mesh convergence remains unresolved. Current remote FC bytes
+  and equivalence/health of the duplicate-source tasks remain unchecked.
+- Roy's next-priority reply is not recorded. Sending the revised status update
+  was user-confirmed on September 21; the exact sent email was not retrieved.
 
-## Still unanswered / not performed
+## Next concrete tasks, chosen by scientific benefit
 
-- No material has an accepted κL or full zT.
-- SrCu v2 has no real corrected displacement campaign or healthy pristine result.
-  Input bytes and supplied-log health are checked separately. Execution provenance
-  is explicitly false until a trusted launch/exit receipt path is implemented
-  and independently reviewed. Do not reinterpret `preflight_passed` as execution
-  provenance or scientific acceptance.
-- SrZr imaginary-mode origin remains unresolved. The plans discriminate numerical
-  and physical hypotheses; they are not evidence of real-material instability.
-- Rb q-mesh and force-model convergence remain unresolved. Existing force/FC data
-  may only be reused within explicitly matched structural/input/model provenance.
-- Roy's next-priority reply is not recorded. Sent status is user-confirmed;
-  the exact sent email has not been independently retrieved.
-- No SSH, current scheduler check, job mutation, heavy physics computation,
-  outbound email or main merge occurred. Token usage by worker remains unknown.
+- If Rb is prioritized, first consider the [existing-data noise probe](round2/duplicate_sources/README.md).
+  After separate authorization for a bounded remote read, verify the 11 inputs
+  and pristine, extract healthy final force blocks and compare only genuinely
+  equivalent calculations. No new job is needed for this evidence question.
+- If SrCu is prioritized, adapt the receipt protocol to the actual v2 manifest,
+  QE input/pseudo resolution and intended scheduler/MPI path in disposable local
+  tests first. Preserve false releases until the adapter and independent anchors
+  are reviewed; do not just flip the current provenance flag.
+- If SrZr is prioritized, retrieve/replay the existing FC2 mode with authorized
+  compute placement, establish q/reference/eigenvector bases, then apply the
+  geometry checker. Do not start new FC3 while the instability is unresolved.
+- Use the [report Q&A](round2/REPORT_QA_EN_ZH.md) to rehearse explanations and
+  discuss the three options with Roy. No message has been sent by this round.
 
-## Next concrete task
-
-1. Read Roy's actual direction if available; otherwise use the PPT and plans for
-   discussion. Do not choose or execute his research priority automatically.
-2. If SrCu v2 is selected, implement only the reviewed trusted-runner receipt
-   boundary before accepting a real pristine/pilot. Verify generation semantics,
-   exact input/pseudopotential hashes, launch argv/cwd/environment, post-execution
-   exit/output digests and an externally anchored receipt. Preserve `RUNS/` history.
-3. If SrZr is selected, authorize a bounded existing-FC2 mode replay first. Verify
-   the primitive/q basis and eigenvectors before planning a commensurate real
-   distortion. Do not start full FC3 or denser transport while instability is unresolved.
-4. If Rb is selected, follow its force-reuse inventory and small physical-sensitivity
-   plan, measure timings/counts, then decide whether a denser q mesh is worth doing.
-5. Any real DRAC calculation requires a separately reviewed execution scope and
-   budget. This handoff is not an execution authorization. No continuous polling.
-
-Source records, sent bodies and every READY_TO_ATTACH are frozen. Historical
-worklogs were appended, not rewritten. The original worktrees were left clean.
+All original raw records, sent bodies and READY_TO_ATTACH directories remain
+frozen. Worklogs are append-only. No SSH, job mutation, heavy physics solve,
+outbound email, main merge or other-worktree edit occurred.

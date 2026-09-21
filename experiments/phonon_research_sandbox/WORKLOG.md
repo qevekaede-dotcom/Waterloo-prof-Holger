@@ -93,3 +93,46 @@ matplotlib. Used the existing thermo-bt2 environment (matplotlib 3.11.0, numpy
 2.4.6); no package installation or heavy scientific calculation was needed.
 PNG visual inspection passed. Added the new tools and figure to the offline
 dashboard; final link/browser checks follow once worker files are complete.
+
+The first chart checkpoint exposed Matplotlib SVG path-line trailing spaces;
+the shell continued after diff --check and saved checkpoint 323ccc6. Corrected
+the generator to normalize only the newly derived SVG and set a stable SVG
+hash salt for reproducible IDs. Subsequent commit commands use fail-fast shell
+execution so a failed check cannot be followed by a commit. No data values or
+rendered chart geometry changed.
+
+## 2026-09-22 — Integrated preparation tools and a concrete reuse lead
+
+Three workers returned standalone tools: 11 synthetic receipt tests, 9 exact
+q-geometry tests and 2 Rb inventory regression cases passed. Coordinator inspected
+code/sources and ran 3 targeted receipt cases, 2 inventory regressions and a
+non-diagonal q CLI example. The inventory was corrected during integration:
+headerless sacct memory is inferred requested memory, not measured RSS; file
+presence never proves FC identity/readiness; au length is explicitly checked;
+displacement correspondence is content-based, not numeric-ID equality. A saved
+preflight candidate is matched by YAML hash, establishing the historical 3.70 Å
+generation record more directly than a campaign candidate alone.
+
+Following the 606 unique source hashes led to a useful new bounded analysis:
+680 tasks comprise 541 singleton groups, 64 two-task groups and one 11-task
+group. The 11 labels map to same-atom opposite displacement vectors in the
+manifest-bound YAML. Their source hash differs from pristine. Saved this
+candidate as a possible existing-data noise probe, with no actual force-noise
+measurement, deduplication, force reuse, or core-hour saving claim. The new
+reproduction script reads only the saved manifest/YAML. Fresh Sol review includes
+this candidate and the three tools. No additional computation was launched.
+
+Headless Chrome verified the extended panel at 1440/390 pixels with zero JS
+errors and no document overflow. The Rb plot and the non-atomic five-cell phase
+SVG were rendered and visually inspected. The all-English PPT remains unchanged.
+
+## 2026-09-22 — Independent review closure and second-round delivery
+
+Fresh Sol independently inspected the complete round-two set, including the new
+duplicate-source candidate, and returned SHIP with zero actionable findings for
+local preparation scope. The review used narrow evidence probes and did not
+rerun unchanged broad suites. Its report is preserved in review/ROUND2_SOL_REVIEW.md.
+Source hashes and links were checked, the prior WORKLOG byte prefix is intact,
+and all original worktrees remain clean. No material/raw/frozen source changed.
+Saved current-state navigation and a concise combined handoff. No accepted κL,
+real QE provenance, force-noise value or resource-saving estimate was invented.

@@ -2,6 +2,10 @@
 
 Validation date: 2026-09-21. Scope: local software, derived summaries and presentation artifacts. No new physical result was computed. No live cluster status was inspected.
 
+The separate [2026-09-22 local-development validation](round2/VALIDATION.md)
+records new standalone tools and diagnostics. The checks below remain the first
+round's historical validation; their unchanged suites were not rerun in round 2.
+
 ## Code
 
 The tooling worker ran the existing full shared campaign suite once: **435 passed**. The coordinator inspected the changed source/tests, then independently ran only the focused affected checks:

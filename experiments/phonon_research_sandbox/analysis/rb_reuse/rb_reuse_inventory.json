@@ -1,0 +1,367 @@
+{
+  "schema": "rb_saved_data_reuse_inventory/v1",
+  "generated_from_small_local_records_only": true,
+  "no_hdf5_read": true,
+  "production_status": "first_pass_unconverged",
+  "no_production": {
+    "production_authorized": false,
+    "accepted_kappa_L": false,
+    "qmesh_reuse_ready_now": false,
+    "why_not_ready_now": [
+      "FC identity verification not performed by this local inventory",
+      "saved q-mesh ladder is rejected diagnostic"
+    ]
+  },
+  "local_sources": [
+    {
+      "path": "thermo_candidates/Rb2Cu2SnS4/phono3py/evidence/firstpass_20260914/production/force_manifest.json",
+      "local_present": true,
+      "local_sha256": "9efff593656ab829485b1e5c805a7885536d70f9406adbbbc83b24d41ece9661",
+      "recorded_sha256": "9efff593656ab829485b1e5c805a7885536d70f9406adbbbc83b24d41ece9661",
+      "matches_recorded_sha256": true
+    },
+    {
+      "path": "thermo_candidates/Rb2Cu2SnS4/phono3py/evidence/firstpass_20260914/production/postprocess_22312417_hdf5_readonly_audit_20260920.json",
+      "local_present": true,
+      "local_sha256": "6cfc6d495f4cede0b53f41164928a24f7c9d259b41b3a260dfe9a12dd4494caf",
+      "recorded_sha256": null,
+      "matches_recorded_sha256": null
+    },
+    {
+      "path": "thermo_candidates/Rb2Cu2SnS4/phono3py/evidence/firstpass_20260914/production/postprocess_22312417_evidence_summary_20260920.json",
+      "local_present": true,
+      "local_sha256": "10b5c28bcacc5e4bef2cc603672fee6b5e2c20ab39b54ff86d26774ef972d0a2",
+      "recorded_sha256": null,
+      "matches_recorded_sha256": null
+    },
+    {
+      "path": "thermo_candidates/Rb2Cu2SnS4/phono3py/evidence/firstpass_20260914/preflight/phono3py_disp.yaml",
+      "local_present": true,
+      "local_sha256": "bb69732c8161dfe57d508777fa85209e6103a07c11df120cb0ac3cc01c02beda",
+      "recorded_sha256": "bb69732c8161dfe57d508777fa85209e6103a07c11df120cb0ac3cc01c02beda",
+      "matches_recorded_sha256": true
+    },
+    {
+      "path": "thermo_candidates/Rb2Cu2SnS4/phono3py/evidence/firstpass_20260914/pilot/sacct.txt",
+      "local_present": true,
+      "local_sha256": "54b6d6d3e8fdd88e6aeb42d198b1836fe24b4058827a40dc880f3ec863bb0c64",
+      "recorded_sha256": null,
+      "matches_recorded_sha256": null
+    },
+    {
+      "path": "thermo_candidates/Rb2Cu2SnS4/phono3py/campaign.json",
+      "local_present": true,
+      "local_sha256": "d0ba760f3e65ba65044ccc6e5c3a1987a38014d3b4c1113ddb0ace58c9bcd0a3",
+      "recorded_sha256": null,
+      "matches_recorded_sha256": null
+    },
+    {
+      "path": "thermo_candidates/Rb2Cu2SnS4/phono3py/evidence/firstpass_20260914/preflight/preflight_summary.json",
+      "local_present": true,
+      "local_sha256": "ef4ae78d3a6fe08fa823f0b5614e0c85f27ebd5e0b3a50ea0973ec7a471cc982",
+      "recorded_sha256": null,
+      "matches_recorded_sha256": null
+    }
+  ],
+  "local_candidate_artifacts": [
+    {
+      "artifact": "FORCES_FC3",
+      "local_candidate_path": "thermo_candidates/Rb2Cu2SnS4/phono3py/evidence/firstpass_20260914/production/FORCES_FC3",
+      "local_present": false
+    },
+    {
+      "artifact": "fc2.hdf5",
+      "local_candidate_path": "thermo_candidates/Rb2Cu2SnS4/phono3py/evidence/firstpass_20260914/production/fc2.hdf5",
+      "local_present": false
+    },
+    {
+      "artifact": "fc3.hdf5",
+      "local_candidate_path": "thermo_candidates/Rb2Cu2SnS4/phono3py/evidence/firstpass_20260914/production/fc3.hdf5",
+      "local_present": false
+    }
+  ],
+  "force_dataset_schema": {
+    "dataset_yaml_sha256": "bb69732c8161dfe57d508777fa85209e6103a07c11df120cb0ac3cc01c02beda",
+    "tasks": 680,
+    "labels": {
+      "first": "pristine",
+      "last": "disp05728"
+    },
+    "unique_force_input_hashes": 680,
+    "unique_source_structure_hashes": 606,
+    "settings_variants": [
+      {
+        "conv_thr_Ry": 1e-10,
+        "ecutrho_Ry": 800,
+        "ecutwfc_Ry": 100,
+        "expected_atoms": 72,
+        "kmesh": [
+          2,
+          2,
+          2
+        ],
+        "noinv": true,
+        "nosym": true
+      }
+    ],
+    "settings_uniform": true,
+    "recorded_pseudopotential_sha256_not_local_bytes": {
+      "Cu.paw.z_11.ld1.psl.v1.0.0-low.upf": "b31028b2bae60cd9903260715a49b4c6d2b6dc654558c87023fa5206e427a16d",
+      "Rb_ONCV_PBE-1.0.oncvpsp.upf": "b5f77d0adb6f4ae9fbae600bd3a16681e6fc46c301f5502e94f741491e065d90"
+    },
+    "atom_mapping": {
+      "primitive_atoms": 18,
+      "supercell_atoms": 72,
+      "fc_p2s_map": [
+        0,
+        4,
+        8,
+        12,
+        16,
+        20,
+        24,
+        28,
+        32,
+        36,
+        40,
+        44,
+        48,
+        52,
+        56,
+        60,
+        64,
+        68
+      ]
+    }
+  },
+  "historic_remote_artifacts": [
+    {
+      "artifact": "FORCES_FC3",
+      "status": "historical_record_only",
+      "why": "The local failure capture records a remote size, but no local bytes or SHA-256 are saved."
+    },
+    {
+      "artifact": "fc2.hdf5",
+      "status": "historical_remote_hash_verified",
+      "sha256": "08def0aaf5d249351937a65064fd087ab1b6cbe85351c395e999a4d41f8d3867",
+      "shape": [
+        72,
+        72,
+        3,
+        3
+      ],
+      "dataset": "force_constants"
+    },
+    {
+      "artifact": "fc3.hdf5",
+      "status": "historical_remote_hash_verified",
+      "sha256": "b35e40fd169b084d6a4de7c6eb178dbd0ec359428e0ad64b27180df48ef063d2",
+      "shape": [
+        72,
+        72,
+        72,
+        3,
+        3,
+        3
+      ],
+      "dataset": "fc3"
+    }
+  ],
+  "geometry_and_settings_provenance": {
+    "local_yaml": "thermo_candidates/Rb2Cu2SnS4/phono3py/evidence/firstpass_20260914/preflight/phono3py_disp.yaml",
+    "yaml_sha256": "bb69732c8161dfe57d508777fa85209e6103a07c11df120cb0ac3cc01c02beda",
+    "supercell_matrix_from_yaml": [
+      [
+        0,
+        1,
+        1
+      ],
+      [
+        2,
+        0,
+        1
+      ],
+      [
+        2,
+        1,
+        0
+      ]
+    ],
+    "physical_unit_length_from_yaml": "au",
+    "amplitude_bohr_from_first_yaml_displacement": 0.0566917837388,
+    "amplitude_angstrom_derived_from_bohr": 0.030000000000014234,
+    "saved_generation_record_bound_by_yaml_hash": {
+      "source": "thermo_candidates/Rb2Cu2SnS4/phono3py/evidence/firstpass_20260914/preflight/preflight_summary.json",
+      "source_sha256": "ef4ae78d3a6fe08fa823f0b5614e0c85f27ebd5e0b3a50ea0973ec7a471cc982",
+      "candidate": "M72_cutoff_3p70A",
+      "phono3py_disp_sha256": "bb69732c8161dfe57d508777fa85209e6103a07c11df120cb0ac3cc01c02beda",
+      "manifest_dataset_sha256": "bb69732c8161dfe57d508777fa85209e6103a07c11df120cb0ac3cc01c02beda",
+      "generation_argv": [
+        "phono3py-init",
+        "--qe",
+        "-d",
+        "-c",
+        "unitcell.in",
+        "--pa",
+        "P",
+        "--tolerance",
+        "1.88972612462577e-05",
+        "--amplitude",
+        "0.0566917837388",
+        "--cutoff-pair",
+        "6.991986661115",
+        "--dim",
+        "0",
+        "1",
+        "1",
+        "2",
+        "0",
+        "1",
+        "2",
+        "1",
+        "0"
+      ],
+      "cutoff_pair_distance_angstrom": 3.699999999999815,
+      "cutoff_pair_distance_bohr": 6.991986661115,
+      "displacement_supercells": 679,
+      "caveat": "This saved generation record binds the cutoff to the archived YAML; it does not prove current remote FC/FORCES bytes or scientific convergence."
+    },
+    "production_settings": {
+      "conv_thr_Ry": 1e-10,
+      "ecutrho_Ry": 800,
+      "ecutwfc_Ry": 100,
+      "expected_atoms": 72,
+      "kmesh": [
+        2,
+        2,
+        2
+      ],
+      "noinv": true,
+      "nosym": true
+    },
+    "phono3py_version": "4.4.0"
+  },
+  "reuse_decisions": [
+    {
+      "change": "只改 q 网格（FC2/FC3 完全相同）",
+      "classification": "conditional_reuse_after_one_bounded_remote_identity_check",
+      "can_reuse": "保存审计所指的 fc2.hdf5、fc3.hdf5；已有五个 q-mesh HDF5 仅可作 rejected diagnostic。",
+      "must_match": [
+        "FC2/FC3 SHA-256",
+        "phono3py 4.4.0",
+        "18 primitive / 72 supercell",
+        "p2s_map",
+        "无 NAC 参数"
+      ],
+      "missing_or_unverified": "本 checkout 没有 FC 本体；当前远端存在性和待计算 q 网格命令/版本未核实。"
+    },
+    {
+      "change": "同一 M72 下把 FC3 cutoff 从 3.70 A 改大",
+      "classification": "subset_reuse_unproven",
+      "can_reuse": "只有未来更大-cutoff 数据集可把每个旧 displacement/configuration 的内容（原子、位移向量、pair、符号组合）映射到新数据集，并逐项核对结构/输入/输出/力哈希时，较大集合才可向小 cutoff 派生；数字 ID 本身可重编号，不能单独证明对应。",
+      "must_match": [
+        "内容级 displacement/configuration mapping（非仅数字 ID）",
+        "72 atoms",
+        "atom order/p2s_map",
+        "pristine subtraction",
+        "结构、赝势、100/800 Ry、2x2x2、conv_thr、nosym/noinv"
+      ],
+      "missing_or_unverified": "本地没有 4.25/5.00 A YAML、ID 清单、pair-shell 映射或力本体；不能证明包含关系。"
+    },
+    {
+      "change": "几何、超胞、DFT 设置、赝势、位移幅度或 displacement 定义改变",
+      "classification": "incompatible_by_construction_new_forces_required",
+      "can_reuse": "可复用方法、输入模板和这份证据；不可复用现有生产力作新 FC 数据。",
+      "must_match": [
+        "不适用：响应函数的定义已改变"
+      ],
+      "missing_or_unverified": "M108/M216、0.02/0.04 A、不同 cutoff 新 pair 均需要各自 pristine 和新 force dataset。"
+    }
+  ],
+  "one_bounded_future_remote_check": [
+    "Minimal q-mesh-only FC identity check: stat and SHA-256 FC2, FC3, phono3py_disp.yaml, and production force manifest; no q-mesh solve and no full kappa-HDF5 reread.",
+    "Read (do not solve) FC2/FC3 keys, shapes, dtype, p2s_map, version and confirm 18/72 atom binding; compare to this JSON.",
+    "Optional lineage/archival checks: hash FORCES_FC3 when re-establishing force provenance, and hash the five saved kappa HDF5 files only if preserving historical diagnostics; neither is a q-mesh-only prerequisite.",
+    "For a proposed larger cutoff: generate count-only YAML and an explicit content-level old-to-new displacement/configuration mapping plus per-item input/source/output/force hashes. Do not claim subset reuse if any item is unavailable."
+  ],
+  "recorded_timing_only": {
+    "source": "thermo_candidates/Rb2Cu2SnS4/phono3py/evidence/firstpass_20260914/pilot/sacct.txt",
+    "column_interpretation": {
+      "status": "inferred_not_header_preserved",
+      "pilot_columns": [
+        "JobIDRaw",
+        "JobName",
+        "State",
+        "ExitCode",
+        "Elapsed",
+        "Start",
+        "End",
+        "AllocCPUS",
+        "ReqMem",
+        "NodeList"
+      ],
+      "basis": "The current postprocess sbatch explicitly records the same ordered sacct fields with MaxRSS inserted before NodeList; pilot capture has ten columns and no header, so MaxRSS is absent from this capture.",
+      "documented_schema_source": "thermo_candidates/Rb2Cu2SnS4/phono3py/run_postprocess_firstpass.sbatch:26-29"
+    },
+    "records": [
+      {
+        "job_id": "21926665",
+        "state": "COMPLETED",
+        "elapsed": "00:28:45",
+        "alloc_cpus": 32,
+        "requested_memory": "62.50G",
+        "node": "c480"
+      },
+      {
+        "job_id": "21926666",
+        "state": "COMPLETED",
+        "elapsed": "00:31:55",
+        "alloc_cpus": 32,
+        "requested_memory": "62.50G",
+        "node": "c570"
+      },
+      {
+        "job_id": "21926667",
+        "state": "COMPLETED",
+        "elapsed": "00:33:37",
+        "alloc_cpus": 32,
+        "requested_memory": "62.50G",
+        "node": "c104"
+      },
+      {
+        "job_id": "21926668",
+        "state": "COMPLETED",
+        "elapsed": "01:42:01",
+        "alloc_cpus": 32,
+        "requested_memory": "62.50G",
+        "node": "c159"
+      },
+      {
+        "job_id": "21926669",
+        "state": "COMPLETED",
+        "elapsed": "01:54:02",
+        "alloc_cpus": 32,
+        "requested_memory": "62.50G",
+        "node": "c5"
+      },
+      {
+        "job_id": "21926670",
+        "state": "COMPLETED",
+        "elapsed": "00:22:50",
+        "alloc_cpus": 32,
+        "requested_memory": "62.50G",
+        "node": "c8"
+      },
+      {
+        "job_id": "21926602",
+        "state": "COMPLETED",
+        "elapsed": "00:19:30",
+        "alloc_cpus": 32,
+        "requested_memory": "62.50G",
+        "node": "c13"
+      }
+    ],
+    "applicability": "Seven-task M72 pilot scheduler records; not a core-hour forecast for cutoff, supercell, or production."
+  },
+  "scientific_boundary": "No accepted kappa_L: every saved q-mesh transition failed, and FC physical convergence is not established."
+}
