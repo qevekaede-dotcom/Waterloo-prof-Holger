@@ -87,3 +87,19 @@
 - Adversarial local fixtures cover a copied-stdout plus rebinding attack under
   the original health anchor and canonical-path bypass attempts. No SSH, Slurm
   submission, QE, phono3py calculation, or scientific-result change occurred.
+
+## 2026-09-21 — pristine binding and validator provenance repair
+
+- The pristine audit now verifies the exact `forces/pristine/scf.in` digest
+  against the externally anchored run manifest and requires the configured
+  96-atom contract before it creates or copies any health evidence. Previously,
+  a changed input could receive a locally healthy audit record and fail only at
+  the later preflight.
+- Preparation now records the SHA-256 of the imported
+  `dataset_semantics.py` validator, and preflight requires that exact validator
+  before replaying dataset semantics. The preparer hash alone did not bind this
+  imported acceptance dependency.
+- The shared QE output inspector now rejects fatal signatures in the final
+  PWSCF stdout even after a complete force block and `JOB DONE`. Focused parser,
+  archived-evidence, and v2 tests passed. No historical script or raw result was
+  changed, and no QE, phono3py postprocessing, SSH, or Slurm action was run.

@@ -123,6 +123,7 @@ def main() -> int:
     require(manifest["config_sha256"] == sha256(PACKAGE / "campaign.json"), "configuration fingerprint changed")
     require(manifest["source_unitcell_sha256"] == CONFIG["source_unitcell"]["sha256"], "source unitcell fingerprint changed")
     require(manifest["preparer_sha256"] == sha256(PACKAGE / "scripts/prepare_v2.py"), "preparer fingerprint changed")
+    require(manifest["dataset_semantics_validator_sha256"] == sha256(PACKAGE / "scripts/dataset_semantics.py"), "dataset semantics validator fingerprint changed")
     require(set(manifest["pseudopotential_sha256"]) == set(CONFIG["qe_force_input_contract"]["pseudopotential_files"].values()), "pseudopotential manifest is incomplete")
     validate_live_pseudos(manifest)
     dataset = manifest["dataset_sha256"]

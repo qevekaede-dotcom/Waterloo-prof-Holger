@@ -13,6 +13,7 @@ from dataset_semantics import inspect_dataset
 PACKAGE = Path(__file__).resolve().parents[1]
 REPOSITORY = PACKAGE.parents[2]
 CONFIG_PATH = PACKAGE / "campaign.json"
+DATASET_VALIDATOR_PATH = PACKAGE / "scripts/dataset_semantics.py"
 
 
 def sha256(path: Path) -> str:
@@ -162,6 +163,7 @@ def main() -> int:
     manifest = {
         "document_type": "srcu_v2_run_manifest", "config_sha256": sha256(CONFIG_PATH),
         "source_unitcell_sha256": sha256(source), "preparer_sha256": sha256(Path(__file__)),
+        "dataset_semantics_validator_sha256": sha256(DATASET_VALIDATOR_PATH),
         "phono3py_command": command, "phono3py_init_path": str(generator),
         "phono3py_init_sha256": sha256(generator),
         "phono3py_version": semantics["phono3py_version"],

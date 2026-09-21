@@ -192,6 +192,11 @@ def inspect_output(path: str | Path, expected_atoms: int) -> dict[str, object]:
         errors.append("QE Error in routine")
     if "%%%%%%" in run_text:
         errors.append("QE fatal error banner")
+    for pattern, label in FAILURE_SIGNATURES:
+        if pattern.search(run_text):
+            message = f"failure signature: {label}"
+            if message not in errors:
+                errors.append(message)
     return {
         "path": str(output_path),
         "healthy": not errors,
@@ -230,13 +235,11 @@ def inspect_force_run(
         nonempty_lines = [line.strip() for line in stderr_text.splitlines() if line.strip()]
         if nonempty_lines and any(line != IEEE_UNDERFLOW_NOTE for line in nonempty_lines):
             errors.append("unexpected stderr content")
-        output_text = Path(output).read_text(errors="replace")
-        run_starts = list(RUN_START.finditer(output_text))
-        last_run = output_text[run_starts[-1].start() :] if run_starts else output_text
-        combined = last_run + "\n" + stderr_text
         for pattern, label in FAILURE_SIGNATURES:
-            if pattern.search(combined):
-                errors.append(f"failure signature: {label}")
+            if pattern.search(stderr_text):
+                message = f"failure signature: {label}"
+                if message not in errors:
+                    errors.append(message)
     report.update({
         "stderr_path": str(stderr_path) if stderr_path is not None else None,
         "healthy": not errors,

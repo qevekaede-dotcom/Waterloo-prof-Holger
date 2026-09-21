@@ -174,3 +174,22 @@ only at that archive. Submission, runtime, finalization, and release rehash
 every archived UPF. Diagnostic, submission, Slurm-attempt, dispatch-claim, and
 scientific-attempt paths are checked component by component and may not contain
 symbolic links or resolve outside the run directory.
+
+## QE force-output migration
+
+Do not copy the residual-force `awk` range from the retired SrCu2SnS4 driver.
+That range also consumed QE's `Total SCF correction` text and printed zero for
+a nonzero archived force block on this Mac. Keep the retired script as
+historical provenance and use the shared parser for any new workflow:
+
+```bash
+set -o pipefail
+python3 qe_output.py inspect /path/to/scf.out \
+  --stderr /path/to/scf.err --expected-atoms 96 \
+  | python3 -c 'import json,sys; print(json.load(sys.stdin)["max_abs_force_ry_bohr"])'
+```
+
+The first command exits nonzero unless the last PWSCF run has one complete
+96-atom main force block, SCF convergence, `JOB DONE`, permitted stderr, and
+no fatal signature. Callers must preserve that exit status; a printed force
+number is not by itself a healthy-run or scientific-acceptance result.

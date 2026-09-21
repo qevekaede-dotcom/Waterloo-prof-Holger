@@ -10,6 +10,7 @@ from pathlib import Path
 
 PACKAGE = Path(__file__).resolve().parents[1]
 CAMPAIGN_SCRIPTS = PACKAGE.parents[1] / "scripts" / "phono3py_campaign"
+CONFIG = json.loads((PACKAGE / "campaign.json").read_text())
 sys.path.insert(0, str(CAMPAIGN_SCRIPTS))
 from qe_output import QEOutputError, inspect_force_run  # noqa: E402
 
@@ -45,6 +46,22 @@ def validate_manifest_anchor(manifest_path: Path, expected: str) -> None:
         raise ValueError("run manifest SHA-256 does not match the reviewed expected anchor")
 
 
+def validate_pristine_manifest_binding(manifest_path: Path, pristine: Path) -> None:
+    """Reject a changed or substituted pristine input before writing an audit."""
+    manifest = json.loads(manifest_path.read_text())
+    if not isinstance(manifest, dict) or manifest.get("document_type") != "srcu_v2_run_manifest":
+        raise ValueError("run manifest document type mismatch")
+    input_hashes = manifest.get("input_sha256")
+    if not isinstance(input_hashes, dict):
+        raise ValueError("run manifest input fingerprint map is missing")
+    if pristine.is_symlink() or not pristine.is_file():
+        raise ValueError("pristine input must be a regular non-symlink file")
+    if input_hashes.get("pristine/scf.in") != sha256(pristine):
+        raise ValueError("pristine input fingerprint differs from the reviewed run manifest")
+    if input_nat(pristine) != CONFIG["qe_force_input_contract"]["nat"]:
+        raise ValueError("pristine input atom count differs from the v2 force contract")
+
+
 def reject_unsafe_health_destinations(run_dir: Path) -> None:
     """Check every path this audit could create before creating any of them."""
     if not run_dir.is_dir() or run_dir.is_symlink():
@@ -77,14 +94,16 @@ def main() -> int:
     expected_manifest_sha256 = validate_expected_manifest_sha256(args.expected_manifest_sha256)
     # This must precede every mkdir/write so health -> outside cannot receive evidence.
     reject_unsafe_health_destinations(run_dir)
-    validate_manifest_anchor(run_dir / "run_manifest.json", expected_manifest_sha256)
+    manifest_path = run_dir / "run_manifest.json"
+    validate_manifest_anchor(manifest_path, expected_manifest_sha256)
     pristine = run_dir / "forces/pristine/scf.in"
+    validate_pristine_manifest_binding(manifest_path, pristine)
     raw_evidence = (args.qe_output.absolute(), args.qe_stderr.absolute(), args.exit_code.absolute())
     if any(path.is_symlink() for path in raw_evidence):
         raise ValueError("source evidence arguments must not be symlinks")
     output, stderr, exit_code = raw_evidence
-    if not all(path.is_file() for path in (pristine, output, stderr, exit_code)):
-        raise ValueError("pristine input, QE output, stderr, and exit-code evidence are all required")
+    if not all(path.is_file() for path in (output, stderr, exit_code)):
+        raise ValueError("QE output, stderr, and exit-code evidence are all required")
     evidence_dir = run_dir / "health/evidence"
     evidence_dir.mkdir(parents=True, exist_ok=True)
     copied = {}

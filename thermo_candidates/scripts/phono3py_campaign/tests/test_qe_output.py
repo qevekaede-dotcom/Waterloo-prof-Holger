@@ -120,6 +120,15 @@ class QEOutputTests(unittest.TestCase):
         stderr.write_text("")
         self.assertTrue(inspect_force_run(self.path, stderr, 1)["healthy"])
 
+    def test_stdout_failure_after_complete_force_block_is_unhealthy(self) -> None:
+        self.path.write_text(
+            qe_run([(1e-4, 0.0, 0.0)])
+            + "MPI_ABORT was invoked after QE wrote JOB DONE.\n"
+        )
+        report = inspect_output(self.path, 1)
+        self.assertFalse(report["healthy"])
+        self.assertIn("failure signature: MPI_ABORT", report["errors"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -44,7 +44,8 @@ repository-evidenced force settings, not newly demonstrated convergence.
    future, separately authorized pristine QE calculation must be audited before
    force work. The audit is bound to the exact pristine `scf.in`, its stdout,
    stderr, exit-code record, the shared `qe_output.py` parser, and that
-   reviewed manifest anchor:
+   reviewed manifest anchor. Before copying evidence, the audit also requires
+   the pristine input bytes and atom count to match the reviewed run manifest:
 
    ```bash
    python3 scripts/audit_pristine_v2.py --run-dir /scratch/.../srcu-v2 \
@@ -73,6 +74,8 @@ package.
 
 Preflight rehashes the local phono3py dataset and pseudopotentials and checks
 that every QE `ATOMIC_SPECIES` entry names exactly one configured pseudo file.
+The run manifest also fingerprints `dataset_semantics.py`, and preflight
+requires the same validator bytes before replaying the stored semantic report.
 It also requires PyYAML (a phono3py runtime dependency) to re-prove the YAML
 semantics; without that dependency it stops fail-closed rather than treating a
 dataset hash as a physical cutoff check.

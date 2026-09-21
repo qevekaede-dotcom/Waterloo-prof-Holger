@@ -47,7 +47,9 @@ def make_preflight_fixture(root):
     for i in range(1,169): (inputs / f"supercell-{i:05d}.in").write_text("fragment\n")
     semantic = inspect_dataset(inputs); (run / "dataset_semantics.json").write_text(json.dumps(semantic, sort_keys=True))
     manifest = {"config_sha256": digest(PACKAGE / "campaign.json"), "source_unitcell_sha256": CONFIG["source_unitcell"]["sha256"],
-                "preparer_sha256": digest(PREPARE), "pseudo_dir": str(pseudos),
+                "document_type": "srcu_v2_run_manifest", "preparer_sha256": digest(PREPARE),
+                "dataset_semantics_validator_sha256": digest(PACKAGE / "scripts/dataset_semantics.py"),
+                "pseudo_dir": str(pseudos),
                 "pseudopotential_sha256": {name: digest(pseudos / name) for name in CONFIG["qe_force_input_contract"]["pseudopotential_files"].values()},
                 "dataset_sha256": {str((inputs / name).relative_to(run)): digest(inputs / name) for name in ("unitcell.in","supercell.in","phono3py_disp.yaml")}, "dataset_semantics_sha256": digest(run / "dataset_semantics.json"),
                 "qe_execution_released": False, "slurm_submission_released": False,
@@ -149,16 +151,25 @@ class V2Tests(unittest.TestCase):
             self.assertNotEqual(run_preflight(run).returncode, 0)
 
     def test_preflight_rejects_tampered_dataset_parser_and_pseudo(self):
-        for target in ("dataset", "parser", "pseudo"):
+        for target in ("dataset", "dataset_validator", "parser", "pseudo"):
             with self.subTest(target=target), tempfile.TemporaryDirectory() as tmp:
                 run, pseudos = make_preflight_fixture(Path(tmp))
                 if target == "dataset":
                     (run / "inputs/phono3py_disp.yaml").write_text("changed\n")
+                elif target == "dataset_validator":
+                    manifest_path = run / "run_manifest.json"
+                    manifest = json.loads(manifest_path.read_text())
+                    manifest["dataset_semantics_validator_sha256"] = "0" * 64
+                    manifest_path.write_text(json.dumps(manifest))
+                    rebind_health_manifest_anchor(run)
                 elif target == "parser":
                     health_path = run / "health/pristine_health.json"; health = json.loads(health_path.read_text()); health["parser_sha256"] = "0" * 64; health_path.write_text(json.dumps(health))
                 else:
                     (pseudos / "Sr_pbe_v1.uspp.F.UPF").write_text("changed\n")
-                self.assertNotEqual(run_preflight(run).returncode, 0)
+                result = run_preflight(run)
+                self.assertNotEqual(result.returncode, 0)
+                if target == "dataset_validator":
+                    self.assertIn("validator fingerprint changed", result.stderr)
 
     def test_preflight_parses_retained_exit_code_not_only_its_claimed_hash(self):
         for recorded_exit_code, expected_error in (
@@ -311,8 +322,12 @@ class V2Tests(unittest.TestCase):
     def test_pristine_audit_requires_stderr_exit_and_uses_final_pwscf_run(self):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp); run = tmp_path / "run"; (run / "forces/pristine").mkdir(parents=True)
-            (run / "forces/pristine/scf.in").write_text(scf())
-            (run / "run_manifest.json").write_text("{}\n")
+            pristine = run / "forces/pristine/scf.in"
+            pristine.write_text(scf())
+            (run / "run_manifest.json").write_text(json.dumps({
+                "document_type": "srcu_v2_run_manifest",
+                "input_sha256": {"pristine/scf.in": digest(pristine)},
+            }) + "\n")
             output, stderr, code = tmp_path / "pristine.out", tmp_path / "pristine.stderr", tmp_path / "exit_code.txt"
             output.write_text(valid_qe_output() + "Program PWSCF\nError in routine final failure\n")
             stderr.write_text(""); code.write_text("0\n")
@@ -325,6 +340,36 @@ class V2Tests(unittest.TestCase):
             self.assertFalse(report["healthy"])
             self.assertIn("parser_sha256", report)
             self.assertIn("qe_stderr_sha256", report)
+
+    def test_pristine_audit_rejects_input_changed_after_review_before_writing_health(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            run = tmp_path / "run"
+            (run / "forces/pristine").mkdir(parents=True)
+            pristine = run / "forces/pristine/scf.in"
+            pristine.write_text(scf())
+            manifest = run / "run_manifest.json"
+            manifest.write_text(json.dumps({
+                "document_type": "srcu_v2_run_manifest",
+                "input_sha256": {"pristine/scf.in": digest(pristine)},
+            }) + "\n")
+            reviewed_anchor = digest(manifest)
+            pristine.write_text(scf().replace("nat = 96", "nat = 1"))
+            output = tmp_path / "pristine.out"
+            stderr = tmp_path / "pristine.stderr"
+            code = tmp_path / "exit_code.txt"
+            output.write_text(valid_qe_output())
+            stderr.write_text("")
+            code.write_text("0\n")
+            result = subprocess.run([
+                sys.executable, str(AUDIT), "--run-dir", str(run),
+                "--qe-output", str(output), "--qe-stderr", str(stderr),
+                "--exit-code", str(code),
+                "--expected-manifest-sha256", reviewed_anchor,
+            ], text=True, capture_output=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("fingerprint differs", result.stderr)
+            self.assertFalse((run / "health").exists())
 
     def test_pristine_audit_rejects_health_symlink_before_external_write(self):
         with tempfile.TemporaryDirectory() as tmp:
