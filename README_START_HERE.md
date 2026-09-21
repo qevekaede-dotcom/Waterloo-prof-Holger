@@ -55,8 +55,14 @@ each repeated the full convergence workflow with their own parameters rather
 than copying SrCu2SnS4's; their results are in the respective `results/`
 folders. The side-by-side comparison is in `learning/05_comparing_materials.md`.
 
-SrCu2SnS4 also has first-pass lattice thermal conductivity from the completed
-168-displacement DRAC campaign. SrZrS3 and Rb2Cu2SnS4 phonons remain pending.
-The fourth-step interim email and its two attachments were sent; the full
-three-material writeup remains a draft. See `HANDOFF.md` for limitations
-and `README.md` for cross-computer Git workflow.
+All three phonon branches currently lack accepted lattice thermal conductivity.
+SrCu2SnS4's historical dataset has unit/settings/run-health limitations; v2 is
+preparation only. SrZrS3 fails the sampled imaginary-mode gate. Rb2Cu2SnS4's
+saved FC/q-mesh artifacts pass limited integrity checks but remain q-mesh
+unconverged. Read [the current evidence entry](experiments/phonon_research_sandbox/CURRENT_STATE.md)
+and [the local Chinese dashboard](experiments/phonon_research_sandbox/dashboard/index.html).
+
+The fourth-step interim email and two attachments are frozen sent records.
+The user confirmed sending the revised Roy status update on 2026-09-21;
+Roy's next-priority decision is pending. The full three-material writeup remains
+an unsent draft. See `HANDOFF.md` for current limits and `README.md` for Git workflow.

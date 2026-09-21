@@ -6,6 +6,7 @@ Quantum ESPRESSO, BoltzTraP2, and phono3py.
 
 | Read this | For |
 | --- | --- |
+| [Sandbox evidence entry](experiments/phonon_research_sandbox/README.md) | Current plans, Chinese dashboard, analysis, presentation and continuation |
 | [HANDOFF.md](HANDOFF.md) | Current verified state, open issues, next research work |
 | [README_START_HERE.md](README_START_HERE.md) | Reading order for new/resumed sessions |
 | [AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md) | Continuity, scientific caveats, file handling, rigor review |
@@ -49,7 +50,8 @@ phonon postprocessing belong on DRAC, not this Mac.
 1. Run `git status --short --branch`; preserve any uncommitted work.
 2. Run `git fetch origin`; inspect remote branches and recent commits.
    Do not assume `main` contains the latest research work.
-3. Switch to `main` (or an explicitly agreed task branch). Use
+3. Use the explicitly agreed active research branch. For this experiment use
+   `codex/phonon-research-sandbox`, based on `codex/complete-three-material-phonons`. Use
    `git pull --ff-only` on its clean, matching checkout; never reset local
    work just to force a sync.
 4. Read `HANDOFF.md`; update it at milestones and append a work-log entry.
@@ -59,7 +61,9 @@ The 2026-09-06 cleanup started from `0024114` on
 `claude/canada-computing-center-task-d165w2`, which included the other
 research branches and was then 13 commits ahead of `main`. This work was
 merged into `main` through [PR #1](https://github.com/qevekaede-dotcom/Waterloo-prof-Holger/pull/1)
-at the user's request. **Use `main` as the current shared baseline.**
+at the user's request. That September 6 baseline instruction is historical. **Do not use `main` as
+the current phonon baseline:** the active research branch and this isolated
+experiment contain later evidence.
 The temporary `codex/research-repository-cleanup` branch was deleted locally
 and on GitHub; its commits remain in `main`. Other research branches remain.
 

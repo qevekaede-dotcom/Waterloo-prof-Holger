@@ -246,3 +246,18 @@ relative-link checks, and `git diff --check`. A fresh independent Sol review
 first found and then reproduced manifest/health rebinding attacks; after the
 fail-closed fixes it returned `SHIP` with no actionable findings. No
 `READY_TO_ATTACH/` file was changed.
+
+## 2026-09-21 — Isolated phonon research sandbox and current-status reconciliation
+
+Created `codex/phonon-research-sandbox` from fetched remote research tip `cf21cce`
+in an isolated worktree. Original and other existing tracked worktree states
+were inspected and left unchanged. Archived the prior HANDOFF verbatim to
+`docs/archive/HANDOFF_before_phonon_sandbox_2026-09-21.md`; replaced the active
+handoff with a concise evidence-based entry. Reconciled stale phonon completion,
+pending-run, and main-baseline statements in root guidance and Roy task status.
+Current state explicitly distinguishes electronic first pass, saved artifact
+integrity, scientific rejection, plan-only v2, and user-confirmed email sending.
+No original research record, historical log entry, sent body or attachment was
+modified. No Nibi login, job operation or heavy calculation occurred.
+Further deliverables and append-only validation are recorded in
+`experiments/phonon_research_sandbox/WORKLOG.md`.

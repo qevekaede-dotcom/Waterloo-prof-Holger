@@ -34,10 +34,16 @@ branches: fetch/compare history and preserve dirty/ignored local files.
   constants -> phonon-phonon scattering -> lattice thermal conductivity
   kappa_L, the missing denominator of every zT_e reported so far. Status in
   `thermo_candidates/Roy_task_status.md`.
-- SrCu2SnS4's 168-displacement DRAC campaign and residual-corrected first-pass
-  kappa_L are complete. Its interim email was sent; the fourth package's two
-  `READY_TO_ATTACH/` files are frozen. The full writeup remains a staged draft.
-  SrZrS3 and Rb2Cu2SnS4 phonon campaigns remain pending.
+- All three phonon branches lack an accepted kappa_L under the current
+  scientific contract. SrCu2SnS4's historical first pass used 4 bohr (not 4 A),
+  mixed force settings and unhealthy terminal outputs; `phono3py_v2/` is
+  preparation only. SrZrS3 has forces/FC2/FC3 but fails the sampled imaginary-mode
+  gate. Rb2Cu2SnS4 saved FC/q-mesh artifacts pass limited integrity checks but
+  every tested q-mesh transition fails convergence. Read `HANDOFF.md` and
+  `experiments/phonon_research_sandbox/CURRENT_STATE.md` for evidence and limits.
+- The user confirmed sending the revised Roy status update on 2026-09-21;
+  the exact sent message has not been independently retrieved. Await Roy's
+  scientific-priority choice. Local experiment plans are not job authorization.
 - Heavy calculations and phonon postprocessing run on DRAC compute nodes;
   local machines handle preparation, transfer, Git, writeup, and lightweight
   read-only checks. Do not launch calculations during repository cleanup.

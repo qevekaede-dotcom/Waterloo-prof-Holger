@@ -42,8 +42,9 @@ convergence tests, variable-cell relaxation, final SCF, a `12x12x6` dense NSCF,
 and BoltzTraP2 transport tables from 300 to 900 K.
 
 Key first-pass result: the QE-PBE indirect gap is 0.3445 eV, and the sampled
-PF/tau values favor p-type doping. First-pass lattice thermal conductivity
-is now available (below), but full zT still requires a relaxation-time model.
+PF/tau values favor p-type doping. The historical lattice-conductivity record
+is rejected under the current contract. Full zT requires accepted kappa_L and
+a relaxation-time model.
 
 The `SrZrS3` first pass is also finished, with its own convergence tests
 (50/400 Ry; relax 6x3x2; final SCF 8x4x2), a Pnma-preserving relaxation, a
@@ -75,30 +76,32 @@ report if/how it works. Scientific target: third-order force constants ->
 phonon-phonon scattering -> lattice thermal conductivity kappa_L, the
 missing denominator of every zT_e upper bound reported so far.
 
-**Status: SrCu2SnS4 DONE; interim progress email SENT to Roy (from the
-uwaterloo mailbox).** phono3py runs end to end (168 force calculations on
-Nibi/DRAC). First-pass kappa_L [calculated, residual-corrected]: 0.36
-W m^-1 K^-1 at 300 K (in-plane 0.40, c-axis 0.30), falling ~1/T to 0.12 at
-900 K — very low, encouraging. RTA, 2x2x1 supercell, historical cutoff-pair
-4.0 bohr = 2.1167 A, q-mesh 13x13x6, PBE, no SOC, no NAC. The cutoff
-included only onsite pair groups, so pair-range convergence is not
-established; no significant imaginary modes on the
-sampled mesh; pristine residual
-forces (5.5e-4 Ry/bohr) measured and subtracted via --cfz; the email quotes
-"roughly 0.35-0.40 W/(m K)" with the documented caveats. The interim email
-and its two frozen attachments live in
-`../fourth step result (phono3py lattice thermal conductivity)/`
-(EMAIL_DRAFT.md + READY_TO_ATTACH/, frozen). The full "how we got it
-working" writeup is deliberately NOT sent yet — it ships with the complete
-package once SrZrS3 and Rb2Cu2SnS4 are done (staged draft:
-HOW_WE_GOT_PHONO3PY_WORKING.md in that package). Next: the SrZrS3 phonon
-campaign, with its own convergence decisions.
+## Current phonon and communication status — 2026-09-21
 
-Audit qualification: the corrected last q-mesh step changes average kappa_L
-by -2.9559%, but zz by -12.2745%. The earlier approximate 5% estimate is not
-a demonstrated tensor or total physical uncertainty. Supercell and pair-cutoff
-convergence remain unestablished. See `../HANDOFF.md` for the open
-residual-force reporting issue before any new campaign.
+No material has an accepted kappa_L. Electronic first-pass completion does
+not imply phonon/transport convergence.
+
+- **SrCu2SnS4:** historical 168-displacement dataset preserved, with 4-bohr
+  rather than 4-A cutoff, mixed settings, unhealthy outputs and tensor q-mesh
+  nonconvergence. v2 corrects preparation logic but has no real generated
+  displacement set or completed pristine/pilot calculation in repository evidence.
+- **SrZrS3:** forces and FC2/FC3 generated. Sampled minimum -1.0716 THz
+  rejects the finite diagnostic kappa tensor. The origin is unresolved.
+- **Rb2Cu2SnS4:** narrow force recovery completed in saved evidence. Limited
+  FC2/FC3/HDF5 audit passes, but all tested q-mesh steps fail. This is not
+  scientific convergence of the force constants or a valid final kappa_L.
+
+The SrCu2SnS4 interim email and its two attachments remain frozen sent records
+in the fourth-step package. Its full writeup remains a staged, unsent draft.
+On 2026-09-21 the user confirmed sending the revised status update indexed by
+`../fifth step result (remaining-material phono3py first passes)/EMAIL_TO_ROY_REVIEWED.md`.
+The exact sent message has not been independently retrieved. Roy's next-priority
+choice is pending; this repository does not record a reply.
+
+Use [current evidence and interpretation limits](../experiments/phonon_research_sandbox/CURRENT_STATE.md)
+and [the sandbox deliverables](../experiments/phonon_research_sandbox/README.md).
+Old “DONE”, “next Sr campaign” and “encouraging low kappa” interpretations are
+superseded for new writing. Original reports and all sent files stay unchanged.
 
 ## Cluster access history
 
