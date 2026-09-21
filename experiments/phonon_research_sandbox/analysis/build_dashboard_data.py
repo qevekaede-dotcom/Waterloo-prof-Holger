@@ -115,7 +115,7 @@ def main() -> None:
 
     csv_path = OUT / "rb_qmesh_ladder_all_tensors.csv"
     with csv_path.open("w", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+        writer = csv.DictWriter(handle, fieldnames=list(rows[0]), lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
 

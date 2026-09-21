@@ -57,3 +57,13 @@ final package and inspected; a shareable Rb slide preview is included.
   dashboard, 105-row Rb data and SVG, demonstrated source fixes, file-anchored
   guide, 11-slide all-English PPT with editable charts/tables and bilingual
   script. No new accepted kappa or full zT claim.
+
+## 2026-09-21 — Final packaging cleanup
+
+The staged whitespace check detected default CSV CRLF line endings in the newly
+derived Rb table. Normalized only this new CSV writer to LF, regenerated the
+CSV/data hashes/embedded page, and verified all 105 parsed rows are identical.
+Original historical CSV files were not changed. Final navigation inspection also
+found the sandbox README had become dashboard-only during integration; restored
+the full deliverables index and kept the useful rebuild explanation in analysis/README.md.
+These packaging corrections do not change research values or scientific standards.
