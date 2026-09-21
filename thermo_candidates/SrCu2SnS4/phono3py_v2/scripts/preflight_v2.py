@@ -137,7 +137,7 @@ def main() -> int:
     require(manifest["qe_execution_released"] is False and manifest["slurm_submission_released"] is False, "manifest release state is unsafe")
     parser_path = PACKAGE.parents[1] / "scripts" / "phono3py_campaign" / "qe_output.py"
     require(health.get("document_type") == "srcu_v2_pristine_health", "pristine health document type mismatch")
-    require(health.get("healthy") is True and health.get("input_sha256") == sha256(pristine), "pristine is not healthy for this exact input")
+    require(health.get("healthy") is True and health.get("input_sha256") == sha256(pristine), "supplied pristine logs are not terminally healthy, or current pristine input differs from the audited input hash")
     require(health.get("manifest_sha256_anchor") == expected_manifest_sha256,
             "pristine health record does not agree with the reviewed manifest anchor")
     require(health.get("parser_sha256") == sha256(parser_path), "shared QE parser fingerprint changed")
@@ -173,6 +173,8 @@ def main() -> int:
               "input_sha256": observed_hashes, "force_execution_released": False,
               "slurm_submission_released": False, "manifest_sha256_anchor": expected_manifest_sha256,
               "pristine_health_sha256_anchor": expected_health_sha256,
+              "execution_provenance_verified": False,
+              "audit_scope": "preparation and supplied-log health only; input-to-execution provenance and scientific acceptance are not verified",
               "preflight_passed": True}
     target.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
     print(json.dumps(report, indent=2, sort_keys=True))

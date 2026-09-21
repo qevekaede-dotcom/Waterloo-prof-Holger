@@ -22,6 +22,26 @@ QE、phono3py 后处理、SSH 或 Slurm。
    记录验证器 SHA-256，`preflight_v2.py` 在重放语义检查前要求该 digest 与
    当前验证器完全一致。
 
+## 尚未建立：输入到执行的 provenance
+
+当前 pristine audit 同时保存两类事实：已审阅 manifest 所绑定的 `scf.in`
+hash，以及调用者提供的 stdout、stderr、exit-code 的终态健康检查。两者之间
+没有可信执行收据，因此不能证明这些日志确实由该份 `scf.in` 运行产生。
+`healthy=true` 只表示所提供日志通过终态解析；health 与 preflight 报告均明确
+写入 `execution_provenance_verified: false`。preflight 只是准备门槛，不是执行
+provenance，也不是科学验收。
+
+未来若要关闭这一缺口，应由一个经过审阅的可信 runner 实现以下收据协议：
+
+1. QE 启动前记录精确 argv、工作目录、`scf.in` hash、四个 pseudo hash 和
+   runner/script hash，并把这份启动记录保存在运行目录外的独立锚点中。
+2. QE 结束后记录真实 process exit code，以及 stdout、stderr hash，并把结束
+   收据绑定到启动记录和同一次执行身份。
+3. audit/preflight 只接受与外部保存锚点完全一致的启动、结束收据，再重放输入、
+   pseudo、脚本和日志 hash。
+
+本轮没有实现真实 runner 或 receipt gate，也没有据此释放任何执行或提交路径。
+
 ## 历史 residual-force `awk` 的迁移
 
 两个历史 `run_campaign.sh` 都是已冻结、已拒绝的来源记录，保持不变。旧

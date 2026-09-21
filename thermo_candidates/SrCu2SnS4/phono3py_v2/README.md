@@ -66,6 +66,13 @@ repository-evidenced force settings, not newly demonstrated convergence.
    retained or either file's bytes differ, stop and prepare/review a fresh
    lineage.
 
+The pristine audit checks the reviewed input hash and the terminal health of
+the supplied stdout, stderr, and exit-code files as separate facts. It cannot
+prove those supplied logs were produced by executing that exact input. Both
+the health record and preflight therefore state
+`execution_provenance_verified: false`. Preflight remains a preparation gate;
+it is neither an execution-provenance receipt nor scientific acceptance.
+
 All records use exclusive creation: changing a source, setting, output, audit,
 or manifest anchor requires a fresh `RUN_DIR`, not an overwritten fingerprint.
 The audit rejects symlinked health/evidence destinations before it creates or
@@ -88,4 +95,5 @@ made here that the 2x2x1 supercell, 0.06-bohr amplitude, or 4.0-A
 pair cutoff is converged. NAC and explicit SOC are absent; no q-mesh,
 force-constant, or kappa calculation is prepared or released. A healthy
 pristine audit is a terminal-output and complete-force-block requirement, not
-a scientific stability or convergence conclusion.
+a proof that the reviewed input produced the supplied output, and not a
+scientific stability or convergence conclusion.

@@ -119,6 +119,8 @@ def main() -> int:
               "exit_code_sha256": sha256(copied["exit_code"]), "parser_sha256": sha256(parser_path),
               "evidence": {key: str(path.relative_to(run_dir)) for key, path in copied.items()},
               "manifest_sha256_anchor": expected_manifest_sha256,
+              "execution_provenance_verified": False,
+              "audit_scope": "terminal parser status for supplied QE logs; input-to-execution provenance is not verified",
               "exit_code": read_exit_code(copied["exit_code"])}
     try:
         report["parser_report"] = inspect_force_run(copied["stdout"], copied["stderr"], input_nat(pristine))

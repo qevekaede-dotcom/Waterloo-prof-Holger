@@ -148,6 +148,11 @@ class V2Tests(unittest.TestCase):
             report = json.loads((run / "preflight_report.json").read_text())
             self.assertEqual(report["manifest_sha256_anchor"], digest(run / "run_manifest.json"))
             self.assertEqual(report["pristine_health_sha256_anchor"], digest(run / "health/pristine_health.json"))
+            self.assertIs(report["execution_provenance_verified"], False)
+            self.assertIn("input-to-execution provenance", report["audit_scope"])
+            health = json.loads((run / "health/pristine_health.json").read_text())
+            self.assertIs(health["execution_provenance_verified"], False)
+            self.assertIn("input-to-execution provenance", health["audit_scope"])
             self.assertNotEqual(run_preflight(run).returncode, 0)
 
     def test_preflight_rejects_tampered_dataset_parser_and_pseudo(self):

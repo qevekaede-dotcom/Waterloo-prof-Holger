@@ -1,0 +1,697 @@
+{
+  "generated_from": "saved repository evidence only; no live cluster query",
+  "rb_qmesh_status": "rejected_diagnostic_only",
+  "qmesh_converged": false,
+  "temperatures_K": [
+    300.0,
+    600.0,
+    900.0
+  ],
+  "components": [
+    "xx",
+    "yy",
+    "zz",
+    "yz",
+    "xz",
+    "xy",
+    "trace_over_3"
+  ],
+  "ladder": [
+    {
+      "conventional_kappa_W_mK": [
+        [
+          0.1320489838334474,
+          0.14596505042788027,
+          0.08117056143608904,
+          -1.1098610261941684e-17,
+          2.258718211840969e-17,
+          -1.397715132715331e-17
+        ],
+        [
+          0.06751525311618381,
+          0.07612614013997447,
+          0.04389188801610756,
+          -6.007602582517547e-18,
+          1.2215675655752895e-17,
+          -7.320291973731756e-18
+        ],
+        [
+          0.04521871764200894,
+          0.05118669371955415,
+          0.029719811138138763,
+          -4.068594752779782e-18,
+          8.271658745591183e-18,
+          -4.926161189158456e-18
+        ]
+      ],
+      "file": "kappa-m1448.hdf5",
+      "frequency_shape": [
+        46,
+        54
+      ],
+      "grid_count": 192,
+      "kappa_shape": [
+        3,
+        6
+      ],
+      "keys": [
+        "P_matrix",
+        "Q_matrix",
+        "boundary_mfp",
+        "frequency",
+        "gamma",
+        "grid_matrix",
+        "grid_point",
+        "group_velocity",
+        "gv_by_gv",
+        "heat_capacity",
+        "kappa",
+        "kappa_unit_conversion",
+        "mesh",
+        "mode_kappa",
+        "qpoint",
+        "temperature",
+        "version",
+        "weight"
+      ],
+      "length_angstrom": 45.0,
+      "maximum_offdiagonal_fraction": 1.9674872119121305e-16,
+      "mesh": [
+        1,
+        4,
+        48
+      ],
+      "minimum_frequency_THz": -1.394336434927581e-07,
+      "qpoint_shape": [
+        46,
+        3
+      ],
+      "raw_kappa_W_mK": [
+        [
+          0.1320489838334474,
+          0.14596505042788027,
+          0.08117056143608904,
+          -2.0849411060696975e-17,
+          2.2587182118409694e-17,
+          -1.3977151327153308e-17
+        ],
+        [
+          0.06751525311618381,
+          0.07612614013997447,
+          0.04389188801610756,
+          -1.0858474566344762e-17,
+          1.2215675655752897e-17,
+          -7.320291973731755e-18
+        ],
+        [
+          0.04521871764200894,
+          0.05118669371955415,
+          0.029719811138138763,
+          -7.299105542797275e-18,
+          8.271658745591183e-18,
+          -4.926161189158454e-18
+        ]
+      ],
+      "sha256": "00dbec4a89b97420a9c4b6720925f470130edf10388d2b3afc76d734bf4a549a",
+      "temperature_K": [
+        300.0,
+        600.0,
+        900.0
+      ],
+      "weight_count": 46,
+      "weight_sum": 192
+    },
+    {
+      "conventional_kappa_W_mK": [
+        [
+          0.13967743820082407,
+          0.138418391158385,
+          0.09151365963669428,
+          -1.243990028901563e-17,
+          2.521480270619871e-17,
+          -1.3083188326489204e-17
+        ],
+        [
+          0.07129576942995738,
+          0.07235453113527796,
+          0.04905822149510086,
+          -6.6904248890387245e-18,
+          1.3530233062530633e-17,
+          -6.875343667192515e-18
+        ],
+        [
+          0.04773475039664972,
+          0.04867239188975634,
+          0.03316385022891971,
+          -4.525574061664416e-18,
+          9.148278862260799e-18,
+          -4.6297926053839226e-18
+        ]
+      ],
+      "file": "kappa-m11440.hdf5",
+      "frequency_shape": [
+        90,
+        54
+      ],
+      "grid_count": 440,
+      "kappa_shape": [
+        3,
+        6
+      ],
+      "keys": [
+        "P_matrix",
+        "Q_matrix",
+        "boundary_mfp",
+        "frequency",
+        "gamma",
+        "grid_matrix",
+        "grid_point",
+        "group_velocity",
+        "gv_by_gv",
+        "heat_capacity",
+        "kappa",
+        "kappa_unit_conversion",
+        "mesh",
+        "mode_kappa",
+        "qpoint",
+        "temperature",
+        "version",
+        "weight"
+      ],
+      "length_angstrom": 60.0,
+      "maximum_offdiagonal_fraction": 2.1181312309185403e-16,
+      "mesh": [
+        1,
+        1,
+        440
+      ],
+      "minimum_frequency_THz": -1.394336434927581e-07,
+      "qpoint_shape": [
+        90,
+        3
+      ],
+      "raw_kappa_W_mK": [
+        [
+          0.13967743820082407,
+          0.138418391158385,
+          0.09151365963669428,
+          -1.9498505128773642e-17,
+          2.5214802706198715e-17,
+          -1.3083188326489201e-17
+        ],
+        [
+          0.07129576942995738,
+          0.07235453113527796,
+          0.04905822149510086,
+          -1.0196242716790526e-17,
+          1.3530233062530634e-17,
+          -6.8753436671925125e-18
+        ],
+        [
+          0.04773475039664972,
+          0.04867239188975634,
+          0.03316385022891971,
+          -6.85942533153358e-18,
+          9.148278862260799e-18,
+          -4.629792605383921e-18
+        ]
+      ],
+      "sha256": "12284f2315a8d087b0c6432865e8fb846a3852999c64244524b5edd652ac3b48",
+      "temperature_K": [
+        300.0,
+        600.0,
+        900.0
+      ],
+      "weight_count": 90,
+      "weight_sum": 440
+    },
+    {
+      "conventional_kappa_W_mK": [
+        [
+          0.14232428945456294,
+          0.13727922653678928,
+          0.1135468509302332,
+          -1.543666579711412e-17,
+          3.1015519377639056e-17,
+          -1.2587342321959612e-17
+        ],
+        [
+          0.07259480338799039,
+          0.07180151528433036,
+          0.060077827577092124,
+          -8.175074276213696e-18,
+          1.6425549027298983e-17,
+          -6.633858430620617e-18
+        ],
+        [
+          0.04859754297405807,
+          0.04830597361396567,
+          0.040511428092439315,
+          -5.513542215265364e-18,
+          1.1077992483608247e-17,
+          -4.469672765020531e-18
+        ]
+      ],
+      "file": "kappa-m12420.hdf5",
+      "frequency_shape": [
+        159,
+        54
+      ],
+      "grid_count": 840,
+      "kappa_shape": [
+        3,
+        6
+      ],
+      "keys": [
+        "P_matrix",
+        "Q_matrix",
+        "boundary_mfp",
+        "frequency",
+        "gamma",
+        "grid_matrix",
+        "grid_point",
+        "group_velocity",
+        "gv_by_gv",
+        "heat_capacity",
+        "kappa",
+        "kappa_unit_conversion",
+        "mesh",
+        "mode_kappa",
+        "qpoint",
+        "temperature",
+        "version",
+        "weight"
+      ],
+      "length_angstrom": 75.0,
+      "maximum_offdiagonal_fraction": 2.4185125954171253e-16,
+      "mesh": [
+        1,
+        2,
+        420
+      ],
+      "minimum_frequency_THz": -1.394336434927581e-07,
+      "qpoint_shape": [
+        159,
+        3
+      ],
+      "raw_kappa_W_mK": [
+        [
+          0.14232428945456294,
+          0.13727922653678928,
+          0.1135468509302332,
+          -1.9008106372100133e-17,
+          3.1015519377639056e-17,
+          -1.2587342321959607e-17
+        ],
+        [
+          0.07259480338799039,
+          0.07180151528433036,
+          0.060077827577092124,
+          -9.939349992232981e-18,
+          1.6425549027298983e-17,
+          -6.633858430620615e-18
+        ],
+        [
+          0.04859754297405807,
+          0.04830597361396567,
+          0.040511428092439315,
+          -6.686528712726012e-18,
+          1.1077992483608247e-17,
+          -4.4696727650205295e-18
+        ]
+      ],
+      "sha256": "3e12111c4966f1583be8f5d88266e7a68e04c41330a91519f681497d4114e92b",
+      "temperature_K": [
+        300.0,
+        600.0,
+        900.0
+      ],
+      "weight_count": 159,
+      "weight_sum": 840
+    },
+    {
+      "conventional_kappa_W_mK": [
+        [
+          0.14292621493767332,
+          0.13891210006904556,
+          0.1224715416150916,
+          -1.6840272195292938e-17,
+          3.3286212956618865e-17,
+          -1.3047265310209703e-17
+        ],
+        [
+          0.07289526168442295,
+          0.07265893072758962,
+          0.06450249745215582,
+          -8.876408821255625e-18,
+          1.7556477451506364e-17,
+          -6.870177525261747e-18
+        ],
+        [
+          0.048797817858441,
+          0.04888326026594636,
+          0.043456373200999036,
+          -5.981089342993647e-18,
+          1.1831428740869e-17,
+          -4.628115188145574e-18
+        ]
+      ],
+      "file": "kappa-m2896.hdf5",
+      "frequency_shape": [
+        276,
+        54
+      ],
+      "grid_count": 1536,
+      "kappa_shape": [
+        3,
+        6
+      ],
+      "keys": [
+        "P_matrix",
+        "Q_matrix",
+        "boundary_mfp",
+        "frequency",
+        "gamma",
+        "grid_matrix",
+        "grid_point",
+        "group_velocity",
+        "gv_by_gv",
+        "heat_capacity",
+        "kappa",
+        "kappa_unit_conversion",
+        "mesh",
+        "mode_kappa",
+        "qpoint",
+        "temperature",
+        "version",
+        "weight"
+      ],
+      "length_angstrom": 90.0,
+      "maximum_offdiagonal_fraction": 2.5148736844323783e-16,
+      "mesh": [
+        2,
+        8,
+        96
+      ],
+      "minimum_frequency_THz": -1.394336434927581e-07,
+      "qpoint_shape": [
+        276,
+        3
+      ],
+      "raw_kappa_W_mK": [
+        [
+          0.14292621493767332,
+          0.13891210006904556,
+          0.1224715416150916,
+          -1.931438091964921e-17,
+          3.3286212956618865e-17,
+          -1.3047265310209698e-17
+        ],
+        [
+          0.07289526168442295,
+          0.07265893072758962,
+          0.06450249745215582,
+          -1.0103855126251873e-17,
+          1.7556477451506364e-17,
+          -6.8701775252617444e-18
+        ],
+        [
+          0.048797817858441,
+          0.04888326026594636,
+          0.043456373200999036,
+          -6.797771371836363e-18,
+          1.1831428740869e-17,
+          -4.628115188145573e-18
+        ]
+      ],
+      "sha256": "54648d5e352ec4cefadb29c31978ceecd96f7440ebfceebb9f383f7af0fccf62",
+      "temperature_K": [
+        300.0,
+        600.0,
+        900.0
+      ],
+      "weight_count": 276,
+      "weight_sum": 1536
+    },
+    {
+      "conventional_kappa_W_mK": [
+        [
+          0.14668143120011198,
+          0.13927592601720257,
+          0.13637034256369127,
+          -1.896471513168769e-17,
+          3.752741468269432e-17,
+          -1.2523744370588163e-17
+        ],
+        [
+          0.07476551367226868,
+          0.07280798968914039,
+          0.07142505257449051,
+          -9.935360795261291e-18,
+          1.9670235212159394e-17,
+          -6.609054239750726e-18
+        ],
+        [
+          0.050043769645036956,
+          0.04897815262351118,
+          0.04806817720674789,
+          -6.686679009281712e-18,
+          1.3239808858186755e-17,
+          -4.454108764089068e-18
+        ]
+      ],
+      "file": "kappa-m112736.hdf5",
+      "frequency_shape": [
+        450,
+        54
+      ],
+      "grid_count": 2736,
+      "kappa_shape": [
+        3,
+        6
+      ],
+      "keys": [
+        "P_matrix",
+        "Q_matrix",
+        "boundary_mfp",
+        "frequency",
+        "gamma",
+        "grid_matrix",
+        "grid_point",
+        "group_velocity",
+        "gv_by_gv",
+        "heat_capacity",
+        "kappa",
+        "kappa_unit_conversion",
+        "mesh",
+        "mode_kappa",
+        "qpoint",
+        "temperature",
+        "version",
+        "weight"
+      ],
+      "length_angstrom": 105.0,
+      "maximum_offdiagonal_fraction": 2.700346706967262e-16,
+      "mesh": [
+        1,
+        1,
+        2736
+      ],
+      "minimum_frequency_THz": -1.394336434927581e-07,
+      "qpoint_shape": [
+        450,
+        3
+      ],
+      "raw_kappa_W_mK": [
+        [
+          0.14668143120011198,
+          0.13927592601720257,
+          0.13637034256369127,
+          -1.940197092149626e-17,
+          3.752741468269432e-17,
+          -1.2523744370588157e-17
+        ],
+        [
+          0.07476551367226868,
+          0.07280798968914039,
+          0.07142505257449051,
+          -1.0143476400955236e-17,
+          1.9670235212159394e-17,
+          -6.609054239750723e-18
+        ],
+        [
+          0.050043769645036956,
+          0.04897815262351118,
+          0.04806817720674789,
+          -6.8236194984913314e-18,
+          1.3239808858186755e-17,
+          -4.454108764089066e-18
+        ]
+      ],
+      "sha256": "a0f3b75441287bd9723882bdce282caee6aaca28482e6a51fc89c89f7ca83523",
+      "temperature_K": [
+        300.0,
+        600.0,
+        900.0
+      ],
+      "weight_count": 450,
+      "weight_sum": 2736
+    }
+  ],
+  "consecutive_changes": [
+    {
+      "from_angstrom": 45.0,
+      "to_angstrom": 60.0,
+      "temperature_K": 300.0,
+      "passed": false,
+      "xx_relative_change": 0.05461479295180585,
+      "yy_relative_change": 0.05452063996943888,
+      "zz_relative_change": 0.1130224519669188,
+      "trace_over_3_relative_change": 0.028205156006160262,
+      "denominator": "absolute value at current mesh"
+    },
+    {
+      "from_angstrom": 45.0,
+      "to_angstrom": 60.0,
+      "temperature_K": 600.0,
+      "passed": false,
+      "xx_relative_change": 0.05302581547265074,
+      "yy_relative_change": 0.052126783845021556,
+      "zz_relative_change": 0.1053102481407573,
+      "trace_over_3_relative_change": 0.026855277248455146,
+      "denominator": "absolute value at current mesh"
+    },
+    {
+      "from_angstrom": 45.0,
+      "to_angstrom": 60.0,
+      "temperature_K": 900.0,
+      "passed": false,
+      "xx_relative_change": 0.052708618642266336,
+      "yy_relative_change": 0.051657659140580965,
+      "zz_relative_change": 0.10384919323322898,
+      "trace_over_3_relative_change": 0.026593683885043566,
+      "denominator": "absolute value at current mesh"
+    },
+    {
+      "from_angstrom": 60.0,
+      "to_angstrom": 75.0,
+      "temperature_K": 300.0,
+      "passed": false,
+      "xx_relative_change": 0.01859732631641823,
+      "yy_relative_change": 0.008298157342039177,
+      "zz_relative_change": 0.19404493487077698,
+      "trace_over_3_relative_change": 0.05987754280890025,
+      "denominator": "absolute value at current mesh"
+    },
+    {
+      "from_angstrom": 60.0,
+      "to_angstrom": 75.0,
+      "temperature_K": 600.0,
+      "passed": false,
+      "xx_relative_change": 0.017894310576064026,
+      "yy_relative_change": 0.00770200808099494,
+      "zz_relative_change": 0.18342217963608715,
+      "trace_over_3_relative_change": 0.05754088917786816,
+      "denominator": "absolute value at current mesh"
+    },
+    {
+      "from_angstrom": 60.0,
+      "to_angstrom": 75.0,
+      "temperature_K": 900.0,
+      "passed": false,
+      "xx_relative_change": 0.017753831255808962,
+      "yy_relative_change": 0.007585361568713599,
+      "zz_relative_change": 0.18137049740023578,
+      "trace_over_3_relative_change": 0.05708223500272965,
+      "denominator": "absolute value at current mesh"
+    },
+    {
+      "from_angstrom": 75.0,
+      "to_angstrom": 90.0,
+      "temperature_K": 300.0,
+      "passed": false,
+      "xx_relative_change": 0.004211442130282911,
+      "yy_relative_change": 0.01175472497676345,
+      "zz_relative_change": 0.07287154686847394,
+      "trace_over_3_relative_change": 0.02760132981537376,
+      "denominator": "absolute value at current mesh"
+    },
+    {
+      "from_angstrom": 75.0,
+      "to_angstrom": 90.0,
+      "temperature_K": 600.0,
+      "passed": false,
+      "xx_relative_change": 0.004121780887944431,
+      "yy_relative_change": 0.011800551352370648,
+      "zz_relative_change": 0.0685968768627239,
+      "trace_over_3_relative_change": 0.026576366686371335,
+      "denominator": "absolute value at current mesh"
+    },
+    {
+      "from_angstrom": 75.0,
+      "to_angstrom": 90.0,
+      "temperature_K": 900.0,
+      "passed": false,
+      "xx_relative_change": 0.004104177054882074,
+      "yy_relative_change": 0.011809495701391347,
+      "zz_relative_change": 0.06776785294388117,
+      "trace_over_3_relative_change": 0.026375045106498744,
+      "denominator": "absolute value at current mesh"
+    },
+    {
+      "from_angstrom": 90.0,
+      "to_angstrom": 105.0,
+      "temperature_K": 300.0,
+      "passed": false,
+      "xx_relative_change": 0.02560117004391346,
+      "yy_relative_change": 0.002612267306785465,
+      "zz_relative_change": 0.10191952800960573,
+      "trace_over_3_relative_change": 0.04266318114710051,
+      "denominator": "absolute value at current mesh"
+    },
+    {
+      "from_angstrom": 90.0,
+      "to_angstrom": 105.0,
+      "temperature_K": 600.0,
+      "passed": false,
+      "xx_relative_change": 0.02501490187098683,
+      "yy_relative_change": 0.0020472885213172684,
+      "zz_relative_change": 0.09692054640232899,
+      "trace_over_3_relative_change": 0.04083070791730905,
+      "denominator": "absolute value at current mesh"
+    },
+    {
+      "from_angstrom": 90.0,
+      "to_angstrom": 105.0,
+      "temperature_K": 900.0,
+      "passed": false,
+      "xx_relative_change": 0.024897240864018788,
+      "yy_relative_change": 0.0019374425633045555,
+      "zz_relative_change": 0.09594297669979972,
+      "trace_over_3_relative_change": 0.040469400531674714,
+      "denominator": "absolute value at current mesh"
+    }
+  ],
+  "scientific_boundary": {
+    "scheduler_completion": "22312416 completed successfully; 22312417 did not.",
+    "numerical_artifact_existence": "FC2, FC3, and five kappa HDF5 files are present; the saved read-only audit also directly verifies their listed structural/numerical integrity and atom binding.",
+    "scientific_acceptance": "not established; the 105-A kappa result is rejected diagnostic only.",
+    "not_inferred": [
+      "accepted kappa values",
+      "full phonon stability",
+      "q-mesh convergence",
+      "force-constant scientific validity",
+      "converged intrinsic lattice thermal conductivity"
+    ],
+    "campaign_status": "first_pass_unconverged",
+    "qmesh_convergence": "Fails at every 45->60, 60->75, 75->90, and 90->105 A ladder transition in the saved HDF5 audit; it is not an accepted convergence result."
+  },
+  "audit_metadata": {
+    "collected_utc": "2026-09-20T08:30:09.963989+00:00",
+    "fc2_sha256": "08def0aaf5d249351937a65064fd087ab1b6cbe85351c395e999a4d41f8d3867",
+    "fc3_sha256": "b35e40fd169b084d6a4de7c6eb178dbd0ec359428e0ad64b27180df48ef063d2",
+    "audit_sha256": "6cfc6d495f4cede0b53f41164928a24f7c9d259b41b3a260dfe9a12dd4494caf",
+    "summary_sha256": "10b5c28bcacc5e4bef2cc603672fee6b5e2c20ab39b54ff86d26774ef972d0a2",
+    "csv_sha256": "1a4abce25e0c2f41c66e9ebdb266b4b10814dd1a2169b33c6c7a7f56292955e9"
+  }
+}

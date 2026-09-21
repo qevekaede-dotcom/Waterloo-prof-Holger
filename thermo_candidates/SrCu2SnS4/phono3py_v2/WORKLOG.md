@@ -103,3 +103,17 @@
   PWSCF stdout even after a complete force block and `JOB DONE`. Focused parser,
   archived-evidence, and v2 tests passed. No historical script or raw result was
   changed, and no QE, phono3py postprocessing, SSH, or Slurm action was run.
+
+## 2026-09-21 — execution-provenance limitation correction
+
+- Independent review identified that binding the pristine input hash and
+  auditing caller-supplied stdout, stderr, and exit-code files do not prove the
+  logs were produced by executing that exact input. The existing `healthy`
+  field remains limited to terminal parser status for the supplied evidence.
+- Pristine health and preflight reports now state
+  `execution_provenance_verified: false` and carry an explicit plain-language
+  audit scope. Preflight remains preparation-only and does not establish
+  execution provenance or scientific acceptance.
+- A future trusted-runner receipt protocol is documented in the sandbox
+  tooling report as a plan only. No execution wrapper, submission path, QE run,
+  postprocessing, SSH session, or Slurm action was implemented or performed.

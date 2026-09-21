@@ -25,6 +25,7 @@
    [v2 配置](../../thermo_candidates/SrCu2SnS4/phono3py_v2/campaign.json)、
    [v2 说明](../../thermo_candidates/SrCu2SnS4/phono3py_v2/README.md)。
    正确换算 4 Å ≈ 7.5589045 bohr 是输入修正，不是计算结果正确的证据。
+   v2 目前只分别检查输入字节与外部提供的输出健康；还没有受信任执行记录证明输出确由该输入产生。真实 pristine/pilot 前须补齐执行来源记录，不能把本地 preflight 当作运行来源验收。
 3. **SrZrS3：**
    [力和声子审计 JSON](../../thermo_candidates/SrZrS3/phono3py/evidence/first_pass_unconverged/force_audit_summary.json)、
    [原文件哈希清单](../../thermo_candidates/SrZrS3/phono3py/evidence/first_pass_unconverged/remote_artifact_sha256.txt)、
