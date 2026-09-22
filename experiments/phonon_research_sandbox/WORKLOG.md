@@ -136,3 +136,29 @@ Source hashes and links were checked, the prior WORKLOG byte prefix is intact,
 and all original worktrees remain clean. No material/raw/frozen source changed.
 Saved current-state navigation and a concise combined handoff. No accepted κL,
 real QE provenance, force-noise value or resource-saving estimate was invented.
+
+## 2026-09-22 — Transfer to Claude and main publication preparation
+
+User requested a complete Claude handoff and push to main. Created top-level
+CLAUDE_HANDOFF with both completed local rounds, checkpoint history, scientific
+limits, explicit future task cards and portable recovery commands. Added a
+55-artifact SHA-256 inventory (selected existing outputs/source/review files,
+not a new scientific gate). The structure-polymorph investigation, matched
+electronic comparison and focused literature matrix remain proposed and unstarted;
+only their earlier source reconnaissance is recorded.
+
+Updated current entry points and the sandbox handoff to distinguish the original
+no-main development rounds from this newly authorized main publication. Fetched
+main is an ancestor, 58 commits behind the research checkpoint; publication will
+retain the earlier research history without force pushing. A fresh Sol reviewer
+was assigned only the new handoff's accuracy and recoverability; no unchanged
+435-test suite or heavy calculation was repeated. First checks matched 55 hashes,
+checked 148 relative links (review pending), preserved both WORKLOG prefixes and
+confirmed all three other worktrees were clean. No raw/frozen source was edited.
+
+Final handoff closure: fresh independent Sol returned SHIP for documentation
+scope with zero actionable findings. All 55 artifact hashes also match the pinned
+scientific checkpoint; 148 local links resolve after adding the review. Both
+historical log prefixes are preserved. The new package has no matches in the
+limited common-credential/email pattern check. No unchanged scientific test suite
+was repeated. Exact publication identity is recoverable from the main Git log.

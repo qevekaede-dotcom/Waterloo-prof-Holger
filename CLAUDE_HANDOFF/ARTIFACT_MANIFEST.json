@@ -1,0 +1,339 @@
+{
+  "schema_version": 1,
+  "created_date": "2026-09-22",
+  "scientific_checkpoint": "712602c9fb1b6d8414b9e5cc34256a3978d6f275",
+  "path_base": "repository root",
+  "scope": "Selected existing core artifacts; not an exhaustive repository inventory or scientific acceptance. Handoff documents and append-only logs are intentionally excluded to avoid self-reference.",
+  "artifacts": [
+    {
+      "path": "experiments/phonon_research_sandbox/CURRENT_STATE.md",
+      "role": "current scientific evidence summary",
+      "bytes": 5805,
+      "sha256": "4fcc08e1af5864cb163a23821776ba16fa1e1775fc4983b99b96d367d93d416e"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/LEARNING_GUIDE.md",
+      "role": "learning and original-source index",
+      "bytes": 6194,
+      "sha256": "7c3e99a644ed08611d3dc61b1878311f25ee10962b4ac37f23226e02fa201259"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/VALIDATION.md",
+      "role": "historical validation or independent review",
+      "bytes": 4792,
+      "sha256": "883b7597fae04ff0280bb8062d59cee334ac6e29cec672eb923247d34576528f"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/analysis/build_dashboard_data.py",
+      "role": "derived unconverged tensor diagnostics",
+      "bytes": 8862,
+      "sha256": "64a7b72332634281825520179cdc57f294a014c788e815da541ec80acdf4995a"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/analysis/rb_component_diagnostics/README.md",
+      "role": "derived unconverged tensor diagnostics",
+      "bytes": 1943,
+      "sha256": "d83179b2c8900a1434a0cf6e9f3c3f5f779e5749860f1ab61178e540770fc2a0"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/analysis/rb_component_diagnostics/build_diagnostics.py",
+      "role": "derived unconverged tensor diagnostics",
+      "bytes": 7444,
+      "sha256": "fc6b1fe0f545a6741d44c7cc38431cad925406d7d3816aad46c5a88e3d5323de"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/analysis/rb_component_diagnostics/component_changes.csv",
+      "role": "derived unconverged tensor diagnostics",
+      "bytes": 6516,
+      "sha256": "4dd46fbd627ce262cae935c394e5358a42e246de2ae5c34a3d3158a5562f19a4"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/analysis/rb_component_diagnostics/rb_component_changes.png",
+      "role": "derived unconverged tensor diagnostics",
+      "bytes": 222040,
+      "sha256": "cebbd0dc710d15ea7dfe0af5fcd1c791702b3abcd0422d7b6f49c22188842c7d"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/analysis/rb_component_diagnostics/summary.json",
+      "role": "derived unconverged tensor diagnostics",
+      "bytes": 485,
+      "sha256": "5bd4d91859b26bce4bbdf0d31d7d267c24c32e4812826fe53d7206bb760d8cf6"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/analysis/rb_reuse/EVIDENCE_REPORT.md",
+      "role": "saved-evidence inventory, not current remote-file verification",
+      "bytes": 2596,
+      "sha256": "f22a48f30a3523556d9ce16d4d03d637a70f5d3a04753b2bf129615ddcde3a59"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/analysis/rb_reuse/README.md",
+      "role": "saved-evidence inventory, not current remote-file verification",
+      "bytes": 3388,
+      "sha256": "19358f37dca94c98e57ffbcb0244f0732021fbf75765182dc31b74ae07dd8191"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/analysis/rb_reuse/build_inventory.py",
+      "role": "saved-evidence inventory, not current remote-file verification",
+      "bytes": 13394,
+      "sha256": "0162649139b7b944920322ec06cfdbab85f9091f23bf983eaf262d3cc93462eb"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/analysis/rb_reuse/rb_reuse_decisions.csv",
+      "role": "saved-evidence inventory, not current remote-file verification",
+      "bytes": 1485,
+      "sha256": "d8ed750079ec1f96a6aa98ca9cd821dd726807163be4a73397564fe27cb29427"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/analysis/rb_reuse/rb_reuse_inventory.json",
+      "role": "saved-evidence inventory, not current remote-file verification",
+      "bytes": 12817,
+      "sha256": "ab694864537bf1ab716956d2115d19b9d04a9b1c63bca6bb364b78a52442f6ab"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/analysis/rb_reuse/test_build_inventory.py",
+      "role": "saved-evidence inventory, not current remote-file verification",
+      "bytes": 1307,
+      "sha256": "c3ec3e2cb79505dd889cbebc91afad5160f31908c002774bade6f4c7a49f1824"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/dashboard/index.html",
+      "role": "offline presentation of saved evidence",
+      "bytes": 28863,
+      "sha256": "ce3b4073ef3a578d149fbde6b72ec94955ce7c2537512f9256545328ec4adbc2"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/dashboard/rb_qmesh_diagnostic_300K.svg",
+      "role": "offline presentation of saved evidence",
+      "bytes": 3921,
+      "sha256": "dedcb3f2a0b9876dcdf889dd3c1b88db8e65fb0a3de223e3c7717bf8f07cf947"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/plans/Rb2Cu2SnS4.md",
+      "role": "material research proposal, not execution",
+      "bytes": 10731,
+      "sha256": "b4e6de1d647c0984a4bc5723fbf8c3686834b87f2c708b8b5175e8f221c7aacf"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/plans/SrCu2SnS4.md",
+      "role": "material research proposal, not execution",
+      "bytes": 10988,
+      "sha256": "73a7ffc19b1a592138452de13cc6798ab872de97c735e37a7582c1bd10e26098"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/plans/SrZrS3.md",
+      "role": "material research proposal, not execution",
+      "bytes": 9158,
+      "sha256": "c6f265b1fec2035fab0d597a369c9cb09e1e4fdf1b90c2346456a8eaff27028e"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/presentation/README.md",
+      "role": "presentation build source",
+      "bytes": 2320,
+      "sha256": "8d2d6ec90479b16937e26f3497b6305ffeaaa1978acb20f7ebc29bc1a2796527"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/presentation/SPEAKER_SCRIPT_EN_ZH.md",
+      "role": "reporting artifact",
+      "bytes": 11211,
+      "sha256": "525fbd513d3d48d70cea09d0ae99ef6b21ad48b056ade54dc0b8c8a53e60807d"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/presentation/output/Rb_Qmesh_Diagnostic_Preview.png",
+      "role": "reporting artifact",
+      "bytes": 90446,
+      "sha256": "21f51cd90837f0784487615c33f2098d2b51eec9c348563f13486620c051ade5"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/presentation/output/Waterloo_Phonon_Research_Update.pptx",
+      "role": "reporting artifact",
+      "bytes": 270431,
+      "sha256": "bedd5b08100d2fba6dcf1e790895f4aa92f7fc46626574de6e9c87cf6e4a5526"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/presentation/reproducibility/build_deck.mjs",
+      "role": "presentation build source",
+      "bytes": 23595,
+      "sha256": "01bf5f5a27e6b9b9ea1b623fcb60c63ec9684268092387c572f19b5e2d37d6b4"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/presentation/reproducibility/deck_data.json",
+      "role": "presentation build source",
+      "bytes": 18271,
+      "sha256": "d2e894c9dc2fb7b48d55bff27f2840bb93d5db012f1413670161e2b7e6e05b87"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/presentation/reproducibility/extract_deck_data.py",
+      "role": "presentation build source",
+      "bytes": 2167,
+      "sha256": "e474d523a9ea582a85e29d45c2ddf2469088b284f9aab6396a748247424cf44a"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/presentation/reproducibility/slide_content.md",
+      "role": "presentation build source",
+      "bytes": 7336,
+      "sha256": "57ce8d3cdb7f0eab5a93939293e5c2d8c3d256160a32559d71a6020826d4f737"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/references/targeted_sources.md",
+      "role": "learning and original-source index",
+      "bytes": 7224,
+      "sha256": "0004d7308ed46b4fb2c816a13c23e4e941cb0a64b4a8c3895359d041b03e1267"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/results/dashboard_data.json",
+      "role": "offline presentation of saved evidence",
+      "bytes": 18528,
+      "sha256": "77407506fbdc1ba967289c815b0ba5280ce14677033987fc7fa3563506debe0b"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/results/rb_qmesh_ladder_all_tensors.csv",
+      "role": "offline presentation of saved evidence",
+      "bytes": 12078,
+      "sha256": "6fbd91be506272b8f3eaea87ae6f821374022471cd91bc3182647a4cc6af1f63"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/review/INDEPENDENT_SOL_REVIEW.md",
+      "role": "historical validation or independent review",
+      "bytes": 8766,
+      "sha256": "3fee7494898e9ec78ed664ac3894377f7dcb756f89a796f1059cd21255e79fa3"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/review/ROUND2_SOL_REVIEW.md",
+      "role": "historical validation or independent review",
+      "bytes": 5835,
+      "sha256": "7b2ca06fa47fb3760d2cdd790586a03b6ba16845d34f7d820fe7ab88c915f87a"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/round2/REPORT_QA_EN_ZH.md",
+      "role": "reporting artifact",
+      "bytes": 10545,
+      "sha256": "e0166fd6f71197f36bfbea064285d8c09523dcf8377dfd8b46a765d967a09e0f"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/round2/VALIDATION.md",
+      "role": "historical validation or independent review",
+      "bytes": 5046,
+      "sha256": "fcd5a5b2587267ae054045bc399ff3fcff922befed13da338d3b9fcd18329ae2"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/round2/duplicate_sources/README.md",
+      "role": "duplicate-source lead, not force equivalence",
+      "bytes": 3321,
+      "sha256": "f40d0f87230a4e1dbe16f961e6be0e2c4000afa8a26b4561894dbc6b2abb5be3"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/round2/duplicate_sources/analyze_sources.py",
+      "role": "duplicate-source lead, not force equivalence",
+      "bytes": 4323,
+      "sha256": "0ed814eee89448220aca874dbf189e8c0e1a6b3dea11f481fa0014fe1c2abad7"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/round2/duplicate_sources/recorded_source_groups.json",
+      "role": "duplicate-source lead, not force equivalence",
+      "bytes": 17937,
+      "sha256": "b0fb3c0360860db3e3be39389e9dac272ec85ec287773c88eaca7bb2030adb9f"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/tooling/execution_receipts/README.md",
+      "role": "standalone synthetic receipt prototype, not QE provenance",
+      "bytes": 6150,
+      "sha256": "4321b21807c26bee6152e54c33cd68e70dc1628e169f0bbfb927c6a43495c10b"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/tooling/execution_receipts/execution_receipt.py",
+      "role": "standalone synthetic receipt prototype, not QE provenance",
+      "bytes": 22877,
+      "sha256": "dc70d69dd3b5dc03a8f20de20b5fe30b0c78f9497c94241329e350dfe3955429"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/tooling/execution_receipts/tests/test_execution_receipt.py",
+      "role": "standalone synthetic receipt prototype, not QE provenance",
+      "bytes": 11337,
+      "sha256": "d0b9d18dcf3e8c7e60a59a3bb8131012085ac323f07722a87a42a167910aca17"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/tooling/q_commensurability/README.md",
+      "role": "exact geometry helper, not actual atomic-mode validation",
+      "bytes": 5679,
+      "sha256": "57676f3638fa9d04274763d13c7b4b44ad37bdbc0251a1a3886b67ed3ae27170"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/tooling/q_commensurability/examples/srzrs3_cases.json",
+      "role": "exact geometry helper, not actual atomic-mode validation",
+      "bytes": 17741,
+      "sha256": "ddf2c728603b4f5a4f0541f7713025b2bda1342d21e97d358df52a6d4088d87e"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/tooling/q_commensurability/q_commensurability.py",
+      "role": "exact geometry helper, not actual atomic-mode validation",
+      "bytes": 11187,
+      "sha256": "c559bc10853a246b8f1fc77e920bb499d99e5252d8891bc35b926ddf4ec7fb9e"
+    },
+    {
+      "path": "experiments/phonon_research_sandbox/tooling/q_commensurability/test_q_commensurability.py",
+      "role": "exact geometry helper, not actual atomic-mode validation",
+      "bytes": 5781,
+      "sha256": "57bb8be2bec1b5f315f571161fe2dc3806f65aa085a0e16bdbc06f11cb755508"
+    },
+    {
+      "path": "thermo_candidates/Rb2Cu2SnS4/phono3py/evidence/firstpass_20260914/production/postprocess_22312417_hdf5_readonly_audit_20260920.json",
+      "role": "saved limited HDF5 audit, not local HDF5 bytes",
+      "bytes": 25472,
+      "sha256": "6cfc6d495f4cede0b53f41164928a24f7c9d259b41b3a260dfe9a12dd4494caf"
+    },
+    {
+      "path": "thermo_candidates/SrCu2SnS4/phono3py_v2/scripts/audit_pristine_v2.py",
+      "role": "v2 supplied-log health, execution provenance false",
+      "bytes": 7489,
+      "sha256": "8d2b87ab343a2ae3ef4e63f64a499d8e8d95bc5dcd1be05f7871c8be94d282d0"
+    },
+    {
+      "path": "thermo_candidates/SrCu2SnS4/phono3py_v2/scripts/dataset_semantics.py",
+      "role": "v2 displacement semantics",
+      "bytes": 3317,
+      "sha256": "7bbeb48a58a24b5ec651b7ef95d2536bc03b07d094323f976344b073b77974b9"
+    },
+    {
+      "path": "thermo_candidates/SrCu2SnS4/phono3py_v2/scripts/preflight_v2.py",
+      "role": "v2 preparation checks, not execution release",
+      "bytes": 11705,
+      "sha256": "1657b162bdc30690215c9431716cb8027d5f51bcb5725b9818029330a5aab8ce"
+    },
+    {
+      "path": "thermo_candidates/SrCu2SnS4/phono3py_v2/scripts/prepare_v2.py",
+      "role": "v2 preparation only",
+      "bytes": 8330,
+      "sha256": "23b60d1b198e8a49b791e77db2d8a50aab6fc259cf287a14e35945641c097de1"
+    },
+    {
+      "path": "thermo_candidates/SrCu2SnS4/phono3py_v2/tests/test_v2.py",
+      "role": "v2 synthetic adversarial tests",
+      "bytes": 24871,
+      "sha256": "71848ecd015ff3af4407ddf879a3504f9192b64c1eaa520ff12048fab37b8db3"
+    },
+    {
+      "path": "thermo_candidates/SrZrS3/phono3py/evidence/first_pass_unconverged/force_audit_summary.json",
+      "role": "saved SrZr first-pass audit, not current cluster status",
+      "bytes": 3099,
+      "sha256": "ddcca39a9ce3e93f48e587e468077dce5428334a685ee3a5df9baced706b66cd"
+    },
+    {
+      "path": "thermo_candidates/scripts/phono3py_campaign/qe_output.py",
+      "role": "shared final-run force and terminal-health parser",
+      "bytes": 15536,
+      "sha256": "2203fdba39e3c963e1a98af8a61ba735de1c9c1cd29efd7ebd253a525ac807d1"
+    },
+    {
+      "path": "thermo_candidates/scripts/phono3py_campaign/tests/test_qe_output.py",
+      "role": "parser regression tests",
+      "bytes": 5346,
+      "sha256": "56b1d6bfa01d5a266021cad33a0049714acfea3c02ecb3e8db9b2b83a5311b45"
+    },
+    {
+      "path": "thermo_candidates/scripts/phono3py_campaign/tests/test_srcu_legacy_gate.py",
+      "role": "preserved real-output regression",
+      "bytes": 2350,
+      "sha256": "4a28aaeaccc2735ce4363007c1f3c2db14322007b6f68a36bb9ab8c07d7c8b85"
+    }
+  ]
+}

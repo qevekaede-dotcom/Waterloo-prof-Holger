@@ -9,6 +9,8 @@ BoltzTraP2. Read `README_START_HERE.md` before making changes.
 
 Read `HANDOFF.md` for the current verified state and pending work; archived
 handoffs and job chains are historical, not active launch instructions.
+The September 22 transfer package is `CLAUDE_HANDOFF/README.md`; it records both
+local research rounds and the user's authorization for this publication to main.
 GitHub is the shared authority across machines, but `main` may lag research
 branches: fetch/compare history and preserve dirty/ignored local files.
 

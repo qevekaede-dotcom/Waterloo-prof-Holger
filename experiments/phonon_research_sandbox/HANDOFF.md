@@ -4,6 +4,8 @@ Date: 2026-09-22. Branch: `codex/phonon-research-sandbox`.
 Worktree: `/Users/kaede/.codex/worktrees/phonon-research-sandbox`.
 Read [README](README.md), [current scientific state](CURRENT_STATE.md), then
 [round 2](round2/README.md). No current Nibi state was checked.
+For the subsequent user-authorized publication to main and cross-machine
+transfer, use [the Claude handoff](../../CLAUDE_HANDOFF/README.md).
 
 ## Saved checkpoints
 
@@ -13,8 +15,8 @@ Read [README](README.md), [current scientific state](CURRENT_STATE.md), then
 - `a2bf49d`: reviewed plans, dashboard, learning guide, English PPT and script.
 - `dfefd48`: first-round final navigation and handoff.
 - `323ccc6`: second-round all-temperature Rb diagnostics and bilingual report Q&A.
-- Closing second-round commit: use `git log -1 --oneline` and compare the remote;
-  final task reply records the exact hash. Do not amend/force-push old checkpoints.
+- `712602c`: closing second-round tools, reuse candidate and independent review.
+  Do not amend/force-push old checkpoints.
 
 ## Completed local work
 
@@ -76,5 +78,7 @@ findings. This does not release or validate a real material calculation.
   discuss the three options with Roy. No message has been sent by this round.
 
 All original raw records, sent bodies and READY_TO_ATTACH directories remain
-frozen. Worklogs are append-only. No SSH, job mutation, heavy physics solve,
-outbound email, main merge or other-worktree edit occurred.
+frozen. Worklogs are append-only. During these first two research rounds, no SSH,
+job mutation, heavy physics solve, outbound email, main merge or other-worktree
+edit occurred. The later main publication is separately authorized and recorded
+in [the integration note](../../CLAUDE_HANDOFF/INTEGRATION.md).

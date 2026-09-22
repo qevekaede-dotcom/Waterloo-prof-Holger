@@ -2,6 +2,9 @@
 
 本轮从远端 `codex/complete-three-material-phonons` 的 `cf21cce05c7107120a52ac2658f8dbe05bc0a864` 分出。分支：`codex/phonon-research-sandbox`。本轮只核对仓库保存证据，未查询 Nibi 当前状态。
 
+2026-09-22 用户另行授权将成果和交接包发布到 main。跨电脑接手请从
+[Claude 交接入口](../../CLAUDE_HANDOFF/README.md) 开始；两轮科研检查点为 `712602c`。
+
 **三种材料目前均无通过当前验收的 κL。** 已完成本地科学方案、轻量分析、工具改进、进度面板和科研汇报。待计算条目不是执行授权。
 
 ## 直接打开
@@ -33,4 +36,4 @@ Sol High 分别完成科学方案与工具修复；Terra Medium 完成面板和 
 
 第二轮新增独立运行凭据原型、精确有理数 q/超胞检查器和 Rb 复用清单，详情与本轮验证见 [round2](round2/README.md)。原型尚未接入 v2 或真实 QE/MPI；现有 v2 仍明确 `execution_provenance_verified=false`。接受真实 pristine/pilot 前仍须完成可信运行器的集成与审阅。
 
-没有提交、重跑或取消 Nibi 作业，没有本地重型 QE/FC/κL 求解，没有发送邮件，没有更改 main、其他 worktree 未提交内容、原始记录或任何 `READY_TO_ATTACH/`。
+两轮科研开发没有提交、重跑或取消 Nibi 作业，没有本地重型 QE/FC/κL 求解，没有发送邮件，没有更改 main、其他 worktree 未提交内容、原始记录或任何 `READY_TO_ATTACH/`。随后获准的 main 发布见 [交接发布记录](../../CLAUDE_HANDOFF/INTEGRATION.md)。

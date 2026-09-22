@@ -6,6 +6,7 @@ Quantum ESPRESSO, BoltzTraP2, and phono3py.
 
 | Read this | For |
 | --- | --- |
+| [Claude handoff package](CLAUDE_HANDOFF/README.md) | September 22 main publication: completed work, evidence, unstarted tasks and portable recovery |
 | [Sandbox evidence entry](experiments/phonon_research_sandbox/README.md) | Current plans, Chinese dashboard, analysis, presentation and continuation |
 | [HANDOFF.md](HANDOFF.md) | Current verified state, open issues, next research work |
 | [README_START_HERE.md](README_START_HERE.md) | Reading order for new/resumed sessions |
@@ -49,11 +50,13 @@ phonon postprocessing belong on DRAC, not this Mac.
 
 1. Run `git status --short --branch`; preserve any uncommitted work.
 2. Run `git fetch origin`; inspect remote branches and recent commits.
-   Do not assume `main` contains the latest research work.
-3. Use the explicitly agreed active research branch. For this experiment use
-   `codex/phonon-research-sandbox`, based on `codex/complete-three-material-phonons`. Use
-   `git pull --ff-only` on its clean, matching checkout; never reset local
-   work just to force a sync.
+   On September 22 the user authorized publishing the reviewed sandbox history
+   and Claude handoff to `main`; use the updated `origin/main` for this handoff.
+   Recheck branch history before later work rather than assuming it stays latest.
+3. Use `git pull --ff-only` only on a clean, matching checkout. Preserve other
+   worktrees and create a separate work branch from the verified baseline when
+   needed; never reset local work just to force a sync. The original experiment
+   branch `codex/phonon-research-sandbox` remains as a research checkpoint.
 4. Read `HANDOFF.md`; update it at milestones and append a work-log entry.
    Review and explicitly stage relevant files before committing/pushing.
 
@@ -61,9 +64,11 @@ The 2026-09-06 cleanup started from `0024114` on
 `claude/canada-computing-center-task-d165w2`, which included the other
 research branches and was then 13 commits ahead of `main`. This work was
 merged into `main` through [PR #1](https://github.com/qevekaede-dotcom/Waterloo-prof-Holger/pull/1)
-at the user's request. That September 6 baseline instruction is historical. **Do not use `main` as
-the current phonon baseline:** the active research branch and this isolated
-experiment contain later evidence.
+at the user's request. That September 6 baseline is historical. The September 22
+main update brings in the subsequent phonon research and the
+[Claude handoff](CLAUDE_HANDOFF/README.md); see its
+[integration record](CLAUDE_HANDOFF/INTEGRATION.md) for the fetched baseline,
+authorization and how to confirm the published commit.
 The temporary `codex/research-repository-cleanup` branch was deleted locally
 and on GitHub; its commits remain in `main`. Other research branches remain.
 

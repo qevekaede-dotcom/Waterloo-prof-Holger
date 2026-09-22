@@ -1,11 +1,16 @@
 # Research handoff — current state
 
-Repository evidence checked 2026-09-21. Current experiment branch:
-`codex/phonon-research-sandbox`, forked from
-`origin/codex/complete-three-material-phonons` at `cf21cce`.
-No current Nibi state was checked and no remote job action was taken.
+Handoff updated 2026-09-22. **Start at [the Claude transfer package](CLAUDE_HANDOFF/README.md).**
+The user explicitly authorized publishing the reviewed research history and this
+handoff to **main**. Fetch and compare before using an older checkout; publication
+verification is in [INTEGRATION](CLAUDE_HANDOFF/INTEGRATION.md).
 
-Local tool development continued on 2026-09-22; see [round 2](experiments/phonon_research_sandbox/round2/README.md). No new material calculation changed the scientific state below.
+The two local research rounds are checkpointed at `712602c` on
+`codex/phonon-research-sandbox`, forked from the active research tip `cf21cce`.
+The saved scientific evidence was reconciled September 21, with local tool and
+analysis development through September 22; see [round 2](experiments/phonon_research_sandbox/round2/README.md).
+No current Nibi state was checked and no remote job action was taken.
+No new material calculation changed the scientific state below.
 
 Read `CLAUDE.md`, `AGENTS.md`, and scoped rules before changes.
 Use [the current evidence entry](experiments/phonon_research_sandbox/CURRENT_STATE.md)
@@ -30,8 +35,13 @@ pending. Full three-material phonon writeup is an unsent draft. Every existing
 
 ## Next action and recovery
 
-Continue from [sandbox HANDOFF](experiments/phonon_research_sandbox/HANDOFF.md),
-which records implementation, validation, review and commit checkpoints.
+Use [next-action cards](CLAUDE_HANDOFF/NEXT_ACTIONS.md) and
+[portable reproduction instructions](CLAUDE_HANDOFF/REPRODUCE.md).
+SrZrS3 polymorph verification, matched electronic-data comparison and a focused
+literature matrix were proposed but have **not** been performed. If local research
+continues, start with the structure-identity card; this is not Roy's chosen direction.
+The [sandbox HANDOFF](experiments/phonon_research_sandbox/HANDOFF.md)
+records implementation, validation, review and commit checkpoints.
 The three material plans are proposals. No new QE, FC fitting, kappa solve or
 job submission is authorized by this handoff. Heavy work belongs on DRAC.
 

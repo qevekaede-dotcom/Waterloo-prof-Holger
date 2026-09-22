@@ -261,3 +261,36 @@ No original research record, historical log entry, sent body or attachment was
 modified. No Nibi login, job operation or heavy calculation occurred.
 Further deliverables and append-only validation are recorded in
 `experiments/phonon_research_sandbox/WORKLOG.md`.
+
+## 2026-09-22 — Claude transfer package and authorized main publication
+
+The user explicitly requested a Claude handoff and publication to GitHub main,
+superseding the earlier no-main instruction for this publication only. Fetched
+main 7e789f52da331274b8b636536098edfd07334e32 is an ancestor of the reviewed
+research checkpoint 712602c9fb1b6d8414b9e5cc34256a3978d6f275 (0/58 divergence),
+so normal fast-forward publication can retain all research history. No other
+worktree was switched, reset or edited.
+
+Added CLAUDE_HANDOFF with completed-work history, scientific limitations, concrete
+unstarted task cards, portable reproduction instructions, publication context
+and 55 selected core artifact hashes. Updated current navigation to point to
+the new main handoff rather than the previously lagging main baseline. Clearly
+separated the proposed SrZr polymorph/electronic-data/literature round from the
+two completed local rounds. No new scientific result, code fix or calculation
+was produced by this documentation task.
+
+Initial handoff checks matched all 55 hashes and checked 148 local links (only
+the two links to the pending independent review were not yet present). Existing
+WORKLOG byte prefixes remain intact; other worktrees were clean. No frozen
+attachment changed, and no changed file in the main-to-research comparison
+exceeded 10 MB. A limited common-credential-pattern scan returned no matches;
+this is not a comprehensive security audit. Independent handoff review and final
+publication verification are recorded in CLAUDE_HANDOFF/REVIEW.md and
+CLAUDE_HANDOFF/INTEGRATION.md. No SSH, job operation, heavy solve or email occurred.
+
+Final handoff closure: fresh independent Sol returned SHIP for documentation
+scope with zero actionable findings. All 55 artifact hashes also match the pinned
+scientific checkpoint; 148 local links resolve after adding the review. Both
+historical log prefixes are preserved. The new package has no matches in the
+limited common-credential/email pattern check. No unchanged scientific test suite
+was repeated. Exact publication identity is recoverable from the main Git log.

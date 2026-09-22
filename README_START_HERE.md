@@ -7,6 +7,11 @@ Before editing a material or package, read its scoped `CLAUDE.md` and the
 original evidence. Old logs and archived handoffs are history, not active
 instructions to restart completed calculations.
 
+**September 22 Claude handoff:** start with [CLAUDE_HANDOFF/README.md](CLAUDE_HANDOFF/README.md)
+for both completed local research rounds, the English PPT, evidence/tool indexes,
+and concrete next tasks. The user authorized publishing this handoff and its
+research history to `main`; fetch and compare before using an older local branch.
+
 Completely new to DFT, Quantum ESPRESSO, or BoltzTraP2? Read
 `WORKFLOW_EXPLAINED.md` first — it explains from zero background what these
 calculations are, what every parameter means, how each was chosen, and how to
